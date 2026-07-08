@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.chenzhen.mapper.mysqlMapper.MysqlMapper">
+
+	<update id="addOperInfo" parameterType="com.chenzhen.pojo.OperInfo">
+		INSERT INTO `operinfo` (`ip`,`info`,`time`) VALUES (#{ip},#{info},now())
+	</update>
+	
+	<select id="queryOperInfo" resultType="java.util.HashMap">
+		select `ip`,`info`,date_format(`time`,'%Y-%m-%d %H:%i:%s') as "time" from `operinfo` order by `id` desc limit 50
+	</select>
+	
+	<update id="addMessage" parameterType="com.chenzhen.pojo.Messages">
+		INSERT INTO `message` (`ip`,`info`,`time`) VALUES (#{ip},#{info},now())
+	</update>
+
+	<update id="delMessage" parameterType="String">
+		DELETE FROM `message` where `id` = #{msgId}
+	</update>
+	
+	<select id="queryMessage" parameterType="String" resultType="java.util.HashMap">
+		select `id`,`ip`,`info`,date_format(`time`,'%Y-%m-%d %H:%i:%s') as "time" from `message`
+		<where>
+			<if test="msgId != null and msgId != ''">
+				`id` = #{msgId}
+			</if>
+			<if test="requetIp != null and requetIp != ''">
+				and `ip` = #{requetIp}
+			</if>
+		</where>
+		order by `id` desc limit 200
+	</select>
+	
+	<select id="queryMessageCount" resultType="Integer">
+		select count(1) from `message`
+	</select>
+	
+	<select id="getUserName" resultType="String" parameterType="String">
+		select username from client where ip =#{clientIp}
+	</select>
+
+	<select id="getUserNameByStatus" resultType="String" parameterType="String">
+		select username from client where ip =#{clientIp} and status='0'
+	</select>
+
+	
+	<select id="queryClientInfo" resultType="java.util.HashMap">
+		select ip,username,status from client
+	</select>
+	
+	<select id="queryWhiteUrl" resultType="Integer" parameterType="String">
+		select count(1) from `action` where `actions`=#{url}
+	</select>
+
+
+	<update id="addSocketMessage" parameterType="com.chenzhen.pojo.SocketMessage">
+		INSERT INTO `socketMessage` (`type`,`url`,`message`,`date`,`status`,`clientIp`,`serverIp`) VALUES (#{type},#{url},#{message},#{date},'0',#{clientIp},#{serverIp})
+	</update>
+
+	<select id="querySocketRevice" resultType="String" parameterType="String">
+		select `recive` from  `socketMessage` where date=#{date}
+	</select>
+
+	<update id="updateSocketMsgStatus" parameterType="String">
+		update `socketMessage` set `status`=#{status} where `date`=#{date}
+	</update>
+
+	<select id="queryWhiteInfo" resultType="com.chenzhen.pojo.WhiteUser" parameterType="com.chenzhen.pojo.WhiteUser">
+		select ip,status,username from client
+		<where>
+			<if test="userName != null and userName != ''">
+				and username like CONCAT('%', #{userName}, '%')
+			</if>
+			<if test="ip != null and ip != ''">
+				and ip=#{ip}
+			</if>
+		</where>
+	</select>
+
+	<update id="addWhite" parameterType="com.chenzhen.pojo.WhiteUser">
+		insert into client values (#{ip},#{status},#{userName})
+	</update>
+
+	<update id="updateWhiteByUsername" parameterType="com.chenzhen.pojo.WhiteUser">
+		update client set status=#{status} where username=#{userName}
+	</update>
+
+
+	<update id="updateWhiteByIp" parameterType="com.chenzhen.pojo.WhiteUser">
+		update client set username=#{userName} where ip=#{ip}
+	</update>
+
+
+	<update id="deleteWhite" parameterType="com.chenzhen.pojo.WhiteUser">
+		delete from client where username=#{userName}
+	</update>
+
+	<insert id="addLog" parameterType="com.chenzhen.pojo.LogPojo">
+		insert into requestlog values (#{clientIp},#{url},#{data},now());
+	</insert>
+
+	<select id="queryDoc" resultType="com.chenzhen.pojo.Doc" parameterType="String">
+		select transcode,transname,project,blname from doc where transcode=#{transcode}
+    </select>
+
+	<select id="queryDocAll" resultType="com.chenzhen.pojo.Doc" parameterType="String">
+		select `transcode`,`transname`,`project`,`blname`,`type` from `doc` where `type`=#{type}
+    </select>
+
+	<insert id="addDoc" parameterType="com.chenzhen.pojo.Doc">
+		INSERT INTO doc VALUES (#{transcode},#{transname},#{project},#{blname},#{type});
+	</insert>
+
+	<insert id="addDocFile" parameterType="com.chenzhen.pojo.Doc">
+		INSERT INTO docFile VALUES (#{fileName},#{type},#{time});
+	</insert>
+
+	<select id="queryDocFile" resultType="com.chenzhen.pojo.Doc" parameterType="String">
+		select `fileName`,`type`,`time`  from `docFile` where `type`=#{type} order by time desc limit 0,1
+    </select>
+
+	<update id="updateDoc" parameterType="com.chenzhen.pojo.Doc">
+		update doc set transname=#{transname},blname=#{blname},project=#{project} where transcode=#{transcode}
+	</update>
+
+	<insert id="addDocumentFile" parameterType="com.chenzhen.pojo.DocumentFile">
+		INSERT INTO documentFile VALUES (#{fileUUID},#{clientIp},#{userName},#{fileName},#{createTime});
+	</insert>
+
+	<select id="queryDocumentFileList" resultType="com.chenzhen.pojo.DocumentFile" parameterType="com.chenzhen.pojo.DocumentFile">
+		select `fileUUID`,`clientIp`,`userName`,`fileName`,date_format(`createTime`,'%Y-%m-%d %H:%i:%s') as "createTime"  from `documentFile`
+		<where>
+			<if test="fileName != null and fileName != ''">
+				and fileName like CONCAT('%', #{fileName}, '%')
+			</if>
+			<if test="clientIp != null and clientIp != ''">
+				and clientIp=#{clientIp}
+			</if>
+		</where>
+		order by `createTime` desc
+    </select>
+
+	<select id="queryDocumentFile" resultType="com.chenzhen.pojo.DocumentFile" parameterType="String">
+		select `fileUUID`,`clientIp`,`userName`,`fileName`,date_format(`createTime`,'%Y-%m-%d %H:%i:%s') as "createTime"  from `documentFile`
+		where `fileUUID`=#{fileUUID}
+	</select>
+
+	<update id="deleteDocumentFile" parameterType="String">
+		delete from `documentFile` where `fileUUID` = #{fileUUID}
+	</update>
+
+</mapper>

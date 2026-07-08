@@ -1,0 +1,168 @@
+server:
+  port: 8094
+  servlet:
+    context-path: /tbpApply
+
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 180000
+        readTimeout: 180000
+
+spring:
+  application:
+    name: tbpApply
+  cloud:
+    nacos:
+      config:
+        server-addr: ${spring.cloud.nacos.discovery.server-addr}
+        file-extension: properties
+        namespace: public
+  datasource: # 数据源的相关配置
+    mysql:
+      type: com.zaxxer.hikari.HikariDataSource          # 数据源类型：HikariCP
+      driver-class-name: com.mysql.cj.jdbc.Driver          # mysql驱动
+      jdbc-url: ${mysql.url}
+      username: ${mysql.username}
+      password: ${mysql.password}
+      hikari:
+        connection-timeout: 30000       # 等待连接池分配连接的最大时长（毫秒），超过这个时长还没可用的连接则发生SQLException， 默认:30秒
+        minimum-idle: 5                 # 最小连接数
+        maximum-pool-size: 500           # 最大连接数
+        auto-commit: true               # 自动提交
+        idle-timeout: 600000            # 连接超时的最大时长（毫秒），超时则被释放（retired），默认:10分钟
+        pool-name: DateSourceHikariCP     # 连接池名字
+        max-lifetime: 1800000           # 连接的生命时长（毫秒），超时而且没被使用则被释放（retired），默认:30分钟 1800000ms
+        connection-test-query: SELECT 1
+    first:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: ${first.driver}
+      jdbc-url: ${first.url}
+      username: ${first.username}
+      password: ${first.password}
+      hikari:
+        connection-timeout: 30000
+        minimum-idle: 5
+        maximum-pool-size: 500
+        auto-commit: true
+        idle-timeout: 600000
+        pool-name: DateSourceHikariCP
+        max-lifetime: 1800000
+        connection-test-query: SELECT 1
+    second:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: ${second.driver}
+      jdbc-url: ${second.url}
+      username: ${second.username}
+      password: ${second.password}
+      hikari:
+        connection-timeout: 30000
+        minimum-idle: 5
+        maximum-pool-size: 500
+        auto-commit: true
+        idle-timeout: 600000
+        pool-name: DateSourceHikariCP
+        max-lifetime: 1800000
+        connection-test-query: SELECT 1
+    three:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: ${three.driver}
+      jdbc-url: ${three.url}
+      username: ${three.username}
+      password: ${three.password}
+      hikari:
+        connection-timeout: 30000
+        minimum-idle: 5
+        maximum-pool-size: 500
+        auto-commit: true
+        idle-timeout: 600000
+        pool-name: DateSourceHikariCP
+        max-lifetime: 1800000
+        connection-test-query: SELECT 1
+    four:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: ${four.driver}
+      jdbc-url: ${four.url}
+      username: ${four.username}
+      password: ${four.password}
+      hikari:
+        connection-timeout: 30000
+        minimum-idle: 5
+        maximum-pool-size: 500
+        auto-commit: true
+        idle-timeout: 600000
+        pool-name: DateSourceHikariCP
+        max-lifetime: 1800000
+        connection-test-query: SELECT 1
+    sitcbs:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: ${sitcbs.driver}
+      jdbc-url: ${sitcbs.url}
+      username: ${sitcbs.username}
+      password: ${sitcbs.password}
+      hikari:
+        connection-timeout: 30000
+        minimum-idle: 5
+        maximum-pool-size: 500
+        auto-commit: true
+        idle-timeout: 600000
+        pool-name: DateSourceHikariCP
+        max-lifetime: 1800000
+        connection-test-query: SELECT 1
+    sitats:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: ${sitats.driver}
+      jdbc-url: ${sitats.url}
+      username: ${sitats.username}
+      password: ${sitats.password}
+      hikari:
+        connection-timeout: 30000
+        minimum-idle: 5
+        maximum-pool-size: 500
+        auto-commit: true
+        idle-timeout: 600000
+        pool-name: DateSourceHikariCP
+        max-lifetime: 1800000
+        connection-test-query: SELECT 1
+    sit2cbs:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: ${sit2cbs.driver}
+      jdbc-url: ${sit2cbs.url}
+      username: ${sit2cbs.username}
+      password: ${sit2cbs.password}
+      hikari:
+        connection-timeout: 30000
+        minimum-idle: 5
+        maximum-pool-size: 500
+        auto-commit: true
+        idle-timeout: 600000
+        pool-name: DateSourceHikariCP
+        max-lifetime: 1800000
+        connection-test-query: SELECT 1
+    sit2ats:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: ${sit2ats.driver}
+      jdbc-url: ${sit2ats.url}
+      username: ${sit2ats.username}
+      password: ${sit2ats.password}
+      hikari:
+        connection-timeout: 30000
+        minimum-idle: 5
+        maximum-pool-size: 500
+        auto-commit: true
+        idle-timeout: 600000
+        pool-name: DateSourceHikariCP
+        max-lifetime: 1800000
+        connection-test-query: SELECT 1
+
+mybatis:
+  firstMapper: classpath:mapper/firstMapper/*.xml
+  secondMapper: classpath:mapper/secondMapper/*.xml
+  threeMapper: classpath:mapper/threeMapper/*.xml
+  fourMapper: classpath:mapper/fourMapper/*.xml
+  sitcbsMapper: classpath:mapper/sitcbsMapper/*.xml
+  sitatsMapper: classpath:mapper/sitatsMapper/*.xml
+  sit2cbsMapper: classpath:mapper/sit2cbsMapper/*.xml
+  sit2atsMapper: classpath:mapper/sit2atsMapper/*.xml
+  mysqlMapper: classpath:mapper/mysqlMapper/*.xml

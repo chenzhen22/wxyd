@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.chenzhen.mapper.BatchMapper">
+
+    <resultMap id="msgBean" type="com.chenzhen.pojo.Message">
+        <id column="date" property="date"/>
+        <result column="type" property="type"/>
+        <result column="url" property="url"/>
+        <result column="message" property="message"/>
+        <result column="recive" property="recive"/>
+        <result column="status" property="status"/>
+        <result column="serverIp" property="serverIp"/>
+    </resultMap>
+
+    <update id="updateSocketMessage" parameterType="com.chenzhen.pojo.Message">
+        update `socketMessage` set `status`=#{status}, `recive`=#{recive} where `date`=#{date}
+    </update>
+
+    <select id="queryMessageList" resultMap="msgBean" >
+        select * from  `socketMessage` where `status`='0'
+    </select>
+
+    <update id="deleteSocketMessage">
+        delete  from socketMessage where date(substr(`date`,1,8)) &lt; date_sub(curdate(),interval 1 day)
+    </update>
+
+    <update id="deleteRequestlog">
+        delete from requestlog where date(`now`) &lt; date_sub(curdate(),interval 6 day)
+    </update>
+
+</mapper>

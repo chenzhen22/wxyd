@@ -1,0 +1,21 @@
+#数据库链接地址
+jdbc.url=jdbc:oracle:thin:@10.2.87.15:1521/sit1osbsvc
+#数据库用户名
+#jdbc.username=cbsprd
+jdbc.username=atsprd
+#数据库用户密码
+#jdbc.password=cbsprd_test
+jdbc.password=atsprd_test
+#数据库驱动
+jdbc.driverClassName=oracle.jdbc.driver.OracleDriver
+#系统名称
+sys.ch.name=TBP
+#系统英文缩写
+sys.en.name=TBP
+#系统模块
+sys.model=TBP
+#只生成以配置表名开头的表，如配置 F_ 则只生成以 F_ 开头的表
+in.tab.name=ATS_CPR
+#in.tab.name=CPR
+#不生成以配置表名开头的表，如配置 O_ 则不生成以 O_ 开头的表
+out.tab.name=

@@ -2,6 +2,9 @@ package com.chenzhen.config;
 
 import com.alibaba.fastjson.JSONObject;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.io.support.ResourcePatternResolver;
 
 import java.io.*;
 import java.net.Socket;
@@ -12,12 +15,8 @@ import java.util.Set;
 public class SystemConfig {
 
     public static void setProperties() {
-
-        FileInputStream is = null;
         try {
-            Properties properties = new Properties();
-            is = new FileInputStream(new File("/apps/data/wxyd/env.properties"));
-            properties.load(is);
+            Properties properties = getEnvProperties();
             Set<String> set = properties.stringPropertyNames();
             set.forEach((s) -> {
                 if (!"servers".equals(s)) {
@@ -28,14 +27,6 @@ public class SystemConfig {
             run(properties, servers);
         } catch (Exception e) {
             log.info(e.getMessage());
-        } finally {
-            try {
-                if (is != null) {
-                    is.close();
-                }
-            } catch (IOException e) {
-                log.info(e.getMessage());
-            }
         }
     }
 
@@ -66,9 +57,8 @@ public class SystemConfig {
                 });
                 writer.write(jsonObject.toJSONString());
                 writer.flush();
-                Thread.sleep(5000);
+                Thread.sleep(3000);
             } catch (Exception e) {
-                log.info(e.getMessage());
             } finally {
                 try {
                     if (writer != null) {
@@ -81,10 +71,35 @@ public class SystemConfig {
                         socket.close();
                     }
                 } catch (IOException e) {
-                    log.info(e.getMessage());
                 }
             }
 
         }
+    }
+
+    public static Properties getEnvProperties() {
+        Properties properties = new Properties();
+        InputStream is = null;
+        try {
+            ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+            Resource resource = resolver.getResources("env.properties")[0];
+            properties.load(resource.getInputStream());
+        } catch (Exception e) {
+            try {
+                is = SystemConfig.class.getClassLoader().getResourceAsStream("env.properties");
+                properties.load(is);
+            } catch (Exception e1) {
+                System.exit(1);
+            } finally {
+                try {
+                    if (is != null) {
+                        is.close();
+                    }
+                } catch (IOException e1) {
+                    log.info(e1.getMessage());
+                }
+            }
+        }
+            return properties;
     }
 }

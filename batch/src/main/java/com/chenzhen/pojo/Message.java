@@ -13,8 +13,9 @@ public class Message {
      private String date;
      private String clientIp;
      private String serverIp;
+     private String handleIp;
 
-     public Message(String type, String url, String message, String recive, String status, String date, String clientIp, String serverIp) {
+     public Message(String type, String url, String message, String recive, String status, String date, String clientIp, String serverIp, String handleIp) {
           this.type = type;
           this.url = url;
           this.message = message;
@@ -23,5 +24,6 @@ public class Message {
           this.date = date;
           this.clientIp = clientIp;
           this.serverIp = serverIp;
+          this.handleIp = handleIp;
      }
 }

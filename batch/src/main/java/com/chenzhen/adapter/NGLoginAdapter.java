@@ -23,7 +23,7 @@ public class NGLoginAdapter implements SocketMessageAdapter {
             SocketUtil socket = new SocketUtil(urls[0], Integer.parseInt(urls[1]), "GBK");
             String results = (String) socket.sendAndReceiveHttps(message.getMessage());
             if(StringUtils.hasText(results)) {
-                Message msg = new Message(message.getType(),message.getUrl(),message.getMessage(),results,"1",message.getDate(),"","");
+                Message msg = new Message(message.getType(),message.getUrl(),message.getMessage(),results,"1",message.getDate(),"","","");
                 batchMapper.updateSocketMessage(msg);
             }
         } catch (Exception e) {

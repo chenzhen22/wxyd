@@ -41,7 +41,7 @@ public class StartAdapter implements SocketMessageAdapter{
             sftpChannel.connect(60000);
             SSHUtil.upload(in, fileName, sftpChannel, filePath);
             sftpSession.disconnect();
-            Message msg = new Message(message.getType(),message.getUrl(),message.getMessage(),filePath+"/"+fileName,"1",message.getDate(), "", "");
+            Message msg = new Message(message.getType(),message.getUrl(),message.getMessage(),filePath+"/"+fileName,"1",message.getDate(), "", "","");
             batchMapper.updateSocketMessage(msg);
         } catch (Exception e) {
             log.info("handleMessage fail reason:", e);

@@ -11,7 +11,6 @@
 
 
     <modules>
-        <module>client</module>
         <module>common</module>
         <module>tbpApply</module>
         <module>batch</module>

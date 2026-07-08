@@ -38,27 +38,27 @@ public class UkeyController implements CommController{
 
     @ResponseBody
     @RequestMapping("udOper")
-    public Result udOper(@RequestBody Result result, HttpServletRequest request) {
+    public Result udOper(@RequestBody Result result) {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String udStatue = (String) map.get("udStatue");
         String udhost = (String) map.get("udhost");
-        return ukeyService.udOper(request, udStatue, udhost);
+        return ukeyService.udOper(udStatue, udhost);
     }
 
     @ResponseBody
     @RequestMapping("unBindUkey")
-    public Result unBindUkey(@RequestBody Result result, HttpServletRequest request) throws Exception {
+    public Result unBindUkey(@RequestBody Result result) throws Exception {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String zsNumber = (String) map.get("zsNumber");
-        return ukeyService.unBindUkey(zsNumber, request);
+        return ukeyService.unBindUkey(zsNumber);
     }
 
     @ResponseBody
     @RequestMapping("cfcaInfoQry")
-    public Result cfcaInfoQry(@RequestBody Result result, HttpServletRequest request) throws Exception {
+    public Result cfcaInfoQry(@RequestBody Result result) throws Exception {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String zsNumber = (String) map.get("zsNumber");
-        return ukeyService.cfcaInfoQry(zsNumber, request);
+        return ukeyService.cfcaInfoQry(zsNumber);
     }
 }
 

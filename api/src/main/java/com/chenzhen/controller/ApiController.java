@@ -6,8 +6,8 @@ import com.chenzhen.constant.ErrorEnum;
 import com.chenzhen.pojo.Doc;
 import com.chenzhen.pojo.Result;
 import com.chenzhen.service.ApiService;
+import com.chenzhen.service.MsgService;
 import com.chenzhen.util.CommUtils;
-import feign.Param;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -26,21 +26,22 @@ public class ApiController implements CommController{
 
     @ResponseBody
     @RequestMapping("tbphx.do")
-    public Object tbphx(@Param("transData") String transData, HttpServletRequest request) throws Exception {
+    public Object tbphx(@RequestParam("transData") String transData, HttpServletRequest request) throws Exception {
         return apiService.tbphx(transData, request);
     }
 
     @ResponseBody
     @RequestMapping("docQryAll")
-    public void docQryAll(@Param("type") String type, HttpServletResponse response) throws Exception {
-        String path = apiService.docQryAll(type);
+    public void docQryAll(@RequestParam("type") String type, HttpServletResponse response) throws Exception {
+        String filename = apiService.docQryAll(type);
+        String path = "./doc/" + filename;
         downExcel(path, response);
 
     }
 
     @ResponseBody
     @RequestMapping("docQry")
-    public void docQry(@Param("docname") String docname, HttpServletResponse response) throws Exception {
+    public void docQry(@RequestParam("docname") String docname, HttpServletResponse response) throws Exception {
         String path = apiService.docQry(docname);
         downExcel(path, response);
     }
@@ -49,8 +50,8 @@ public class ApiController implements CommController{
     @RequestMapping("uploadDoc")
     public void uploadDoc(HttpServletRequest request, HttpServletResponse response, @RequestParam("fileName") MultipartFile file) throws IOException {
         String client = CommUtils.getClientIp(request);
-        String uploadDocIP = ProperConfig.getMapperValue("uploadDocIP");
-        String[] uploadDocIPs = uploadDocIP.split(",");
+        String uploadDocIP = MsgService.getParamValue("uploadDocIP");
+        String[] uploadDocIPs = uploadDocIP.split(",", -1);
         boolean flag = false;
         for(String ip : uploadDocIPs) {
             if(client.equals(ip)) {
@@ -75,7 +76,7 @@ public class ApiController implements CommController{
         String fileName = file.getOriginalFilename();
         int blindex = blName.indexOf(".");
         String blpath = blName.substring(0, blindex);
-        File filepath = new File("/apps/data/wxyd/doc/bl/" + project + "/" + blpath);
+        File filepath = new File("./doc/bl/" + project + "/" + blpath);
         if (!filepath.exists()) {
             filepath.mkdirs();
         }

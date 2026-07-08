@@ -3,6 +3,13 @@ server:
   servlet:
     context-path: /batch
 
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 180000
+        readTimeout: 180000
+
 spring:
   application:
     name: batch

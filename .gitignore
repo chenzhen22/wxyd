@@ -6,3 +6,7 @@
 .classpath
 .project
 **/.settings/
+**/wxyd/
+*.log
+/msg/
+/docfile/

@@ -1,21 +1,21 @@
 package com.chenzhen.config;
 
+import cn.hutool.core.stream.StreamUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.chenzhen.constant.ErrorEnum;
 import com.chenzhen.pojo.LogPojo;
 import com.chenzhen.pojo.Result;
+import com.chenzhen.request.RepeatReadRequestWrapper;
 import com.chenzhen.service.ClientInfo;
 import com.chenzhen.util.CommUtils;
-import com.chenzhen.util.LogUtil;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
+import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.format.FormatterRegistry;
 import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.util.StreamUtils;
 import org.springframework.validation.MessageCodesResolver;
 import org.springframework.validation.Validator;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
@@ -27,6 +27,7 @@ import org.springframework.web.servlet.config.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -60,6 +61,13 @@ public class InterceptorConfig implements WebMvcConfigurer {
             public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object arg2) {
                 try {
                     String clientIp = CommUtils.getClientIp(request);
+                    try {
+                        RepeatReadRequestWrapper wrapper = (RepeatReadRequestWrapper) request;
+                        String reqStr = wrapper.getBody();
+                        JSONObject jsonObject = JSON.parseObject(reqStr);
+                        clientIp = jsonObject.getString("clientIp");
+                    } catch (Exception e) {}
+
                     String url = request.getRequestURI();
                     if (url.endsWith("html") || url.endsWith("css") || url.endsWith("js") || url.endsWith("jpg") || url.endsWith("png") || url.endsWith("error")) {
                         return true;

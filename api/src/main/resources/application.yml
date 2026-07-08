@@ -1,0 +1,18 @@
+server:
+  port: 8090
+  servlet:
+    context-path: /spbt
+
+spring:
+  application:
+    name: api
+  servlet:
+    multipart:
+      max-file-size: 2000MB
+      max-request-size: 2000MB
+      enabled: true
+
+ifp:
+  session:
+    persistent-type: REDIS
+    prefix: ubomp-web-redisson

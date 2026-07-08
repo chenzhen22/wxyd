@@ -22,24 +22,24 @@ public class MessageController implements CommController{
 
     @ResponseBody
     @RequestMapping("addMessage")
-    public Result addMessage(@RequestBody Result result, HttpServletRequest request) {
+    public Result addMessage(@RequestBody Result result) {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String message = (String) map.get("message");
-        return messageService.addMessage(message, request);
+        return messageService.addMessage(message);
     }
 
     @ResponseBody
     @RequestMapping("delMessage")
-    public Result delMessage(@RequestBody Result result, HttpServletRequest request) {
+    public Result delMessage(@RequestBody Result result) {
         Map<String, Object> resultMap = (Map<String, Object>) result.getBody();
         String msgId = (String) resultMap.get("msgId");
 
-        String client = CommUtils.getClientIp(request);
+        String client = CommUtils.getClientIpByMDC();
         String adminIp = CommUtils.getParamValue("mailIp");
         if(client.equals(adminIp)) {
             return messageService.delMessage(msgId);
         }
-        Result msgRs = messageService.queryMessageById(request, msgId, "");
+        Result msgRs = messageService.queryMessageById(msgId, "");
         Object obj = msgRs.getBody();
         result = Result.getInstance();
         if(null != obj) {
@@ -60,10 +60,10 @@ public class MessageController implements CommController{
 
     @ResponseBody
     @RequestMapping("queryMessage")
-    public Result queryMessage(@RequestBody Result result, HttpServletRequest request) {
+    public Result queryMessage(@RequestBody Result result) {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String flag = (String) map.get("flag");
-        return messageService.queryMessage(flag, request);
+        return messageService.queryMessage(flag);
     }
 
     @ResponseBody

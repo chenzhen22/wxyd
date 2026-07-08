@@ -6,9 +6,7 @@ import com.chenzhen.pojo.DocumentFile;
 import com.chenzhen.pojo.Result;
 import com.chenzhen.service.ApiService;
 import com.chenzhen.util.CommUtils;
-import feign.Param;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -19,14 +17,15 @@ import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/doc")
 public class DocController implements CommController{
 
-    @Value("${doc.path}")
-    private String path;
+    private String path = "./docfile/";
 
     @Autowired
     ApiService apiService;
@@ -85,26 +84,23 @@ public class DocController implements CommController{
 
     @ResponseBody
     @RequestMapping("/list")
-    public Object list(@Param("fileName") String fileName, @Param("type") String type, HttpServletRequest request) {
-        String clientIp = "";
-        if ("1".equals(type)) {
-            clientIp = CommUtils.getClientIp(request);
-        }
-        return apiService.queryDocumentFileList(fileName, clientIp);
+    public Object list(@RequestParam("fileName") String fileName, @RequestParam("type") String type) {
+        return apiService.queryDocumentFileList(fileName, type);
     }
 
     @ResponseBody
     @RequestMapping("/download")
-    public void download(@Param("fileUUID") String fileUUID, HttpServletResponse response) {
+    public void download(@RequestParam("fileUUID") String fileUUID, HttpServletResponse response) {
         File filedir = new File(path + fileUUID);
         File filedirIp = filedir.listFiles()[0];
         File file = filedirIp.listFiles()[0];
         String fileName = file.getName();
         ServletOutputStream outputStream = null;
         try {
+            String encodeFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8.name());
             InputStream in = new FileInputStream(file);
             outputStream = response.getOutputStream();
-            response.setHeader("Content-disposition", "attachment; filename=" + fileName);
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + encodeFileName + "\";filename*=UTF-8''" + encodeFileName);
             response.setContentType("application/octet-stream");
             if (fileName.endsWith("xls") || fileName.endsWith("xlsx")) {
                 response.setContentType("application/vnd.ms-excel");
@@ -135,7 +131,7 @@ public class DocController implements CommController{
 
     @ResponseBody
     @RequestMapping("/delete")
-    public Object delete(@Param("fileUUID") String fileUUID) {
+    public Object delete(@RequestParam("fileUUID") String fileUUID) {
         int res = apiService.deleteDocumentFile(fileUUID);
         Result result = Result.getInstance();
         if (res == 1) {

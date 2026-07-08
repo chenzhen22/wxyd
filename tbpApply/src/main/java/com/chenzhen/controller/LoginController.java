@@ -21,21 +21,21 @@ public class LoginController implements CommController{
 
     @ResponseBody
     @RequestMapping("mmLogin")
-    public Result mmLogin(@RequestBody Result result, HttpServletRequest request) throws Exception {
+    public Result mmLogin(@RequestBody Result result) throws Exception {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String userName = (String) map.get("userName");
         String Ostype = (String) map.get("Ostype");
-        return loginService.updateToken(userName, Ostype, request);
+        return loginService.updateToken(userName, Ostype);
     }
 
     @ResponseBody
     @RequestMapping("ngLogin")
-    public Result ngLogin(@RequestBody Result result, HttpServletRequest request) throws Exception {
+    public Result ngLogin(@RequestBody Result result) throws Exception {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String userName = (String) map.get("userName");
         String Ostype = (String) map.get("Ostype");
         String lstype = (String) map.get("lstype");
-        String clientIp = CommUtils.getClientIp(request);
+        String clientIp = CommUtils.getClientIpByMDC();
         return loginService.updateTokenNG(userName, Ostype, lstype, clientIp);
     }
 }

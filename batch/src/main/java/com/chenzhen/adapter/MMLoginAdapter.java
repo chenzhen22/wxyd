@@ -19,7 +19,7 @@ public class MMLoginAdapter implements SocketMessageAdapter {
         try {
             String results = (String) HttpUtil.sendAndReceiveHttps(message.getMessage(), message.getUrl());
             if(StringUtils.hasText(results)) {
-                Message msg = new Message(message.getType(),message.getUrl(),message.getMessage(),results,"1",message.getDate(),"","");
+                Message msg = new Message(message.getType(),message.getUrl(),message.getMessage(),results,"1",message.getDate(),"","","");
                 batchMapper.updateSocketMessage(msg);
             }
         } catch (Exception e) {

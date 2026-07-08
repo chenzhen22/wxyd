@@ -13,6 +13,8 @@ public class Result {
 
     private String traceId;
 
+    private String clientIp;
+
     private Object body;
 
 

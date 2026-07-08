@@ -11,7 +11,7 @@ public interface TbpService {
 
     Result dec(String type, String password);
 
-    String docQry(String docname);
+    Result docQry(String docname);
 
     void createDoc(String type);
 
@@ -22,6 +22,10 @@ public interface TbpService {
     void uploadDocumentFile(DocumentFile docFile);
 
     String docQryAll(String type);
+
+    Result queryDocAll(String type);
+
+    void addDocFile(Doc doc);
 
     Result queryDocumentFileList(String fileName, String clientIp);
 

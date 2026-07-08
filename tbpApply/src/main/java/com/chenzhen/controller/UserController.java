@@ -37,11 +37,11 @@ public class UserController implements CommController{
 
     @ResponseBody
     @RequestMapping("addWhite")
-    public Result addWhite(@RequestBody Result result, HttpServletRequest request) throws Exception {
+    public Result addWhite(@RequestBody Result result) throws Exception {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String whitename = (String) map.get("whitename");
 
-        String client = CommUtils.getClientIp(request);
+        String client = CommUtils.getClientIpByMDC();
         WhiteUser user = new WhiteUser();
         user.setIp(client);
         user.setStatus("1");
@@ -69,11 +69,11 @@ public class UserController implements CommController{
 
     @ResponseBody
     @RequestMapping("updateWhite")
-    public Result updateWhite(@RequestBody Result result, HttpServletRequest request) throws Exception {
+    public Result updateWhite(@RequestBody Result result) throws Exception {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String whitename = (String) map.get("whitename");
 
-        String client = CommUtils.getClientIp(request);
+        String client = CommUtils.getClientIpByMDC();
         String adminIp = CommUtils.getParamValue("mailIp");
         result = Result.getInstance();
         if(!client.equals(adminIp)) {
@@ -93,11 +93,11 @@ public class UserController implements CommController{
 
     @ResponseBody
     @RequestMapping("deleteWhite")
-    public Result deleteWhite(@RequestBody Result result, HttpServletRequest request) throws Exception {
+    public Result deleteWhite(@RequestBody Result result) throws Exception {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String whitename = (String) map.get("whitename");
 
-        String client = CommUtils.getClientIp(request);
+        String client = CommUtils.getClientIpByMDC();
         String adminIp = CommUtils.getParamValue("mailIp");
         result = Result.getInstance();
         if(!client.equals(adminIp)) {

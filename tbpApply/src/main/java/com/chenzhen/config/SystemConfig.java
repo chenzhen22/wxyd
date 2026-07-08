@@ -15,17 +15,7 @@ public class SystemConfig {
         ServerSocket serverSocket = null;
         Socket socket = null;
         BufferedReader reader = null;
-        File file = null;
         try {
-            long timestamp = System.currentTimeMillis();
-            File filedir = new File("/apps/data/wxyd/");
-            if(!filedir.exists()) {
-                filedir.mkdirs();
-            }
-            file = new File("/apps/data/wxyd/"+timestamp);
-            if(!file.exists()) {
-                file.createNewFile();
-            }
             serverSocket = new ServerSocket(26210);
             socket = serverSocket.accept();
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -46,9 +36,6 @@ public class SystemConfig {
                 }
                 if (serverSocket != null) {
                     serverSocket.close();
-                }
-                if(file.exists()) {
-                    file.delete();
                 }
             } catch (IOException e) {
                 e.printStackTrace();

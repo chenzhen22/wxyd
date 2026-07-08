@@ -22,9 +22,9 @@ public class LoginServiceImpl implements LoginService {
     MysqlMapper mysqlMapper;
 
     @Override
-    public Result updateToken(String userName, String Ostype, HttpServletRequest request) throws Exception {
+    public Result updateToken(String userName, String Ostype) throws Exception {
         Result result = Result.getInstance();
-        String clientIp = CommUtils.getClientIp(request);
+        String clientIp = CommUtils.getClientIpByMDC();
         SocketMessage socketMessage = null;
         String ip = "";
         if ("0".equals(Ostype)) {
@@ -44,6 +44,7 @@ public class LoginServiceImpl implements LoginService {
             socketMessage = HttpRequestCPR09003.sendMsg(userName, "TBPDEV");
         }
         socketMessage.setClientIp(clientIp);
+        socketMessage.setHandleIp(CommUtils.getParamValue("handleIp"));
         mysqlMapper.addSocketMessage(socketMessage);
 
         int index = 0;
@@ -154,6 +155,7 @@ public class LoginServiceImpl implements LoginService {
         socketMessage.setMessage(message);
         socketMessage.setType("5");
         socketMessage.setClientIp(clientIp);
+        socketMessage.setHandleIp(CommUtils.getParamValue("handleIp"));
         mysqlMapper.addSocketMessage(socketMessage);
 
         int index = 0;

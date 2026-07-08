@@ -7,6 +7,7 @@ import net.sf.json.xml.XMLSerializer;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.dom4j.DocumentException;
+import org.slf4j.MDC;
 import org.springframework.util.StringUtils;
 
 import javax.servlet.http.HttpServletRequest;
@@ -241,6 +242,10 @@ public class CommUtils {
             }
         }
         return ip;
+    }
+
+    public static String getClientIpByMDC() {
+        return MDC.get("clientIp");
     }
 
     public static String getHostAddress() {

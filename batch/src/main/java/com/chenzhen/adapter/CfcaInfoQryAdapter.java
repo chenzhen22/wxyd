@@ -67,7 +67,7 @@ public class CfcaInfoQryAdapter implements SocketMessageAdapter {
             }
 
         }
-        Message msg = new Message(message.getType(), message.getUrl(), message.getMessage(), result.toString(), "1", message.getDate(), "", "");
+        Message msg = new Message(message.getType(), message.getUrl(), message.getMessage(), result.toString(), "1", message.getDate(), "", "","");
         batchMapper.updateSocketMessage(msg);
     }
 }

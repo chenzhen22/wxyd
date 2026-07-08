@@ -120,16 +120,17 @@ CREATE TABLE IF NOT EXISTS `socketMessage`
   `message`  varchar(6000),
   `recive`   varchar(6000),
   `status`   char(1),
+  `handleIp` varchar(20),
   PRIMARY KEY (`date`)
 ) ENGINE = InnoDB
   AUTO_INCREMENT = 0
   DEFAULT CHARSET = utf8;
-ALTER TABLE socketMessage
-  ADD INDEX socketMessage_index1 (`type`);
-ALTER TABLE socketMessage
-  ADD INDEX socketMessage_index2 (`status`);
-ALTER TABLE socketMessage
-  ADD INDEX socketMessage_index3 (`clientIp`);
+ALTER TABLE socketMessages
+  ADD INDEX socketMessages_index1 (`type`);
+ALTER TABLE socketMessages
+  ADD INDEX socketMessages_index2 (`status`);
+ALTER TABLE socketMessages
+  ADD INDEX socketMessages_index3 (`clientIp`);
 
 CREATE TABLE IF NOT EXISTS `requestlog`
 (

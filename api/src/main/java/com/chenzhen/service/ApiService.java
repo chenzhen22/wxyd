@@ -18,7 +18,7 @@ public interface ApiService {
 
     void uploadDocumentFile(DocumentFile docFile);
 
-    Object queryDocumentFileList(String fileName, String clientIp);
+    Object queryDocumentFileList(String fileName, String type);
 
     int deleteDocumentFile(String fileUUID);
 }

@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -86,10 +85,10 @@ public class UkeyServiceImpl implements UkeyService {
     }
 
     @Override
-    public Result udOper(HttpServletRequest request, String udStatue, String udhost) {
+    public Result udOper(String udStatue, String udhost) {
         cbsMapperFactory.getCbsMapper(udhost).udOper(udStatue);
 
-        String clientIp = CommUtils.getClientIp(request);
+        String clientIp = CommUtils.getClientIpByMDC();
         String operTime = CommUtils.getDateString("yyyy/MM/dd hh:mm:ss");
         StringBuffer sbString = new StringBuffer();
         if ("1".equals(udStatue)) {
@@ -114,10 +113,11 @@ public class UkeyServiceImpl implements UkeyService {
     }
 
     @Override
-    public Result unBindUkey(String zsNumber, HttpServletRequest request) throws Exception {
+    public Result unBindUkey(String zsNumber) throws Exception {
         String dates = CommUtils.getDateString("yyyyMMddHHmmssS");
         SocketMessage socketMessage = new SocketMessage("4", "", zsNumber, "", "0", dates,
-                CommUtils.getClientIp(request), CommUtils.getHostAddress());
+                CommUtils.getClientIpByMDC(), CommUtils.getHostAddress());
+        socketMessage.setHandleIp(CommUtils.getParamValue("handleIp"));
         mysqlMapper.addSocketMessage(socketMessage);
         Result result = Result.getInstance();
         int index = 0;
@@ -130,7 +130,7 @@ public class UkeyServiceImpl implements UkeyService {
                 if ("2000".equals(code)) {
                     sbString.append("解绑了证书：" + zsNumber);
                     String operTime = CommUtils.getDateString("yyyy/MM/dd hh:mm:ss");
-                    String clientIp = CommUtils.getClientIp(request);
+                    String clientIp = CommUtils.getClientIpByMDC();
                     OperInfo operInfo = new OperInfo(clientIp, sbString.toString(), operTime);
                     messageService.addOperInfo(operInfo);
                 }
@@ -148,11 +148,12 @@ public class UkeyServiceImpl implements UkeyService {
     }
 
     @Override
-    public Result cfcaInfoQry(String zsNumber, HttpServletRequest request) throws Exception {
+    public Result cfcaInfoQry(String zsNumber) throws Exception {
         Result result = Result.getInstance();
         String date = CommUtils.getDateString("yyyyMMddhhmmssS");
         SocketMessage socketMessage = new SocketMessage("3", "", zsNumber, "",
-                "0", date, CommUtils.getClientIp(request), CommUtils.getHostAddress());
+                "0", date, CommUtils.getClientIpByMDC(), CommUtils.getHostAddress());
+        socketMessage.setHandleIp(CommUtils.getParamValue("handleIp"));
         mysqlMapper.addSocketMessage(socketMessage);
 
         int index = 0;

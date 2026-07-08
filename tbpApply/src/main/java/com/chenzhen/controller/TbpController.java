@@ -3,6 +3,7 @@ package com.chenzhen.controller;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.alibaba.fastjson.JSONObject;
+import com.chenzhen.config.ProperConfig;
 import com.chenzhen.mapper.mysqlMapper.MysqlMapper;
 import com.chenzhen.pojo.*;
 import com.chenzhen.service.TbpService;
@@ -44,7 +45,7 @@ public class TbpController implements CommController{
 
     @ResponseBody
     @RequestMapping("start")
-    public Result start(@RequestBody Result result, HttpServletRequest request) throws Exception {
+    public Result start(@RequestBody Result result) throws Exception {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String searchFiled = (String) map.get("searchFiled");
         String type = (String) map.get("type");
@@ -62,7 +63,8 @@ public class TbpController implements CommController{
         if ("1".equals(type)) {
             comd = "zgrep " + searchFiled + " /logs/app_logs/history/" + project + "/*/**";
         }
-        SocketMessage socketMessage = new SocketMessage("2", host, comd, "", "0", date, CommUtils.getClientIp(request), CommUtils.getHostAddress());
+        SocketMessage socketMessage = new SocketMessage("2", host, comd, "", "0", date, CommUtils.getClientIpByMDC(), CommUtils.getHostAddress());
+        socketMessage.setHandleIp(CommUtils.getParamValue("handleIp"));
         mysqlMapper.addSocketMessage(socketMessage);
         int index = 0;
         while (true) {
@@ -112,14 +114,21 @@ public class TbpController implements CommController{
         return tbpService.dec(type, password);
     }
 
+    @RequestMapping("/getParamValue")
+    public Result getParamValue(@RequestBody Result result) {
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        String key = (String) map.get("key");
+        String value = CommUtils.getParamValue(key);
+        Result res = Result.getInstance();
+        res.setBody(value);
+        return res;
+    }
+
     @RequestMapping("/docQry")
     public Result docQry(@RequestBody Result result) throws IOException {
-        String docname = (String) result.getBody();
-        String path = tbpService.docQry(docname);
-        result = Result.getInstance();
-        result.setBody(path);
-        return result;
-
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        String docname = (String) map.get("docname");
+        return tbpService.docQry(docname);
     }
 
     @RequestMapping("/createDoc")
@@ -135,12 +144,27 @@ public class TbpController implements CommController{
         return Result.getInstance();
     }
 
+    @RequestMapping("queryDocAll")
+    public Result queryDocAll(@RequestBody Result result) {
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        String type = (String) map.get("type");
+        return tbpService.queryDocAll(type);
+    }
+
+    @RequestMapping("addDocFile")
+    public Result addDocFile(@RequestBody Result result) {
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        String type = (String) map.get("type");
+        return tbpService.queryDocAll(type);
+    }
+
     @RequestMapping("/docQryAll")
     public Result docQryAll(@RequestBody Result result) throws IOException {
-        String type = (String) result.getBody();
-        String path = tbpService.docQryAll(type);
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        String type = (String) map.get("type");
+        String filename = tbpService.docQryAll(type);
         result = Result.getInstance();
-        result.setBody(path);
+        result.setBody(filename);
         return result;
     }
 
@@ -157,15 +181,20 @@ public class TbpController implements CommController{
     public Result queryDocumentFileList(@RequestBody Result result) {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String fileName = (String) map.get("fileName");
-        String clientIp = (String) map.get("clientIp");
+        String type = (String) map.get("type");
+        String clientIp = "";
+        if("1".equals(type)) {
+            clientIp = CommUtils.getClientIpByMDC();
+        }
         return tbpService.queryDocumentFileList(fileName, clientIp);
     }
 
     @ResponseBody
     @RequestMapping("deleteDocumentFile")
-    public Result deleteDocumentFile(@RequestBody Result result, HttpServletRequest request) {
-        String fileUUID = (String) result.getBody();
-        String client = CommUtils.getClientIp(request);
+    public Result deleteDocumentFile(@RequestBody Result result) {
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        String fileUUID = (String) map.get("fileUUID");
+        String client = CommUtils.getClientIpByMDC();
         String adminIp = CommUtils.getParamValue("mailIp");
         result = Result.getInstance();
         if(client.equals(adminIp)) {

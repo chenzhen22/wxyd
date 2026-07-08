@@ -27,10 +27,12 @@ public class ControllerAspect {
             if(obj instanceof Result) {
                 Result result = (Result) obj;
                 String traceId = result.getTraceId();
+                String clientIp = result.getClientIp();
                 if (StrUtil.isEmpty(traceId)) {
                     traceId = LogUtil.getTraceId();
                 }
                 MDC.put("traceId", traceId);
+                MDC.put("clientIp", clientIp);
             }
         }
         log.info("==== 接口开始 ==== 方法:{} 入参:{}", methodName, args);

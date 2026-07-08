@@ -26,7 +26,7 @@ $(function () {
         $(".module-box").removeClass("active");
         $("#messageBoard").addClass("active");
         $(".menu-list").children().eq(9).addClass("active");
-    })
+    });
 
     // 关闭弹窗
     $(".close-modal").click(function () {
@@ -75,6 +75,17 @@ $(function () {
         renderUser(userPage, userSize);
     });
 
+    $("#taskFlash").click(function () {
+        let val = $("#taskHost").val();
+        taskSrc(val)
+    });
+
+    $(".taskStyle").attr("src", "http://10.8.23.5:7724/TBPtaskMan/taskList.html");
+    $("#taskHost").on('change', function () {
+        let val = $(this).val();
+        taskSrc(val)
+    });
+
     // ===================== 文档管理 =====================
     const DOC_KEY = "docList";
     let docList = [];
@@ -86,31 +97,31 @@ $(function () {
     $drop.on("dragenter dragover dragleave drop", function (e) {
         e.preventDefault();
         e.stopPropagation();
-    })
+    });
     // 拖拽进入高亮
     $drop.on("dragenter dragover", function () {
         $drop.addClass("active");
-    })
+    });
     // 拖拽离开/松开取消高亮
     $drop.on("dragleave drop", function () {
         $drop.removeClass("active");
-    })
+    });
 
     //拖放完成上传
     $drop.on("drop", function (e) {
         var file = e.originalEvent.dataTransfer.files[0];
         fileUpload(file);
-    })
-    
+    });
+
     //点击拖拽区选择文件
     $drop.on("click", function () {
         $("#fileUpload").click();
-    })
+    });
 
     // 查询文件列表
-    function queryDocList(type){
+    function queryDocList(type) {
         let fileName = $("#docFileName").val().trim();
-        $.get("doc/list", {fileName: fileName, type: type}, function(res){
+        $.get("doc/list", {fileName: fileName, type: type}, function (res) {
             docList = res.body || [];
             localStorage.setItem(DOC_KEY, JSON.stringify(docList));
             docPage = 1;
@@ -119,11 +130,11 @@ $(function () {
     }
 
     // 渲染表格
-    function renderDocTable(){
-        commonPagination(docList, docPage, docSize, "#docTableBody", "#docPag", function(realIdx, i, item){
+    function renderDocTable() {
+        commonPagination(docList, docPage, docSize, "#docTableBody", "#docPag", function (realIdx, i, item) {
             return `
             <tr>
-                <td>${realIdx+i+1}</td>
+                <td>${realIdx + i + 1}</td>
                 <td>${item.fileName}</td>
                 <td>${item.clientIp}</td>
                 <td>${item.userName}</td>
@@ -138,14 +149,14 @@ $(function () {
     }
 
     // 上传文件
-    $("#fileUpload").change(function(e){
-        let file= e.target.files[0];
+    $("#fileUpload").change(function (e) {
+        let file = e.target.files[0];
         fileUpload(file);
         $(this).val("");
     });
 
     function fileUpload(file) {
-        if(!file) return;
+        if (!file) return;
         let formData = new FormData();
         formData.append("file", file);
         $.ajax({
@@ -154,21 +165,21 @@ $(function () {
             data: formData,
             processData: false,
             contentType: false,
-            success: function(res){
+            success: function (res) {
                 alterModal("上传成功");
                 queryDocList("");
             },
-            error: function(){
+            error: function () {
                 alterModal("上传接口异常");
             }
         });
     }
 
     // 删除
-    $("#docTableBody").on("click", ".btn-del", function(){
+    $("#docTableBody").on("click", ".btn-del", function () {
         let id = $(this).data("id");
-        if(!confirm("确定删除？")) return;
-        $.post("doc/delete", {'fileUUID': id}, function(res){
+        if (!confirm("确定删除？")) return;
+        $.post("doc/delete", {'fileUUID': id}, function (res) {
             if (res.errorCode == '000000') {
                 alterModal("删除成功");
                 queryDocList("");
@@ -180,21 +191,21 @@ $(function () {
     });
 
     // 下载
-    $("#docTableBody").on("click", ".btn-download", function(){
+    $("#docTableBody").on("click", ".btn-download", function () {
         let id = $(this).data("id");
         window.open("doc/download?fileUUID=" + id);
     });
 
     // 预览
-    $("#docTableBody").on("click", ".btn-preview", function(){
+    $("#docTableBody").on("click", ".btn-preview", function () {
         let id = $(this).data("id");
         $(".preview-img,.preview-text").hide();
         let url = baseUrl + "/preview?id=" + id;
         // 简单判断图片
         let fileName = $(this).closest("tr").find("td:eq(1)").text();
-        if(/\.(jpg|jpeg|png|gif|bmp)$/i.test(fileName)){
+        if (/\.(jpg|jpeg|png|gif|bmp)$/i.test(fileName)) {
             $(".preview-img").attr("src", url).show();
-        }else{
+        } else {
             $(".preview-text").load(url).show();
         }
         $("#previewModal").show();
@@ -204,23 +215,23 @@ $(function () {
     queryDocList("");
 
     // 搜索
-    $("#searchDocBtn").click(function(){
+    $("#searchDocBtn").click(function () {
         queryDocList("");
     });
 
     // 搜索
-    $("#searchDocBtnAll").click(function(){
+    $("#searchDocBtnAll").click(function () {
         queryDocList("");
     });
 
     // 搜索
-    $("#searchDocBtnByMe").click(function(){
+    $("#searchDocBtnByMe").click(function () {
         queryDocList("1");
     });
 
 
     // 分页
-    $("#docPag").on("click", ".pag-btn", function(){
+    $("#docPag").on("click", ".pag-btn", function () {
         docPage = $(this).data("p");
         renderDocTable();
     });
@@ -229,7 +240,10 @@ $(function () {
     let msgPage = 1;
     const msgSize = 10;
     loadMsg('');
-    $("#openAddMsg").click(() => $("#msgModal").show());
+    $("#openAddMsg").click(function() {
+        console.log(111)
+        $("#msgModal").show()
+    });
     $("#lookMsgByAll").click(() => loadMsg(''));
     $("#lookMsgByMe").click(() => loadMsg('1'));
     $("#confirmAddMsg").click(function () {
@@ -595,7 +609,7 @@ function queryMsgCode() {
     }
 
     var message = {};
-    message.transData = '{"action":"queryMsgCode","mobilePhone":"'+mobilePhone+'","Ostype":"'+Ostype+'"}';
+    message.transData = '{"action":"queryMsgCode","mobilePhone":"' + mobilePhone + '","Ostype":"' + Ostype + '"}';
     message.transData = sbtoa(message.transData);
     loading(true);
     $.ajax({
@@ -606,7 +620,7 @@ function queryMsgCode() {
         success: function (data) {
             loading(false);
             var body = data.body;
-            if(body != null) {
+            if (body != null) {
                 $("#msgCode").html(body.msgCode + "&nbsp;&nbsp;&nbsp;&nbsp;创建时间：" + body.createTime);
             }
         },
@@ -633,7 +647,7 @@ function loginWy() {
     }
 
     var message = {};
-    message.transData = '{"action":"mmLogin","userName":"'+userName+'","Ostype":"'+Ostype+'"}';
+    message.transData = '{"action":"mmLogin","userName":"' + userName + '","Ostype":"' + Ostype + '"}';
     message.transData = sbtoa(message.transData);
     loading(true);
     $.ajax({
@@ -661,7 +675,7 @@ function loginWy() {
 
 function NGLoginChange() {
     var type = $("#Ostype2").val();
-    if(type=="5") {
+    if (type == "5") {
         $("#nglocalType").show();
     } else {
         $("#nglocalType").hide();
@@ -684,7 +698,7 @@ function NGLogin() {
         return;
     }
     var message = {};
-    message.transData = '{"action":"ngLogin","userName":"'+userName+'","Ostype":"'+Ostype+'","lstype":"'+lstype+'"}';
+    message.transData = '{"action":"ngLogin","userName":"' + userName + '","Ostype":"' + Ostype + '","lstype":"' + lstype + '"}';
     message.transData = sbtoa(message.transData);
     loading(true);
     $.ajax({
@@ -697,7 +711,7 @@ function NGLogin() {
             $("#ngLogin").attr("disabled", false);
             var body = data.body;
             var errorCode = data.errorCode;
-            if("000000" == errorCode) {
+            if ("000000" == errorCode) {
                 var resultHtml = body.returnUrl;
                 if (resultHtml && resultHtml != "") {
                     window.open(resultHtml);
@@ -725,17 +739,17 @@ function orderCreate(type) {
     }
 
     var message = {};
-    if(type=="1") {
-        message.transData = '{"action":"orderCreate","orderO":"'+orderO+'"}';
+    if (type == "1") {
+        message.transData = '{"action":"orderCreate","orderO":"' + orderO + '"}';
     }
-    if(type=="2") {
-        message.transData = '{"action":"datadict","orderO":"'+orderO+'"}';
+    if (type == "2") {
+        message.transData = '{"action":"datadict","orderO":"' + orderO + '"}';
     }
-    if(type=="3") {
-        message.transData = '{"action":"requestData","orderO":"'+orderO+'"}';
+    if (type == "3") {
+        message.transData = '{"action":"requestData","orderO":"' + orderO + '"}';
     }
-    if(type=="4") {
-        message.transData = '{"action":"responseData","orderO":"'+orderO+'"}';
+    if (type == "4") {
+        message.transData = '{"action":"responseData","orderO":"' + orderO + '"}';
     }
     message.transData = sbtoa(message.transData);
     loading(true);
@@ -790,7 +804,7 @@ function nowQuery() {
     }
 
     var message = {};
-    message.transData = '{"action":"start","searchFiled":"'+searchFiled+'","host":"'+host+'","project":"'+project+'","type":""}';
+    message.transData = '{"action":"start","searchFiled":"' + searchFiled + '","host":"' + host + '","project":"' + project + '","type":""}';
     message.transData = sbtoa(message.transData);
     loading(true);
     $.ajax({
@@ -855,7 +869,7 @@ function historyQuery() {
         return;
     }
     var message = {};
-    message.transData = '{"action":"start","searchFiled":"'+searchFiled+'","host":"'+host+'","project":"'+project+'","type":"1"}';
+    message.transData = '{"action":"start","searchFiled":"' + searchFiled + '","host":"' + host + '","project":"' + project + '","type":"1"}';
     message.transData = sbtoa(message.transData);
     loading(true);
     $.ajax({
@@ -895,17 +909,17 @@ function historyQuery() {
 }
 
 function webDown(type) {
-    $("#docQryAllType").val(type)
+    $("#docQryAllType").val(type);
     $("#docQryAll").submit();
 }
 
 function docQry() {
-    var docname = $("#docname1").val()
+    var docname = $("#docname1").val();
     if (docname == "") {
         alterModal("请输入接口编号!");
         return;
     }
-    $("#docname").val(docname)
+    $("#docname").val(docname);
     $("#docQry").submit();
 }
 
@@ -1011,8 +1025,23 @@ function commonPagination(list, page, size, tableDom, pagDom, renderCell) {
     $(pagDom).html(pagHtml);
 }
 
+function taskSrc(val) {
+    if (val == 'SIT1') {
+        $(".taskStyle").attr("src", "http://10.8.23.5:7724/TBPtaskMan/taskList.html");
+    }
+    if (val == 'SIT2') {
+        $(".taskStyle").attr("src", "http://10.8.64.48:7724/TBPtaskMan/taskList.html");
+    }
+    if (val == 'UAT1') {
+        $(".taskStyle").attr("src", "http://10.8.8.113:7724/TBPtaskMan/taskList.html");
+    }
+    if (val == 'UAT2') {
+        $(".taskStyle").attr("src", "http://10.8.32.41:7724/TBPtaskMan/taskList.html");
+    }
+}
+
 function loading(flag) {
-    if(flag == true) {
+    if (flag == true) {
         $("#loading").show()
     } else {
         $("#loading").hide()

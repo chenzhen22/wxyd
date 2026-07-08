@@ -30,8 +30,8 @@ public class MessageServiceImpl implements MessageService {
     AtsMapperFactory atsMapperFactory;
 
     @Override
-    public Result addMessage(String message, HttpServletRequest request) {
-        String clientIp = CommUtils.getClientIp(request);
+    public Result addMessage(String message) {
+        String clientIp = CommUtils.getClientIpByMDC();
         Messages messages = new Messages(clientIp, message);
         mysqlMapper.addMessage(messages);
         return Result.getInstance();
@@ -44,14 +44,14 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
-    public Result queryMessage(String flag, HttpServletRequest request) {
-        return queryMessageById(request, null, flag);
+    public Result queryMessage(String flag) {
+        return queryMessageById(null, flag);
     }
 
     @Override
-    public Result queryMessageById(HttpServletRequest request, String msgId, String flag) {
+    public Result queryMessageById(String msgId, String flag) {
         Result result = Result.getInstance();
-        String requetIp = CommUtils.getClientIp(request);
+        String requetIp = CommUtils.getClientIpByMDC();
         List<Map<String, Object>> messageList;
         if("1".equals(flag)) {
             messageList = mysqlMapper.queryMessage(msgId, requetIp);

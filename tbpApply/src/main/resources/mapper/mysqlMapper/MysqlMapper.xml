@@ -54,15 +54,15 @@
 
 
 	<update id="addSocketMessage" parameterType="com.chenzhen.pojo.SocketMessage">
-		INSERT INTO `socketMessage` (`type`,`url`,`message`,`date`,`status`,`clientIp`,`serverIp`) VALUES (#{type},#{url},#{message},#{date},'0',#{clientIp},#{serverIp})
+		INSERT INTO `socketMessages` (`type`,`url`,`message`,`date`,`status`,`clientIp`,`serverIp`,`handleIp`) VALUES (#{type},#{url},#{message},#{date},'0',#{clientIp},#{serverIp},#{handleIp})
 	</update>
 
 	<select id="querySocketRevice" resultType="String" parameterType="String">
-		select `recive` from  `socketMessage` where date=#{date}
+		select `recive` from  `socketMessages` where date=#{date}
 	</select>
 
 	<update id="updateSocketMsgStatus" parameterType="String">
-		update `socketMessage` set `status`=#{status} where `date`=#{date}
+		update `socketMessages` set `status`=#{status} where `date`=#{date}
 	</update>
 
 	<select id="queryWhiteInfo" resultType="com.chenzhen.pojo.WhiteUser" parameterType="com.chenzhen.pojo.WhiteUser">

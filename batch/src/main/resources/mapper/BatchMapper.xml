@@ -10,18 +10,19 @@
         <result column="recive" property="recive"/>
         <result column="status" property="status"/>
         <result column="serverIp" property="serverIp"/>
+        <result column="handleIp" property="handleIp"/>
     </resultMap>
 
     <update id="updateSocketMessage" parameterType="com.chenzhen.pojo.Message">
-        update `socketMessage` set `status`=#{status}, `recive`=#{recive} where `date`=#{date}
+        update `socketMessages` set `status`=#{status}, `recive`=#{recive} where `date`=#{date}
     </update>
 
     <select id="queryMessageList" resultMap="msgBean" >
-        select * from  `socketMessage` where `status`='0'
+        select * from  `socketMessages` where `status`='0'
     </select>
 
     <update id="deleteSocketMessage">
-        delete  from socketMessage where date(substr(`date`,1,8)) &lt; date_sub(curdate(),interval 1 day)
+        delete  from socketMessages where date(substr(`date`,1,8)) &lt; date_sub(curdate(),interval 1 day)
     </update>
 
     <update id="deleteRequestlog">

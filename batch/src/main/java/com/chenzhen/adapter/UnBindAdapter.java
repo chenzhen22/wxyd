@@ -30,7 +30,7 @@ public class UnBindAdapter implements SocketMessageAdapter {
             String code = response.getCode();
             result.put("code", code);
             result.put("msg", response.getMessage());
-            Message msgg = new Message(message.getType(), message.getUrl(), message.getMessage(), result.toString(), "1", message.getDate(), "", "");
+            Message msgg = new Message(message.getType(), message.getUrl(), message.getMessage(), result.toString(), "1", message.getDate(), "", "","");
             batchMapper.updateSocketMessage(msgg);
         }
     }

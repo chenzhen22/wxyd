@@ -4,14 +4,10 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternResolver;
 
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.Properties;
 
-public class SysConfig
-{
+public class SysConfig {
     public static final String JDBC_URL_KEY = "jdbc.url";
     public static final String JDBC_USERNAME_KEY = "jdbc.username";
     public static final String JDBC_PASSWORD_KEY = "jdbc.password";
@@ -23,20 +19,17 @@ public class SysConfig
     private static SysConfig sysConfig;
     private static Properties properties;
 
-    public static SysConfig getInstance()
-    {
+    public static SysConfig getInstance() {
         if (sysConfig == null)
             sysConfig = new SysConfig();
 
         if (properties == null) {
             properties = new Properties();
-            try
-            {
+            try {
                 ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
                 Resource resource = resolver.getResources("config.txt")[0];
                 properties.load(resource.getInputStream());
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 try {
                     InputStream is = SysConfig.class.getClassLoader().getResourceAsStream("config.txt");
                     properties.load(is);

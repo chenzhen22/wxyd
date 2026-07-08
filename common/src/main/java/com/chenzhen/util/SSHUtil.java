@@ -14,7 +14,6 @@ public class SSHUtil {
 		Session sshSession = null;
 		try {
 			JSch jsch = new JSch();
-			jsch.getSession(sshBean.getUsername(), sshBean.getHost(), sshBean.getPort());
 			sshSession = jsch.getSession(sshBean.getUsername(), sshBean.getHost(), sshBean.getPort());
 			sshSession.setPassword(sshBean.getPassword());
 			sshSession.setConfig("userauth.gssapi-with-mic", "no");
@@ -86,5 +85,14 @@ public class SSHUtil {
 			e.printStackTrace();
 		}
 		return null;
+	}
+
+	public static void close(Session sshSession, ChannelSftp sftpChannel) {
+		if(null != sftpChannel) {
+			sftpChannel.disconnect();
+		}
+		if(null != sshSession) {
+			sshSession.disconnect();
+		}
 	}
 }

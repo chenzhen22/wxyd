@@ -13,9 +13,9 @@ public interface UkeyService {
 
     Result updateUK(String userId, String type, String usbkey);
 
-    Result udOper(HttpServletRequest request, String udStatue, String udhost);
+    Result udOper(String udStatue, String udhost);
 
-    Result unBindUkey(String zsNumber, HttpServletRequest request) throws Exception;
+    Result unBindUkey(String zsNumber) throws Exception;
 
-    Result cfcaInfoQry(String zsNumber, HttpServletRequest request) throws Exception;
+    Result cfcaInfoQry(String zsNumber) throws Exception;
 }

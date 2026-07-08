@@ -1,5 +1,6 @@
 package com.chenzhen.config;
 
+import com.chenzhen.util.CommUtils;
 import com.chenzhen.util.LogUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -46,7 +47,9 @@ public class InterceptorConfig implements WebMvcConfigurer {
             @Override
             public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object arg2) {
                 String traceId = LogUtil.getTraceId();
+                String clientIp = CommUtils.getClientIp(request);
                 MDC.put("traceId", traceId);
+                MDC.put("clientIp", clientIp);
                 return true;
             }
 

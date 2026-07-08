@@ -1,0 +1,11 @@
+{
+  "errorCode": "000000",
+  "errorMsg": "successful",
+  "traceId": "mock-trace-002",
+  "body": {
+    "fileList": [
+      {"fileName": "mock_file_1.xlsx", "type": "web", "uploadTime": "20260708120000"},
+      {"fileName": "mock_file_2.xlsx", "type": "web", "uploadTime": "20260708130000"}
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "errorCode": "000000",
+  "errorMsg": "successful",
+  "traceId": "mock-trace-001",
+  "body": {
+    "result": "mock response for tbphx.do"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "errorCode": "000000",
+  "errorMsg": "successful",
+  "traceId": "mock-trace-oc-001",
+  "body": [
+    "/apps/data/wxyd/doc/20260708/清单文件_001.xlsx",
+    "/apps/data/wxyd/doc/20260708/清单文件_002.xlsx",
+    "/apps/data/wxyd/doc/20260708/清单文件_003.xlsx"
+  ]
+}

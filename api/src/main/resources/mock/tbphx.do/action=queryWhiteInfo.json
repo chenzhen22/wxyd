@@ -1,0 +1,12 @@
+{
+  "errorCode": "000000",
+  "errorMsg": "successful",
+  "traceId": "mock-trace-qwi-001",
+  "body": [
+    {"userName": "admin", "ip": "10.8.23.100", "status": "0"},
+    {"userName": "张三", "ip": "10.8.23.101", "status": "0"},
+    {"userName": "李四", "ip": "10.8.23.102", "status": "0"},
+    {"userName": "testUser001", "ip": "10.8.23.200", "status": "1"},
+    {"userName": "testUser002", "ip": "10.8.23.201", "status": "1"}
+  ]
+}

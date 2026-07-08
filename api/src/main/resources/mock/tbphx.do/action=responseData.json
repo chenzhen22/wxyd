@@ -1,0 +1,9 @@
+{
+  "errorCode": "000000",
+  "errorMsg": "successful",
+  "traceId": "mock-trace-rpd-001",
+  "body": [
+    "{\\\"head\\\":{\\\"transCode\\\":\\\"T001\\\",\\\"retCode\\\":\\\"000000\\\"},\\\"body\\\":{\\\"balance\\\":\\\"100000.00\\\",\\\"acctName\\\":\\\"测试企业\\\"}}",
+    "{\\\"head\\\":{\\\"transCode\\\":\\\"T002\\\",\\\"retCode\\\":\\\"000000\\\"},\\\"body\\\":{\\\"serialNo\\\":\\\"202607080001\\\",\\\"status\\\":\\\"成功\\\"}}"
+  ]
+}

@@ -1,7 +1,7 @@
 server:
   port: 8090
   servlet:
-    context-path: /spbt
+    context-path: /api
 
 spring:
   application:
@@ -16,3 +16,7 @@ ifp:
   session:
     persistent-type: REDIS
     prefix: ubomp-web-redisson
+
+wxyd:
+  mock:
+    enabled: true

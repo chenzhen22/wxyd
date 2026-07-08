@@ -5,6 +5,7 @@ import com.chenzhen.pojo.Doc;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.w3c.dom.Document;
@@ -25,6 +26,7 @@ import java.io.IOException;
 @WebAppConfiguration
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringBootTest
+@ActiveProfiles("test")
 public class ParseClTest {
     @Resource
     MysqlMapper mysqlMapper;

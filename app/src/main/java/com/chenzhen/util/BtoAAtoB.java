@@ -2,16 +2,8 @@ package com.chenzhen.util;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.apache.commons.codec.binary.Base64;
-
-import com.alibaba.fastjson.JSONObject;
-import com.mysql.cj.util.Base64Decoder;
-
-import sun.misc.BASE64Encoder;
 
 public class BtoAAtoB {
 	private static String base64hash = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";

@@ -377,7 +377,7 @@ public class CommUtils {
         ZipInputStream zin = null;
         String decompressed = null;
         try {
-            byte[] compressed = new sun.misc.BASE64Decoder().decodeBuffer(compressedStr);
+            byte[] compressed = java.util.Base64.getDecoder().decode(compressedStr);
             out = new ByteArrayOutputStream();
             in = new ByteArrayInputStream(compressed);
             zin = new ZipInputStream(in);

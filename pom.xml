@@ -11,10 +11,7 @@
 
 
     <modules>
-        <module>common</module>
-        <module>tbpApply</module>
-        <module>batch</module>
-        <module>api</module>
+        <module>app</module>
     </modules>
 
     <properties>
@@ -29,28 +26,6 @@
         <version>2.2.5.RELEASE</version>
         <relativePath/>
     </parent>
-
-    <dependencyManagement>
-        <dependencies>
-            <!--spring cloud-->
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-dependencies</artifactId>
-                <version>Hoxton.SR3</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <!--spring cloud alibaba-->
-            <dependency>
-                <groupId>com.alibaba.cloud</groupId>
-                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
-                <version>2.2.1.RELEASE</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-
-    </dependencyManagement>
 
     <build>
         <plugins>

@@ -24,6 +24,9 @@ public class ApiController implements CommController{
     @Autowired
     ApiService apiService;
 
+    @Autowired
+    MsgService msgService;
+
     @ResponseBody
     @RequestMapping("tbphx.do")
     public Object tbphx(@RequestParam("transData") String transData, HttpServletRequest request) throws Exception {
@@ -50,7 +53,7 @@ public class ApiController implements CommController{
     @RequestMapping("uploadDoc")
     public void uploadDoc(HttpServletRequest request, HttpServletResponse response, @RequestParam("fileName") MultipartFile file) throws IOException {
         String client = CommUtils.getClientIp(request);
-        String uploadDocIP = MsgService.getParamValue("uploadDocIP");
+        String uploadDocIP = msgService.getParamValue("uploadDocIP");
         String[] uploadDocIPs = uploadDocIP.split(",", -1);
         boolean flag = false;
         for(String ip : uploadDocIPs) {

@@ -1,86 +1,41 @@
 package com.chenzhen.service;
 
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.chenzhen.dispatcher.ActionDispatcher;
 import com.chenzhen.pojo.Result;
+import com.chenzhen.util.CommUtils;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.util.UUID;
-
+/**
+ * Was a static utility that wrote {@code ./msg/*.send} files for the batch module to
+ * pick up and Feign-call tbpApply. Now a Spring bean that dispatches in-process via
+ * {@link ActionDispatcher} (no files, no Feign).
+ *
+ * <p>Mock mode ({@code wxyd.mock.enabled=true}) short-circuits {@code tbphx.do} at
+ * {@code MockAspect} before {@link #getResult(JSONObject)} is reached.
+ */
+@Component
 public class MsgService {
 
-    public static Result getResult(JSONObject json) {
+    @Autowired
+    private ActionDispatcher actionDispatcher;
+
+    public Result getResult(JSONObject json) {
         json.put("traceId", MDC.get("traceId"));
         json.put("clientIp", MDC.get("clientIp"));
         Result result = Result.getInstance();
-        File file = null;
-        File fileRev = null;
-        PrintWriter pw = null;
-        BufferedReader br = null;
-        try {
-            String uuid = UUID.randomUUID().toString().replace("-", "");
-            File fileDir = new File("./msg/");
-            if (!fileDir.exists()) {
-                fileDir.mkdirs();
-                try {
-                    if(!System.getProperty("os.name").toLowerCase().startsWith("win")){
-                        Runtime.getRuntime().exec("chmod 777 " + fileDir.getAbsolutePath());
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            file = new File("./msg/" + uuid + ".send");
-            if (!file.exists()) {
-                file.createNewFile();
-                try {
-                    if(!System.getProperty("os.name").toLowerCase().startsWith("win")){
-                        Runtime.getRuntime().exec("chmod 777 " + file.getAbsolutePath());
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            pw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8));
-            pw.write(json.toString());
-            pw.flush();
-            int index = 0;
-            while (true) {
-                fileRev = new File("./msg/" + uuid + ".rev");
-                if (fileRev.exists()) {
-                    br = new BufferedReader(new InputStreamReader(new FileInputStream(fileRev), StandardCharsets.UTF_8));
-                    String reqstr = br.readLine();
-                    result =  JSON.parseObject(reqstr, Result.class);
-                    return result;
-                }
-                if (index > 60) {
-                    return result;
-                }
-                index++;
-                Thread.sleep(500);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (null != file && file.exists()) {
-                file.delete();
-            }
-            if (null != fileRev && fileRev.exists()) {
-                fileRev.delete();
-            }
-            if (pw != null) {
-                pw.close();
-            }
-        }
-        return result;
+        result.setBody(json);
+        return actionDispatcher.dispatch(result);
     }
 
-    public static String getParamValue(String key) {
-        JSONObject jsonObject = new JSONObject();
-        jsonObject.put("key", key);
-        jsonObject.put("action", "getParamValue");
-        return (String) getResult(jsonObject).getBody();
+    /**
+     * Reads a config value from {@code common.properties} via {@link CommUtils}.
+     * Used by the {@code /uploadDoc} endpoint (not a {@code tbphx.do} action, so
+     * MockAspect does not short-circuit it) to gate the upload IP whitelist.
+     */
+    public String getParamValue(String key) {
+        return CommUtils.getParamValue(key);
     }
 }

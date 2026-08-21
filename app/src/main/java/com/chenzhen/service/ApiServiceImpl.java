@@ -14,6 +14,7 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFRichTextString;
 import org.dom4j.DocumentException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletRequest;
@@ -28,6 +29,9 @@ import java.util.Map;
 @Service
 @Slf4j
 public class ApiServiceImpl implements ApiService {
+
+    @Autowired
+    private MsgService msgService;
 
     @Override
     public Object tbphx(String transData, HttpServletRequest request) {
@@ -56,7 +60,7 @@ public class ApiServiceImpl implements ApiService {
             reqString = reqString.replace("\\", "\\\\");
             JSONObject json = JSONObject.parseObject(reqString);
             log.info("request data：{}", json);
-            return MsgService.getResult(json);
+            return msgService.getResult(json);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -69,7 +73,7 @@ public class ApiServiceImpl implements ApiService {
             JSONObject jsonObject = new JSONObject();
             jsonObject.put("type", type);
             jsonObject.put("action", "docQryAll");
-            Result result = MsgService.getResult(jsonObject);
+            Result result = msgService.getResult(jsonObject);
             return (String) result.getBody();
         } catch (Exception e) {
             e.printStackTrace();
@@ -82,7 +86,7 @@ public class ApiServiceImpl implements ApiService {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("docname", docname);
         jsonObject.put("action", "docQry");
-        Result result = MsgService.getResult(jsonObject);
+        Result result = msgService.getResult(jsonObject);
         JSONObject resJson = (JSONObject) result.getBody();
         Doc doc = JSONObject.toJavaObject(resJson, Doc.class);
         String fileName = doc.getBlname();
@@ -127,7 +131,7 @@ public class ApiServiceImpl implements ApiService {
         result.setBody(doc);
         JSONObject jsonObject = (JSONObject) JSONObject.toJSON(doc);
         jsonObject.put("action","uploadDoc");
-        MsgService.getResult(jsonObject);
+        msgService.getResult(jsonObject);
         new Thread(() -> {
             createDoc(doc.getType());
         }).start();
@@ -141,7 +145,7 @@ public class ApiServiceImpl implements ApiService {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("type", type);
         jsonObject.put("action", "queryDocAll");
-        List<Doc> docListD = (List<Doc>) MsgService.getResult(jsonObject).getBody();
+        List<Doc> docListD = (List<Doc>) msgService.getResult(jsonObject).getBody();
         List<Doc> docList = new ArrayList<>();
         for (Doc doc : docListD) {
             String blName = doc.getBlname();
@@ -233,14 +237,14 @@ public class ApiServiceImpl implements ApiService {
         DocService.saveExcel(workBook, templatePath, dateString, "");
         Doc docFile = new Doc(dateString + ".xlsx", type, System.currentTimeMillis());
         JSONObject addDocFileJ = (JSONObject) JSON.toJSON(docFile);
-        MsgService.getResult(addDocFileJ);
+        msgService.getResult(addDocFileJ);
     }
 
     @Override
     public void uploadDocumentFile(DocumentFile docFile) {
         JSONObject jsonObject = (JSONObject) JSONObject.toJSON(docFile);
         jsonObject.put("action","uploadDocumentFile");
-        MsgService.getResult(jsonObject);
+        msgService.getResult(jsonObject);
     }
 
     @Override
@@ -249,7 +253,7 @@ public class ApiServiceImpl implements ApiService {
         jsonObject.put("fileName", fileName);
         jsonObject.put("type", type);
         jsonObject.put("action", "queryDocumentFileList");
-        return MsgService.getResult(jsonObject);
+        return msgService.getResult(jsonObject);
     }
 
     @Override
@@ -257,7 +261,7 @@ public class ApiServiceImpl implements ApiService {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("fileUUID", fileUUID);
         jsonObject.put("action", "deleteDocumentFile");
-        Result result = MsgService.getResult(jsonObject);
+        Result result = msgService.getResult(jsonObject);
         return (int) result.getBody();
     }
 

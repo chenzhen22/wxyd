@@ -1,10 +1,6 @@
 package com.chenzhen.service;
 
 import com.alibaba.fastjson.JSONObject;
-import com.chenzhen.constant.ErrorEnum;
-import com.chenzhen.factory.AtsMapperFactory;
-import com.chenzhen.factory.CbsMapperFactory;
-import com.chenzhen.mapper.AtsMapper;
 import com.chenzhen.mapper.mysqlMapper.MysqlMapper;
 import com.chenzhen.pojo.*;
 import com.chenzhen.util.CommUtils;
@@ -15,16 +11,9 @@ import org.springframework.util.StringUtils;
 import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 @Service
 public class UkeyServiceImpl implements UkeyService {
-
-    @Resource
-    AtsMapperFactory atsMapperFactory;
-
-    @Resource
-    CbsMapperFactory cbsMapperFactory;
 
     @Resource
     MysqlMapper mysqlMapper;
@@ -32,85 +21,33 @@ public class UkeyServiceImpl implements UkeyService {
     @Autowired
     MessageService messageService;
 
+    // ---- Oracle-dependent methods (AtsMapperFactory/CbsMapperFactory removed) ----
+    // These institution-data lookups were served by Oracle datasources that have
+    // been deleted. In mock-first mode the MockAspect short-circuits the
+    // corresponding tbphx.do actions before they reach here, so the bodies are
+    // stubbed. If Oracle is reintroduced, restore the factory calls here.
+
     @Override
     public Result queryUdInfo() {
-        List<UdInfo> list = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
-            list.add(UdInfo.getInstance().no(i + 1 + "").statue(cbsMapperFactory.getCbsMapper(i + "").queryUdInfo()));
-        }
-        Result result = Result.getInstance();
-        result.setBody(list);
-        return result;
+        return Result.getInstance();
     }
 
     @Override
     public CprUser queryCprUser(String userId, String type) {
-        return cbsMapperFactory.getCbsMapper(type).queryCprUser(userId);
+        return null;
     }
 
     @Override
     public Result updateUK(String userId, String type, String usbkey) {
-        Result result = Result.getInstance();
-
-        if (!StringUtils.hasText(usbkey)) {
-            return result.setErrorEnum(ErrorEnum.ERROR000003);
-        }
-
-        CprUser cprUser = queryCprUser(userId, type);
-        if (StringUtils.isEmpty(cprUser)) {
-            return result.setErrorEnum(ErrorEnum.ERROR000001);
-        }
-        String regEx = "[+,=%&<>()]";
-        Pattern pattern = Pattern.compile(regEx);
-        if (pattern.matcher(usbkey).find()) {//包含特殊字符
-            return result.setErrorEnum(ErrorEnum.ERROR000002);
-        }
-
-
-        AtsMapper atsMapper = atsMapperFactory.getAtsMapper(type);
-        String certdn = atsMapper.queryUKData(cprUser);
-        if (!StringUtils.hasText(certdn)) {
-            return result.setErrorEnum(ErrorEnum.ERROR000003);
-        }
-
-        String oneStr = certdn.substring(0, certdn.indexOf("=") + 1);
-        String twoStr = certdn.substring(certdn.indexOf(","));
-        certdn = oneStr + usbkey + twoStr;
-        cprUser.setCertdn(certdn);
-        cprUser.setUsbkey(usbkey);
-
-        atsMapper.updateUK(cprUser);
-
-        return result;
+        return Result.getInstance();
     }
 
     @Override
     public Result udOper(String udStatue, String udhost) {
-        cbsMapperFactory.getCbsMapper(udhost).udOper(udStatue);
-
-        String clientIp = CommUtils.getClientIpByMDC();
-        String operTime = CommUtils.getDateString("yyyy/MM/dd hh:mm:ss");
-        StringBuffer sbString = new StringBuffer();
-        if ("1".equals(udStatue)) {
-            sbString.append(" 关闭了证书校验");
-        } else {
-            sbString.append(" 打开了证书校验");
-        }
-
-        if ("0".equals(udhost)) {
-            sbString.append(" SIT1");
-        } else if ("1".equals(udhost)) {
-            sbString.append(" SIT2");
-        } else if ("2".equals(udhost)) {
-            sbString.append(" UAT1");
-        } else if ("3".equals(udhost)) {
-            sbString.append(" UAT2");
-        }
-        OperInfo operInfo = new OperInfo(clientIp, sbString.toString(), operTime);
-        messageService.addOperInfo(operInfo);
-
         return Result.getInstance();
     }
+
+    // ---- MySQL-backed methods (kept) ----
 
     @Override
     public Result unBindUkey(String zsNumber) throws Exception {

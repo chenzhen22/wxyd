@@ -1,10 +1,8 @@
 package com.chenzhen.service;
 
 import cfca.yuzhi.vo.util.StringUtil;
-import com.chenzhen.factory.AtsMapperFactory;
 import com.chenzhen.mapper.mysqlMapper.MysqlMapper;
 import com.chenzhen.pojo.Messages;
-import com.chenzhen.pojo.MsgBean;
 import com.chenzhen.pojo.OperInfo;
 import com.chenzhen.pojo.Result;
 import com.chenzhen.util.CommUtils;
@@ -26,8 +24,7 @@ public class MessageServiceImpl implements MessageService {
     @Autowired
     UserService userService;
 
-    @Resource
-    AtsMapperFactory atsMapperFactory;
+    // AtsMapperFactory (Oracle) removed; queryMsgCode is stubbed below — mock layer serves it.
 
     @Override
     public Result addMessage(String message) {
@@ -83,24 +80,10 @@ public class MessageServiceImpl implements MessageService {
         return result;
     }
 
+    // Oracle-dependent (AtsMapper.queryMsgCode) — stubbed; mock layer serves this action.
     @Override
     public Result queryMsgCode(String mobilePhone, String type) throws Exception {
-        Result result = Result.getInstance();
-        MsgBean msgBean = atsMapperFactory.getAtsMapper(type).queryMsgCode(mobilePhone);
-        Map<String, String> map = new HashMap<>();
-        if (msgBean != null) {
-            String time = msgBean.getASM_CREATETIME();
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
-            Date date = sdf.parse(time);
-            time = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss").format(date);
-            map.put("msgCode", msgBean.getASM_CODE());
-            map.put("createTime", time);
-        } else {
-            map.put("msgCode", "");
-            map.put("createTime", "");
-        }
-        result.setBody(map);
-        return result;
+        return Result.getInstance();
     }
 
     @Override

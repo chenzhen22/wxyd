@@ -67,8 +67,17 @@ public class MockAspect {
         Map<String, String> params = getParams(request, joinPoint);
 
         // ========== tbphx.do 特殊处理：解码 transData，按 action 路由 ==========
-        if ("tbphx.do".equals(normalizedPath) && params.containsKey("transData")) {
-            return handleTbphx(joinPoint, params.get("transData"));
+        if ("tbphx.do".equals(normalizedPath)) {
+            String transData = params.get("transData");
+            if (transData == null || transData.isEmpty()) {
+                // 裸调用（无 transData）：返回 200 + 引导 JSON，避免 Spring 直接抛 400
+                JSONObject guide = new JSONObject();
+                guide.put("errorCode", "000001");
+                guide.put("errorMsg", "transData required: GET /api/tbphx.do?transData=base64(URLEncode({\"action\":\"queryMsgCode\"}||<ts>))");
+                log.info("[MOCK] tbphx.do 裸调用（无 transData），返回引导 JSON");
+                return guide;
+            }
+            return handleTbphx(joinPoint, transData);
         }
 
         // 匹配 mock 数据（非 tbphx.do 路径）

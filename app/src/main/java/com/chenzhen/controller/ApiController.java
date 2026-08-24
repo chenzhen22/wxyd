@@ -29,7 +29,7 @@ public class ApiController implements CommController{
 
     @ResponseBody
     @RequestMapping("tbphx.do")
-    public Object tbphx(@RequestParam("transData") String transData, HttpServletRequest request) throws Exception {
+    public Object tbphx(@RequestParam(value = "transData", required = false) String transData, HttpServletRequest request) throws Exception {
         return apiService.tbphx(transData, request);
     }
 

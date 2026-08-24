@@ -124,25 +124,13 @@ public class TbpController implements CommController{
         return res;
     }
 
-    @RequestMapping("/docQry")
-    public Result docQry(@RequestBody Result result) throws IOException {
-        Map<String, Object> map = (Map<String, Object>) result.getBody();
-        String docname = (String) map.get("docname");
-        return tbpService.docQry(docname);
-    }
-
     @RequestMapping("/createDoc")
     public void createDoc(@Param("type") String type) throws IOException {
         tbpService.createDoc(type);
     }
 
-    @ResponseBody
-    @RequestMapping("uploadDoc")
-    public Result uploadDoc(@RequestBody Result result) {
-        Doc doc = BeanUtil.fillBeanWithMap((Map<?, ?>) result.getBody(), new Doc(), false);
-        tbpService.uploadDoc(doc);
-        return Result.getInstance();
-    }
+    // uploadDoc removed: collides with ApiController#uploadDoc (api gateway owns it).
+    // docQry / docQryAll removed: collide with ApiController#docQry / #docQryAll.
 
     @RequestMapping("queryDocAll")
     public Result queryDocAll(@RequestBody Result result) {
@@ -156,16 +144,6 @@ public class TbpController implements CommController{
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String type = (String) map.get("type");
         return tbpService.queryDocAll(type);
-    }
-
-    @RequestMapping("/docQryAll")
-    public Result docQryAll(@RequestBody Result result) throws IOException {
-        Map<String, Object> map = (Map<String, Object>) result.getBody();
-        String type = (String) map.get("type");
-        String filename = tbpService.docQryAll(type);
-        result = Result.getInstance();
-        result.setBody(filename);
-        return result;
     }
 
     @ResponseBody

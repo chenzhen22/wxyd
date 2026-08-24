@@ -1,8 +1,0 @@
-{
-  "errorCode": "000000",
-  "errorMsg": "successful",
-  "traceId": "mock-trace-ubk-001",
-  "body": {
-    "message": "证书解绑成功，编号：CERT20260708001"
-  }
-}

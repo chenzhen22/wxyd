@@ -11,24 +11,21 @@ import org.springframework.stereotype.Component;
 /**
  * In-process replacement for the former TbpApplyFeign + ./msg/*.send file queue.
  * Reads the {@code action} field from {@code result.getBody()} and calls the
- * corresponding tbpApply service directly.
+ * corresponding service directly.
  * <p>
  * Only reached when {@code wxyd.mock.enabled=false}; in mock mode {@code MockAspect}
  * short-circuits every {@code tbphx.do} action before it gets here. The MySQL-backed
- * message actions are wired below; Oracle-derived actions (login, order, manifest,
- * udOper, queryMsgCode, ukey ops, doc ops, white ops) are mock-only under this design
- * and fall through to {@code default}, returning an empty {@link Result}.
+ * message actions and {@code getParamValue} are wired below; all other actions are
+ * mock-only under this design and fall through to {@code default}, returning an empty
+ * {@link Result}.
  */
 @Component
 @Slf4j
 public class ActionDispatcher {
 
     @Autowired private MessageService messageService;
-    @Autowired private UkeyService ukeyService;
     @Autowired private LoginService loginService;
-    @Autowired private TbpService tbpService;
     @Autowired private UserService userService;
-    @Autowired private ManifestService manifestService;
 
     public Result dispatch(Result result) {
         Object body = result.getBody();

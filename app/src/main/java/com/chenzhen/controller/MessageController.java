@@ -9,8 +9,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.servlet.http.HttpServletRequest;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -64,21 +62,6 @@ public class MessageController implements CommController{
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String flag = (String) map.get("flag");
         return messageService.queryMessage(flag);
-    }
-
-    @ResponseBody
-    @RequestMapping("queryMsgCode")
-    public Result queryMsgCode(@RequestBody Result result) throws Exception {
-        Map<String, Object> map = (Map<String, Object>) result.getBody();
-        String mobilePhone = (String) map.get("mobilePhone");
-        String type = (String) map.get("Ostype");
-        return messageService.queryMsgCode(mobilePhone, type);
-    }
-
-    @ResponseBody
-    @RequestMapping("queryUdOper")
-    public Result queryUdOper(@RequestBody Result result) throws IOException {
-        return messageService.queryOperInfo();
     }
 
 }

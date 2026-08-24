@@ -8,10 +8,10 @@ import org.springframework.context.annotation.PropertySource;
  * Sole Spring Boot entry point for the merged app.
  * <p>
  * {@code env.properties} (classpath) carries environment-specific secrets and
- * overrides for {@code ${datasource.*}} / {@code ${cfca.*}} placeholders that
- * application.yml and {@link com.chenzhen.config.CFCAConfig} reference. It
- * replaces the former Nacos-backed value injection; loaded here as a property
- * source so {@code @Value} and YAML placeholder resolution both see it.
+ * overrides for {@code ${datasource.*}} placeholders that application.yml
+ * references. It replaces the former Nacos-backed value injection; loaded here
+ * as a property source so {@code @Value} and YAML placeholder resolution both
+ * see it.
  */
 @SpringBootApplication
 @PropertySource(value = "classpath:env.properties", ignoreResourceNotFound = true)

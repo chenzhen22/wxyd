@@ -1,9 +1,0 @@
-{
-  "errorCode": "000000",
-  "errorMsg": "successful",
-  "traceId": "mock-trace-qmc-001",
-  "body": {
-    "msgCode": "123456",
-    "createTime": "20260708150000"
-  }
-}

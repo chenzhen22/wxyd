@@ -1,8 +1,0 @@
-{
-  "errorCode": "000000",
-  "errorMsg": "successful",
-  "traceId": "mock-trace-qcu-001",
-  "body": {
-    "message": "换盾提交成功，操作员：00150366，U盾编号：UDN20260708001"
-  }
-}

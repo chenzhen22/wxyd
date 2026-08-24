@@ -3,16 +3,12 @@ package com.chenzhen.service;
 import cfca.yuzhi.vo.util.StringUtil;
 import com.chenzhen.mapper.mysqlMapper.MysqlMapper;
 import com.chenzhen.pojo.Messages;
-import com.chenzhen.pojo.OperInfo;
 import com.chenzhen.pojo.Result;
 import com.chenzhen.util.CommUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 @Service
@@ -23,8 +19,6 @@ public class MessageServiceImpl implements MessageService {
 
     @Autowired
     UserService userService;
-
-    // AtsMapperFactory (Oracle) removed; queryMsgCode is stubbed below — mock layer serves it.
 
     @Override
     public Result addMessage(String message) {
@@ -78,40 +72,6 @@ public class MessageServiceImpl implements MessageService {
         map.put("userName", requetName);
         result.setBody(map);
         return result;
-    }
-
-    // Oracle-dependent (AtsMapper.queryMsgCode) — stubbed; mock layer serves this action.
-    @Override
-    public Result queryMsgCode(String mobilePhone, String type) throws Exception {
-        return Result.getInstance();
-    }
-
-    @Override
-    public Result queryOperInfo() {
-        Result result = Result.getInstance();
-        List<Map<String, Object>> operInfoList = mysqlMapper.queryOperInfo();
-        List<Map<String, Object>> operList = new ArrayList<>();
-        for (Map<String, Object> operInfoMap : operInfoList) {
-            String clientIp = (String) operInfoMap.get("ip");
-            String userName = userService.getUserNameByStatus(clientIp);
-            if (!StringUtils.hasText(userName)) {
-                userName = "游客";
-            }
-            Map<String, Object> operMap = new HashMap<>();
-            operMap.put("name", userName);
-            operMap.put("ip", clientIp);
-            operMap.put("time", (operInfoMap.get("time")+""));
-            operMap.put("content", operInfoMap.get("info"));
-            operList.add(operMap);
-        }
-        result.setBody(operList);
-        return result;
-    }
-
-    @Override
-    public Result addOperInfo(OperInfo operInfo) {
-        mysqlMapper.addOperInfo(operInfo);
-        return Result.getInstance();
     }
 
 }

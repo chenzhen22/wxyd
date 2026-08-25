@@ -41,7 +41,7 @@ public class ApiServiceImpl implements ApiService {
             }
             String[] ss = transData.split("\\|\\|", -1);
             long delTime = Long.parseLong(ss[1]) - System.currentTimeMillis();
-            if (Math.abs(delTime) > 3000) {
+            if (Math.abs(delTime) > 30000) {
                 return result;
             }
             String reqString = ss[0];

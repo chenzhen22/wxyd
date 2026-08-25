@@ -16,9 +16,9 @@
     <!--最大保存天数-->
     <property name="KEEP_MAX_DAY" value="3" />
     <!--总最大保存文件大小-->
-    <property name="KEEP_TOTAL_MAX_SIZE" value="1GB" />
+    <property name="KEEP_TOTAL_MAX_SIZE" value="20MB" />
     <!--单文件最大保存文件大小-->
-    <property name="KEEP_FILE_MAX_SIZE" value="100MB" />
+    <property name="KEEP_FILE_MAX_SIZE" value="5MB" />
     <!-- 跟踪日志-->
     <appender name="TRACE" class="com.cyz.appender.TraceLogConsoleAppender"/>
 

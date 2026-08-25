@@ -68,6 +68,9 @@ public class RobotServiceImpl implements RobotService {
         DingTalkRobotUtil.RobotConfig config = new DingTalkRobotUtil.RobotConfig(accessToken, secret);
 
         if ("text".equals(type)) {
+            if(text.length()/1024 > 18) {
+                throw new IllegalArgumentException("文本大小超过限制（最大 20KB）");
+            }
             String r = DingTalkRobotUtil.sendTextMsg(config, text, null, false);
             resp.put("type", "text");
             resp.put("result", r);

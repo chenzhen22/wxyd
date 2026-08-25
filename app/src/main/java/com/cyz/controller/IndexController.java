@@ -10,4 +10,9 @@ public class IndexController {
     public String index() {
         return "api.html";
     }
+
+    @GetMapping("/login")
+    public String login() {
+        return "login.html";
+    }
 }

@@ -1,3 +1,4 @@
+
 # Remove 6 Features — Design Spec
 
 **Date:** 2026-08-24

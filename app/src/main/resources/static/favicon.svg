@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <!-- 主渐变：与登录页按钮/标题同源 135° -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#667eea"/>
+      <stop offset="1" stop-color="#764ba2"/>
+    </linearGradient>
+    <!-- 左上高光弧渐变 -->
+    <linearGradient id="hi" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <!-- 底部内阴影 -->
+    <linearGradient id="sh" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#1a1030" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#1a1030" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 圆角方形底 -->
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
+
+  <!-- 顶部高光弧：玻璃拟态反光 -->
+  <path d="M64 8 H192 a56 56 0 0 1 56 56 V72 a160 160 0 0 0 -240 0 V64 a56 56 0 0 1 56 -56 Z"
+        fill="url(#hi)"/>
+
+  <!-- 底部内阴影：增加厚度 -->
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#sh)"/>
+
+  <!-- 「泽」字 -->
+  <text x="128" y="128" text-anchor="middle" dominant-baseline="central"
+        font-family="'Microsoft YaHei','PingFang SC',sans-serif"
+        font-size="150" font-weight="700"
+        fill="#ffffff">泽</text>
+</svg>

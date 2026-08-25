@@ -2,36 +2,152 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>登录 — 微银行</title>
-    <link rel="stylesheet" href="Assets/css/style.css">
+    <meta content="width=device-width,initial-scale=1.0" name="viewport">
+    <title>登录 — 小泽助手</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            background-size: 400% 400%;
+            animation: bgShift 15s ease infinite;
+        }
+        @keyframes bgShift {
+            0%   { background-position: 0% 50%; }
+            50%  { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        /* 流动光斑 */
+        .blob {
+            position: fixed; border-radius: 50%; filter: blur(70px);
+            opacity: .55; z-index: 0;
+        }
+        .blob1 { width: 520px; height: 520px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            top: -160px; left: -120px;
+            animation: float1 9s ease-in-out infinite; }
+        .blob2 { width: 460px; height: 460px;
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            bottom: -140px; right: -100px;
+            animation: float2 11s ease-in-out infinite; }
+        .blob3 { width: 380px; height: 380px;
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            top: 40%; left: 55%;
+            animation: float3 13s ease-in-out infinite; }
+        @keyframes float1 { 0%,100%{ transform: translate(0,0) scale(1); } 50%{ transform: translate(120px,90px) scale(1.15); } }
+        @keyframes float2 { 0%,100%{ transform: translate(0,0) scale(1); } 50%{ transform: translate(-100px,-70px) scale(1.1); } }
+        @keyframes float3 { 0%,100%{ transform: translate(-50%,-50%) scale(1); } 50%{ transform: translate(-30%,-65%) scale(1.2); } }
+
+        /* 玻璃卡片 */
+        .login-card {
+            position: relative; z-index: 1;
+            width: 400px; padding: 48px 40px 40px;
+            background: rgba(255,255,255,.08);
+            backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+            border: 1px solid rgba(255,255,255,.18);
+            border-radius: 24px;
+            box-shadow: 0 8px 40px rgba(0,0,0,.35);
+            animation: cardIn .7s cubic-bezier(.16,1,.3,1);
+        }
+        @keyframes cardIn { from{ opacity:0; transform: translateY(40px) scale(.96); } to{ opacity:1; transform: translateY(0) scale(1); } }
+
+        .login-card h2 {
+            text-align: center; margin-bottom: 8px; font-size: 28px; font-weight: 700;
+            background: linear-gradient(90deg, #a78bfa, #f093fb, #4facfe);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .login-card .subtitle {
+            text-align: center; color: rgba(255,255,255,.5); font-size: 13px; margin-bottom: 36px;
+        }
+
+        .input-group { margin-bottom: 22px; position: relative; }
+        .input-group input {
+            width: 100%; padding: 14px 16px 14px 46px;
+            background: rgba(255,255,255,.07);
+            border: 1px solid rgba(255,255,255,.15);
+            border-radius: 12px; color: #fff; font-size: 15px; outline: none;
+            transition: border-color .3s, box-shadow .3s, background .3s;
+        }
+        .input-group input::placeholder { color: rgba(255,255,255,.4); }
+        .input-group input:focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167,139,250,.25);
+            background: rgba(255,255,255,.1);
+        }
+        .input-group .icon {
+            position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+            width: 20px; height: 20px; opacity: .6;
+        }
+
+        .btn-login {
+            width: 100%; padding: 14px; margin-top: 4px;
+            border: none; border-radius: 12px; cursor: pointer;
+            font-size: 16px; font-weight: 600; color: #fff;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            transition: transform .2s, box-shadow .2s, opacity .2s;
+            box-shadow: 0 4px 20px rgba(118,75,162,.4);
+        }
+        .btn-login:hover { transform: translateY(-2px); box-shadow: 0 6px 28px rgba(118,75,162,.55); }
+        .btn-login:active { transform: translateY(0); opacity: .9; }
+
+        .tip { color: #f87171; font-size: 13px; text-align: center; margin-top: 16px; min-height: 18px; }
+
+        .register-link { text-align: center; margin-top: 24px; font-size: 14px; }
+        .register-link a { color: #a78bfa; text-decoration: none; transition: color .2s; }
+        .register-link a:hover { color: #f093fb; }
+    </style>
 </head>
 <body>
-<div class="login-box">
-    <h2>登录</h2>
-    <div class="cert-form-row">
-        <label>用户名：</label><input id="loginUser" type="text">
+    <div class="blob blob1"></div>
+    <div class="blob blob2"></div>
+    <div class="blob blob3"></div>
+
+    <div class="login-card">
+        <h2>欢迎回来</h2>
+        <p class="subtitle">小泽助手 · 请登录以继续</p>
+
+        <div class="input-group">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+                <circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/>
+            </svg>
+            <input id="loginUser" type="text" placeholder="用户名">
+        </div>
+        <div class="input-group">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+                <rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+            </svg>
+            <input id="loginPwd" type="password" placeholder="密码">
+        </div>
+
+        <button class="btn-login" onclick="doLogin()">登 录</button>
+        <div class="tip" id="loginTip"></div>
+
+        <div class="register-link">还没有账号？ <a href="register.html">注册新用户</a></div>
     </div>
-    <div class="cert-form-row">
-        <label>密码：</label><input id="loginPwd" type="password">
-    </div>
-    <div class="cert-btn-group">
-        <button class="btn-main" onclick="doLogin()">登录</button>
-        <a href="register.html">注册新用户</a>
-    </div>
-    <div id="loginTip" style="color:red;margin-top:10px"></div>
-</div>
-<script src="https://cdn.bootcss.com/jquery/3.4.1/jquery.min.js"></script>
+
+<script src="Assets/js/jquery-1.8.3.min.js" type="text/javascript"></script>
 <script>
 function doLogin(){
     var u=$("#loginUser").val(),p=$("#loginPwd").val();
     if(!u||!p){$("#loginTip").text("请输入用户名和密码");return;}
+    $(".btn-login").attr("disabled",true).text("登录中…");
     $.ajax({url:"login",type:"post",contentType:"application/json",
         data:JSON.stringify({body:{username:u,password:p}}),
         success:function(data){
+            $(".btn-login").attr("disabled",false).text("登 录");
             if(data.errorCode=="000000"){location.href="api.html";}
             else{$("#loginTip").text(data.errorMsg);}
-        },error:function(){$("#loginTip").text("网络异常");}});
+        },error:function(){
+            $(".btn-login").attr("disabled",false).text("登 录");
+            $("#loginTip").text("网络异常");
+        }});
 }
+/* 回车提交 */
+$(document).keydown(function(e){ if(e.which==13) doLogin(); });
 </script>
 </body>
 </html>

@@ -147,6 +147,14 @@ $(function () {
     });
 });
 
+// 退出登录：销毁会话并跳转登录页
+function doLogout() {
+    $.ajax({
+        url: "logout", type: "post",
+        complete: function () { location.href = "login.html"; }
+    });
+}
+
 // ===================== 钉钉机器人 =====================
 function loadRobots() {
     $.get("robot/list", function (res) {

@@ -8,12 +8,21 @@
     <script src="Assets/js/jquery-1.8.3.min.js" type="text/javascript"></script>
     <script src="Assets/js/index.js" type="text/javascript"></script>
     <link href="Assets/css/admin.css" rel="stylesheet" type="text/css">
+    <style>
+        .btn-logout {
+            padding: 6px 18px; border: 1px solid rgba(255,255,255,.25);
+            background: rgba(255,255,255,.08); color: #fff; border-radius: 6px;
+            cursor: pointer; font-size: 14px; transition: all .2s;
+        }
+        .btn-logout:hover { background: rgba(255,80,80,.85); border-color: rgba(255,80,80,.9); }
+    </style>
 </head>
 <body>
 <header class="top-header">
     <div class="top-logo">小泽助手</div>
     <div class="top-user">
         <span id="userName" style="padding-right: 30px;"></span>
+        <button class="btn-logout" onclick="doLogout()">退出登录</button>
     </div>
 </header>
 

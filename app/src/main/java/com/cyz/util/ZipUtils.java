@@ -99,6 +99,24 @@ public class ZipUtils {
                 || (b2 == 0x07 && b3 == 0x08);
     }
 
+    /**
+     * 把单个文件字节数组 zip 压缩后转 Base64。
+     *
+     * @param fileBytes 原始文件字节
+     * @param entryName zip 内条目名（通常=原文件名）
+     * @return 压缩后 zip 字节的 Base64
+     */
+    public static String compressToBase64(byte[] fileBytes, String entryName) throws IOException {
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(baos)) {
+            java.util.zip.ZipEntry entry = new java.util.zip.ZipEntry(entryName);
+            zos.putNextEntry(entry);
+            zos.write(fileBytes);
+            zos.closeEntry();
+        }
+        return zipToBase64(baos.toByteArray());
+    }
+
     // ============================ 7z 与 Base64 互转 ============================
     //
     // 7z 与 zip 一样是二进制归档，整体字节 ⇄ Base64 的编解码逻辑完全相同，

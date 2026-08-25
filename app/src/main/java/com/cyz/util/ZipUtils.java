@@ -1,4 +1,4 @@
-package com.dingding.util;
+package com.cyz.util;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -1,4 +1,4 @@
-package com.dingding.util;
+package com.cyz.util;
 
 import com.alibaba.fastjson2.JSON;
 import okhttp3.MediaType;
@@ -6,7 +6,6 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
-import org.sqlite.util.StringUtils;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;

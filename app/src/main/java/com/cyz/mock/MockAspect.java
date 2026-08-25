@@ -63,6 +63,11 @@ public class MockAspect {
             normalizedPath = normalizedPath.substring(1);
         }
 
+        // 新增的认证/用户/机器人端点：始终走真实逻辑，不 mock（default.json 兜底会拦截这些路径）
+        if (isRealEndpoint(normalizedPath)) {
+            return joinPoint.proceed();
+        }
+
         // 获取请求参数
         Map<String, String> params = getParams(request, joinPoint);
 
@@ -166,6 +171,20 @@ public class MockAspect {
      */
     private Object buildResponseRaw(String mockJson) {
         return JSONObject.parseObject(mockJson);
+    }
+
+    /**
+     * 新增的认证/用户/机器人端点（AuthController/UserController/RobotController）：
+     * 这些端点有真实的 DB + Session 逻辑，不能被 mock（含 default.json 兜底）拦截。
+     * mock=true 模式下也必须走真实控制器。
+     */
+    private boolean isRealEndpoint(String path) {
+        if (path == null || path.isEmpty()) {
+            return false;
+        }
+        return path.startsWith("register") || path.startsWith("login") || path.startsWith("logout")
+                || path.startsWith("user/") || path.startsWith("robot/")
+                || path.equals("approveUser") || path.equals("rejectUser") || path.equals("deleteUser");
     }
 
     /**

@@ -31,6 +31,10 @@ public class mybatisMysqlConfig {
 		SqlSessionFactoryBean factoryBean = new SqlSessionFactoryBean();
 		factoryBean.setDataSource(ds);
 		factoryBean.setMapperLocations(new PathMatchingResourcePatternResolver().getResources(mybatisMapperLocations));
+		// 开启下划线->驼峰列名映射（user_id->userId, access_token->accessToken, display_name->displayName）
+		org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration();
+		configuration.setMapUnderscoreToCamelCase(true);
+		factoryBean.setConfiguration(configuration);
 		return factoryBean.getObject();
 	}
 	

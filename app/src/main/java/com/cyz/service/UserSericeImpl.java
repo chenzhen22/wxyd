@@ -1,50 +1,41 @@
 package com.cyz.service;
 
 import com.cyz.mapper.mysqlMapper.MysqlMapper;
-import com.cyz.pojo.WhiteUser;
+import com.cyz.pojo.User;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
 import java.util.List;
 
 @Service
 public class UserSericeImpl implements UserService {
 
-    @Resource
-    MysqlMapper mysqlMapper;
+    @Autowired
+    private MysqlMapper mysqlMapper;
 
     @Override
-    public List<WhiteUser> queryWhiteInfo(WhiteUser whiteUser) {
-        return mysqlMapper.queryWhiteInfo(whiteUser);
+    public List<User> listUsers() {
+        return mysqlMapper.listUsers();
     }
 
     @Override
-    public int addWhite(WhiteUser user) {
-        return mysqlMapper.addWhite(user);
+    public int approveUser(Long id) {
+        return mysqlMapper.updateUserStatus(id, 0);
     }
 
     @Override
-    public int updateWhiteByUsername(WhiteUser user) {
-        return mysqlMapper.updateWhiteByUsername(user);
+    public int rejectUser(Long id) {
+        return mysqlMapper.updateUserStatus(id, 2);
     }
 
     @Override
-    public int updateWhiteByIp(WhiteUser user) {
-        return mysqlMapper.updateWhiteByIp(user);
-    }
-
-    @Override
-    public int deleteWhite(WhiteUser user) {
-        return mysqlMapper.deleteWhite(user);
+    public int deleteUser(Long id) {
+        return mysqlMapper.deleteUser(id);
     }
 
     @Override
     public String getUserName(String clientIp) {
-        return mysqlMapper.getUserName(clientIp);
-    }
-
-    @Override
-    public String getUserNameByStatus(String clientIp) {
-        return mysqlMapper.getUserNameByStatus(clientIp);
+        // 旧 client 表已废弃；留言板改用登录用户名（见 MessageController 改造）
+        return null;
     }
 }

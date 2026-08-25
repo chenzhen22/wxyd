@@ -1,7 +1,7 @@
 package com.cyz.controller;
 
 import com.cyz.pojo.Result;
-import com.cyz.pojo.WhiteUser;
+import com.cyz.pojo.User;
 import com.cyz.service.UserService;
 import com.cyz.util.CommUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -11,109 +11,81 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @Slf4j
-public class UserController implements CommController{
+public class UserController implements CommController {
 
     @Autowired
-    UserService userService;
+    private UserService userService;
 
     @ResponseBody
-    @RequestMapping("queryWhiteInfo")
-    public Result queryWhiteInfo(@RequestBody Result result) throws Exception {
-        Map<String, Object> map = (Map<String, Object>) result.getBody();
-        String userName = (String) map.get("userName");
-        WhiteUser whiteUser = new WhiteUser();
-        whiteUser.setUserName(userName);
-        List<WhiteUser> user = userService.queryWhiteInfo(whiteUser);
-        result = Result.getInstance();
-        result.setBody(user);
-        return result;
-    }
-
-    @ResponseBody
-    @RequestMapping("addWhite")
-    public Result addWhite(@RequestBody Result result) throws Exception {
-        Map<String, Object> map = (Map<String, Object>) result.getBody();
-        String whitename = (String) map.get("whitename");
-
-        String client = CommUtils.getClientIpByMDC();
-        WhiteUser user = new WhiteUser();
-        user.setIp(client);
-        user.setStatus("1");
-
-        List<WhiteUser> list = userService.queryWhiteInfo(user);
-        user.setUserName(whitename);
-        result = Result.getInstance();
-        if(list.size() > 0 ) {
-            WhiteUser wu = list.get(0);
-            if("0".equals(wu.getStatus())) {
-                result.setErrorCode("000001");
-                result.setErrorMsg("已是白名单用户");
-                return result;
-            } else {
-                int index = userService.updateWhiteByIp(user);
-                result = CommUtils.handleDaoResult(index);
-                return result;
-            }
+    @RequestMapping("user/list")
+    public Result listUsers(HttpSession session) {
+        Result result = Result.getInstance();
+        Integer role = (Integer) session.getAttribute("role");
+        Long uid = (Long) session.getAttribute("userId");
+        List<User> all = userService.listUsers();
+        if (role != null && role == 0) {
+            result.setBody(all);
+        } else {
+            final Long self = uid;
+            result.setBody(all.stream().filter(u -> self.equals(u.getId())).collect(Collectors.toList()));
         }
-
-        int index = userService.addWhite(user);
-        result = CommUtils.handleDaoResult(index);
         return result;
     }
 
     @ResponseBody
-    @RequestMapping("updateWhite")
-    public Result updateWhite(@RequestBody Result result) throws Exception {
+    @RequestMapping("approveUser")
+    public Result approveUser(@RequestBody Result result, HttpSession session) {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
-        String whitename = (String) map.get("whitename");
-
-        String client = CommUtils.getClientIpByMDC();
-        String adminIp = CommUtils.getParamValue("mailIp");
-        result = Result.getInstance();
-        if(!client.equals(adminIp)) {
-            result.setErrorCode("000003");
-            result.setErrorMsg("权限不足，请联系管理员");
-            return result;
+        Long id = ((Number) map.get("id")).longValue();
+        Result r = Result.getInstance();
+        if (!isAdmin(session)) {
+            r.setErrorCode("000003");
+            r.setErrorMsg("权限不足，仅超级管理员可审批");
+            return r;
         }
-
-        WhiteUser user = new WhiteUser();
-        user.setStatus("0");
-        user.setUserName(whitename);
-
-        int index = userService.updateWhiteByUsername(user);
-        result = CommUtils.handleDaoResult(index);
-        return result;
+        int idx = userService.approveUser(id);
+        return CommUtils.handleDaoResult(idx);
     }
 
     @ResponseBody
-    @RequestMapping("deleteWhite")
-    public Result deleteWhite(@RequestBody Result result) throws Exception {
+    @RequestMapping("rejectUser")
+    public Result rejectUser(@RequestBody Result result, HttpSession session) {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
-        String whitename = (String) map.get("whitename");
-
-        String client = CommUtils.getClientIpByMDC();
-        String adminIp = CommUtils.getParamValue("mailIp");
-        result = Result.getInstance();
-        if(!client.equals(adminIp)) {
-            result.setErrorCode("000003");
-            result.setErrorMsg("权限不足，请联系管理员");
-            return result;
+        Long id = ((Number) map.get("id")).longValue();
+        Result r = Result.getInstance();
+        if (!isAdmin(session)) {
+            r.setErrorCode("000003");
+            r.setErrorMsg("权限不足，仅超级管理员可操作");
+            return r;
         }
-
-        WhiteUser user = new WhiteUser();
-        user.setStatus("0");
-        user.setUserName(whitename);
-
-        int index = userService.deleteWhite(user);
-        result = CommUtils.handleDaoResult(index);
-        return result;
+        int idx = userService.rejectUser(id);
+        return CommUtils.handleDaoResult(idx);
     }
 
+    @ResponseBody
+    @RequestMapping("deleteUser")
+    public Result deleteUser(@RequestBody Result result, HttpSession session) {
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        Long id = ((Number) map.get("id")).longValue();
+        Result r = Result.getInstance();
+        if (!isAdmin(session)) {
+            r.setErrorCode("000003");
+            r.setErrorMsg("权限不足，仅超级管理员可操作");
+            return r;
+        }
+        int idx = userService.deleteUser(id);
+        return CommUtils.handleDaoResult(idx);
+    }
 
+    private boolean isAdmin(HttpSession session) {
+        Integer role = (Integer) session.getAttribute("role");
+        return role != null && role == 0;
+    }
 }

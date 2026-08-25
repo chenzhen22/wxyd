@@ -18,23 +18,9 @@ public interface MysqlMapper {
 
 	int queryMessageCount();
 
-	String getUserName(String clientIp);
-
-	String getUserNameByStatus(String clientIp);
-
 	List<Map<String,String>> queryClientInfo();
 
 	int queryWhiteUrl(String url);
-
-	List<WhiteUser> queryWhiteInfo(WhiteUser whiteUser);
-
-	int addWhite(WhiteUser whiteUser);
-
-	int updateWhiteByUsername(WhiteUser whiteUser);
-
-	int updateWhiteByIp(WhiteUser whiteUser);
-
-	int deleteWhite(WhiteUser whiteUser);
 
 	int addLog(LogPojo logPojo);
 

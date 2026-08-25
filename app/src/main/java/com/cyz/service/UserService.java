@@ -1,22 +1,18 @@
 package com.cyz.service;
 
-import com.cyz.pojo.WhiteUser;
+import com.cyz.pojo.User;
 
 import java.util.List;
 
 public interface UserService {
 
-    List<WhiteUser> queryWhiteInfo(WhiteUser whiteUser);
+    List<User> listUsers();
 
-    int addWhite(WhiteUser user);
+    int approveUser(Long id);
 
-    int updateWhiteByUsername(WhiteUser user);
+    int rejectUser(Long id);
 
-    int updateWhiteByIp(WhiteUser user);
-
-    int deleteWhite(WhiteUser user);
+    int deleteUser(Long id);
 
     String getUserName(String clientIp);
-
-    String getUserNameByStatus (String clientIp);
 }

@@ -27,15 +27,6 @@
 		select count(1) from `message`
 	</select>
 
-	<select id="getUserName" resultType="String" parameterType="String">
-		select username from client where ip =#{clientIp}
-	</select>
-
-	<select id="getUserNameByStatus" resultType="String" parameterType="String">
-		select username from client where ip =#{clientIp} and status='0'
-	</select>
-
-
 	<select id="queryClientInfo" resultType="java.util.HashMap">
 		select ip,username,status from client
 	</select>
@@ -43,36 +34,6 @@
 	<select id="queryWhiteUrl" resultType="Integer" parameterType="String">
 		select count(1) from `action` where `actions`=#{url}
 	</select>
-
-	<select id="queryWhiteInfo" resultType="com.cyz.pojo.WhiteUser" parameterType="com.cyz.pojo.WhiteUser">
-		select ip,status,username from client
-		<where>
-			<if test="userName != null and userName != ''">
-				and username like CONCAT('%', #{userName}, '%')
-			</if>
-			<if test="ip != null and ip != ''">
-				and ip=#{ip}
-			</if>
-		</where>
-	</select>
-
-	<update id="addWhite" parameterType="com.cyz.pojo.WhiteUser">
-		insert into client values (#{ip},#{status},#{userName})
-	</update>
-
-	<update id="updateWhiteByUsername" parameterType="com.cyz.pojo.WhiteUser">
-		update client set status=#{status} where username=#{userName}
-	</update>
-
-
-	<update id="updateWhiteByIp" parameterType="com.cyz.pojo.WhiteUser">
-		update client set username=#{userName} where ip=#{ip}
-	</update>
-
-
-	<update id="deleteWhite" parameterType="com.cyz.pojo.WhiteUser">
-		delete from client where username=#{userName}
-	</update>
 
 	<insert id="addLog" parameterType="com.cyz.pojo.LogPojo">
 		insert into requestlog values (#{clientIp},#{url},#{data},now());

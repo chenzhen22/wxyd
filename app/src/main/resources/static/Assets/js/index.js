@@ -208,15 +208,10 @@ function rejectUser(id) {
 }
 
 function loadMsg(flag) {
-    var message = {};
-    message.transData = '{"action":"queryMessage","flag":"' + flag + '"}';
-    message.transData = sbtoa(message.transData);
     loading(true);
     $.ajax({
-        url: "tbphx.do",
-        dataType: "json",
-        type: "post",
-        data: message,
+        url: "queryMessage", type: "post", contentType: "application/json",
+        data: JSON.stringify({body: {flag: flag}}),
         success: function (data) {
             loading(false);
             let msgList = data.body.msgList || [];
@@ -239,14 +234,9 @@ function renderMsg(msgPage, msgSize) {
 }
 
 function addMsg(msg) {
-    var message = {};
-    message.transData = '{"action":"addMessage","message":"' + msg + '"}';
-    message.transData = sbtoa(message.transData);
     $.ajax({
-        url: "tbphx.do",
-        dataType: "json",
-        type: "post",
-        data: message,
+        url: "addMessage", type: "post", contentType: "application/json",
+        data: JSON.stringify({body: {message: msg}}),
         success: function (data) {
             loadMsg('');
         },
@@ -257,23 +247,17 @@ function addMsg(msg) {
 }
 
 function delMsg(msgId) {
-    var message = {};
-    message.transData = '{"action":"delMessage","msgId":"' + msgId + '"}';
-    message.transData = sbtoa(message.transData);
     loading(true);
     $.ajax({
-        url: "tbphx.do",
-        dataType: "json",
-        type: "post",
-        data: message,
+        url: "delMessage", type: "post", contentType: "application/json",
+        data: JSON.stringify({body: {msgId: msgId}}),
         success: function (data) {
             loading(false);
             if (data.errorCode == '000000') {
                 loadMsg('');
             } else {
-                alterModal(JSON.stringify(data))
+                alterModal(JSON.stringify(data));
             }
-
         },
         error: function (data) {
             loading(false);
@@ -317,23 +301,4 @@ function alterModal(msg) {
     loading(false);
     $("#alterSpan").html(msg);
     $("#alterModal").show();
-}
-
-function sbtoa(transData) {
-    var message = {};
-    transData = btoa(encodeURIComponent(transData));
-    message.transData = transData;
-    $.ajax({
-        url: "tbphx.do",
-        dataType: "json",
-        type: "post",
-        async: false,
-        data: message,
-        success: function (data) {
-            transData = data.body.transData;
-        },
-        error: function (data) {
-        }
-    });
-    return transData;
 }

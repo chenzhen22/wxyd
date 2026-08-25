@@ -2,6 +2,7 @@ package com.cyz.aspect;
 
 import cn.hutool.core.util.StrUtil;
 import com.cyz.pojo.Result;
+import com.cyz.util.CommUtils;
 import com.cyz.util.LogUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -10,6 +11,8 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Aspect
 @Component
@@ -31,6 +34,10 @@ public class ControllerAspect {
                 if (StrUtil.isEmpty(traceId)) {
                     traceId = LogUtil.getTraceId();
                 }
+                if (StrUtil.isEmpty(clientIp)) {
+                    // 直连接口（前端未带 clientIp）：从当前请求解析真实客户端 IP，避免留言板等依赖 clientIp 的逻辑拿到 null
+                    clientIp = resolveClientIp();
+                }
                 MDC.put("traceId", traceId);
                 MDC.put("clientIp", clientIp);
             }
@@ -48,5 +55,20 @@ public class ControllerAspect {
             log.info("==== 接口异常 ==== 方法:{} 耗时:{}ms 异常:{}", methodName, cost, e);
             throw e;
         }
+    }
+
+    /**
+     * 从当前请求解析客户端 IP（直连接口前端未带 clientIp 时使用）。
+     */
+    private String resolveClientIp() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                return CommUtils.getClientIp(attrs.getRequest());
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return null;
     }
 }

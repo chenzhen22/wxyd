@@ -18,7 +18,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns(
                         "/user/**", "/robot/**",
-                        "/approveUser", "/rejectUser", "/deleteUser"
+                        "/approveUser", "/rejectUser", "/deleteUser",
+                        "/queryMessage", "/addMessage", "/delMessage"
                 );
     }
 }

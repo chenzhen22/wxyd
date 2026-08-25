@@ -184,7 +184,8 @@ public class MockAspect {
         }
         return path.startsWith("register") || path.startsWith("login") || path.startsWith("logout")
                 || path.startsWith("user/") || path.startsWith("robot/")
-                || path.equals("approveUser") || path.equals("rejectUser") || path.equals("deleteUser");
+                || path.equals("approveUser") || path.equals("rejectUser") || path.equals("deleteUser")
+                || path.equals("queryMessage") || path.equals("addMessage") || path.equals("delMessage");
     }
 
     /**

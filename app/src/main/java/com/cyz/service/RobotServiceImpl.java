@@ -74,7 +74,14 @@ public class RobotServiceImpl implements RobotService {
             return resp;
         }
 
-        // file
+        // file —— 限制文件大小最大 200KB
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("文件不能为空");
+        }
+        long maxFileSize = 200 * 1024L; // 200KB
+        if (file.getSize() > maxFileSize) {
+            throw new IllegalArgumentException("文件大小超过限制（最大 200KB）");
+        }
         byte[] fileBytes = file.getBytes();
         String filename = file.getOriginalFilename();
         String base64 = ZipUtils.compressToBase64(fileBytes, filename);

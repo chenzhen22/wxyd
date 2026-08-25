@@ -2,6 +2,18 @@ const MSG_KEY = "pcAdminMsgList";
 const USER_KEY = "pcAdminUserList";
 
 $(function () {
+    // 全局 AJAX 401 处理：会话过期/未登录 → 弹窗提示并跳转登录页
+    $(document).ajaxError(function (event, jqXHR, settings, errorThrown) {
+        if (jqXHR.status == 401) {
+            let msg = "未登录或会话过期";
+            try {
+                let r = jqXHR.responseJSON || JSON.parse(jqXHR.responseText || "{}");
+                if (r && r.errorMsg) msg = r.errorMsg;
+            } catch (e) {}
+            alterModal(msg + "，即将跳转登录页…");
+            setTimeout(function () { location.href = "login.html"; }, 1500);
+        }
+    });
     // 动态时钟
     function setTime() {
         let d = new Date();
@@ -93,7 +105,8 @@ $(function () {
                     $("#sendResult").text(res.errorMsg);
                 }
             },
-            error: function () {
+            error: function (jqXHR) {
+                if (jqXHR.status == 401) return; // 由全局 ajaxError 处理并跳转
                 $("#sendResult").text("发送异常");
             }
         });

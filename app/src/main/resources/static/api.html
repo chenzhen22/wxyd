@@ -8,16 +8,11 @@
     <script src="Assets/js/jquery-1.8.3.min.js" type="text/javascript"></script>
     <script src="Assets/js/index.js" type="text/javascript"></script>
     <link href="Assets/css/admin.css" rel="stylesheet" type="text/css">
-    <style>
-        .btn-logout {
-            padding: 6px 18px; border: 1px solid rgba(255,255,255,.25);
-            background: rgba(255,255,255,.08); color: #fff; border-radius: 6px;
-            cursor: pointer; font-size: 14px; transition: all .2s;
-        }
-        .btn-logout:hover { background: rgba(255,80,80,.85); border-color: rgba(255,80,80,.9); }
-    </style>
 </head>
 <body>
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+<div class="blob blob3"></div>
 <header class="top-header">
     <div class="top-logo">小泽助手</div>
     <div class="top-user">
@@ -135,7 +130,7 @@
                 <div class="cert-form-item" id="textInput"><textarea id="sendText" style="width:600px;height:120px"></textarea></div>
                 <div class="cert-form-item" id="fileInput" style="display:none"><input type="file" id="sendFile"></div>
                 <div class="cert-btn-group"><button class="btn-main" id="btnSend">发送</button></div>
-                <div id="sendResult" style="margin-top:10px;color:#555"></div>
+                <div id="sendResult" style="margin-top:10px;color:rgba(255,255,255,.7)"></div>
             </div>
         </div>
 

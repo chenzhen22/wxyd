@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.cyz.mapper.mysqlMapper.MysqlMapper">
+
+	<insert id="addMessage" parameterType="com.cyz.pojo.Messages">
+		INSERT INTO `message` (`user_id`,`ip`,`info`,`time`) VALUES (#{userId},#{ip},#{info},now())
+	</insert>
+
+	<delete id="delMessage" parameterType="String">
+		DELETE FROM `message` where `id` = #{msgId}
+	</delete>
+
+	<delete id="delMessageByUser">
+		DELETE FROM `message` where `id` = #{msgId} and `user_id` = #{userId}
+	</delete>
+
+	<select id="queryMessage" resultType="java.util.HashMap">
+		select m.`id`, m.`user_id` as userId, COALESCE(NULLIF(u.`display_name`,''), u.`username`) as name,
+		       m.`info` as content, date_format(m.`time`,'%Y-%m-%d %H:%i:%s') as "time"
+		from `message` m
+		left join `users` u on m.`user_id` = u.`id`
+		<where>
+			<if test="msgId != null and msgId != ''">
+				m.`id` = #{msgId}
+			</if>
+			<if test="userId != null">
+				and m.`user_id` = #{userId}
+			</if>
+		</where>
+		order by m.`id` desc limit 200
+	</select>
+
+	<select id="queryMessageCount" resultType="Integer">
+		select count(1) from `message`
+	</select>
+
+	<delete id="trimMessages">
+		DELETE FROM `message` WHERE `id` NOT IN
+		(SELECT id FROM (SELECT `id` FROM `message` ORDER BY `id` DESC LIMIT 50) t)
+	</delete>
+
+	<select id="queryClientInfo" resultType="java.util.HashMap">
+		select ip,username,status from client
+	</select>
+
+	<select id="queryWhiteUrl" resultType="Integer" parameterType="String">
+		select count(1) from `action` where `actions`=#{url}
+	</select>
+
+	<insert id="addLog" parameterType="com.cyz.pojo.LogPojo">
+		insert into requestlog values (#{clientIp},#{url},#{data},now());
+	</insert>
+
+	<!-- ===== users ===== -->
+	<select id="countUsers" resultType="Integer">
+		select count(1) from `users`
+	</select>
+
+	<insert id="insertUser" parameterType="com.cyz.pojo.User" useGeneratedKeys="true" keyProperty="id">
+		insert into `users` (`username`,`password`,`display_name`,`role`,`status`) values (#{username},#{password},#{displayName},#{role},#{status})
+	</insert>
+
+	<select id="queryUserByUsername" parameterType="String" resultType="com.cyz.pojo.User">
+		select `id`,`username`,`password`,`display_name`,`role`,`status`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` where `username`=#{username}
+	</select>
+
+	<select id="queryUserById" parameterType="Long" resultType="com.cyz.pojo.User">
+		select `id`,`username`,`display_name`,`role`,`status`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` where `id`=#{id}
+	</select>
+
+	<select id="listUsers" resultType="com.cyz.pojo.User">
+		select `id`,`username`,`display_name`,`role`,`status`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` order by `status`,`id`
+	</select>
+
+	<update id="updateUserStatus">
+		update `users` set `status`=#{status} where `id`=#{id}
+	</update>
+
+	<update id="updateDisplayName">
+		update `users` set `display_name`=#{displayName} where `id`=#{id}
+	</update>
+
+	<delete id="deleteUser" parameterType="Long">
+		delete from `users` where `id`=#{id}
+	</delete>
+
+	<!-- ===== ding_robot ===== -->
+	<insert id="insertRobot" parameterType="com.cyz.pojo.DingRobot" useGeneratedKeys="true" keyProperty="id">
+		insert into `ding_robot` (`user_id`,`name`,`access_token`,`secret`) values (#{userId},#{name},#{accessToken},#{secret})
+	</insert>
+
+	<select id="queryRobotById" parameterType="Long" resultType="com.cyz.pojo.DingRobot">
+		select `id`,`user_id`,`name`,`access_token`,`secret`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `ding_robot` where `id`=#{id}
+	</select>
+
+	<select id="listRobotsByUserId" parameterType="Long" resultType="com.cyz.pojo.DingRobot">
+		select `id`,`user_id`,`name`,`access_token`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `ding_robot` where `user_id`=#{userId} order by `id`
+	</select>
+
+	<update id="updateRobot" parameterType="com.cyz.pojo.DingRobot">
+		update `ding_robot` set `name`=#{name},`access_token`=#{accessToken}
+		<if test="secret != null and secret != ''">
+			,`secret`=#{secret}
+		</if>
+		where `id`=#{id} and `user_id`=#{userId}
+	</update>
+
+	<delete id="deleteRobot">
+		delete from `ding_robot` where `id`=#{id} and `user_id`=#{userId}
+	</delete>
+
+</mapper>

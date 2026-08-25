@@ -1,0 +1,8 @@
+{
+  "errorCode": "000000",
+  "errorMsg": "successful",
+  "traceId": "mock-trace-ngl-001",
+  "body": {
+    "returnUrl": "https://ngbank.example.com/manage?token=mock_token_ng_001"
+  }
+}

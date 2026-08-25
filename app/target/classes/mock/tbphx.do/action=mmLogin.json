@@ -1,0 +1,8 @@
+{
+  "errorCode": "000000",
+  "errorMsg": "successful",
+  "traceId": "mock-trace-mml-001",
+  "body": {
+    "resultHtml": "https://ebank.example.com/login?token=mock_token_wy_001"
+  }
+}

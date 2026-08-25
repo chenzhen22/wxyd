@@ -1,0 +1,15 @@
+{
+  "errorCode": "000000",
+  "errorMsg": "successful",
+  "traceId": "mock-trace-qm-001",
+  "body": {
+    "userName": "admin",
+    "msgList": [
+      {"name": "张三", "content": "请问企业网银如何开通？", "time": "20260708140000", "id": "1"},
+      {"name": "李四", "content": "U盾证书过期了怎么更新？", "time": "20260708141000", "id": "2"},
+      {"name": "王五", "content": "转账限额怎么调整？", "time": "20260708142000", "id": "3"},
+      {"name": "admin", "content": "测试留言，请忽略", "time": "20260708143000", "id": "4"},
+      {"name": "赵六", "content": "交易明细查询支持多久范围？", "time": "20260708144000", "id": "5"}
+    ]
+  }
+}

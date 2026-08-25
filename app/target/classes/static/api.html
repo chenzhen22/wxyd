@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width,initial-scale=1.0" name="viewport">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <title>小泽助手</title>
+    <!-- 引入jQuery -->
+    <script src="Assets/js/jquery-1.8.3.min.js" type="text/javascript"></script>
+    <script src="Assets/js/index.js" type="text/javascript"></script>
+    <link href="Assets/css/admin.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+<div class="blob blob3"></div>
+<header class="top-header">
+    <div class="top-logo">小泽助手</div>
+    <div class="top-user">
+        <span id="userName" style="padding-right: 30px;cursor:pointer;"></span>
+        <button class="btn-logout" onclick="doLogout()">退出登录</button>
+    </div>
+</header>
+
+<div class="modal" id="loading">
+    <div class="modal-content">
+        <div class="modal-title">提示</div>
+        <div class="form-item"><span>加载中，请稍后...</span></div>
+    </div>
+</div>
+
+<div class="modal" id="alterModal">
+    <div class="modal-content">
+        <div class="modal-title">提示<span class="close-modal" id="close-alterModal">×</span></div>
+        <div class="form-item"><span id="alterSpan"></span></div>
+        <div class="modal-btn-group">
+            <button class="btn-primary" id="confirm-modal">确认</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="msgModal">
+    <div class="modal-content">
+        <div class="modal-title">新增留言 <span class="close-modal">×</span></div>
+        <div class="form-item"><label>留言内容：</label><input id="addMsgContent" type="text"></div>
+        <div class="modal-btn-group">
+            <button class="btn-cancel close-modal">取消</button>
+            <button class="btn-primary" id="confirmAddMsg">提交留言</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="nickModal">
+    <div class="modal-content">
+        <div class="modal-title">设置昵称 <span class="close-modal">×</span></div>
+        <div class="form-item"><label>昵称：</label><input id="nickInput" type="text" placeholder="请输入昵称" maxlength="20"></div>
+        <div class="modal-btn-group">
+            <button class="btn-cancel close-modal">取消</button>
+            <button class="btn-primary" id="btnSaveNick">保存</button>
+        </div>
+    </div>
+</div>
+
+<div class="wrap-container">
+    <aside class="left-sidebar">
+        <ul class="menu-list">
+            <li class="menu-item active" data-target="welcome"><i>🏠</i>首页</li>
+            <li class="menu-item" data-target="userManage"><i>👤</i>用户管理</li>
+            <li class="menu-item" data-target="messageBoard"><i>💬</i>留言板</li>
+            <li class="menu-item" data-target="robotManage"><i>🤖</i>钉钉机器人</li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <div class="module-box active" id="welcome">
+            <div class="welcome-home">
+                <div class="grid-layer"></div>
+                <div class="welcome-content">
+                    <h2>欢迎进入小泽助手</h2>
+                    <p>云端运维 · 安全管控 · 高效协同管理平台</p>
+                    <div class="welcome-time" id="nowTime"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="module-box" id="userManage">
+            <div class="page-title">用户管理</div>
+            <div class="cert-btn-group"><button class="btn-main" id="btnRefreshUser">刷新</button></div>
+            <table class="data-table">
+                <thead><tr><th>序号</th><th>用户名</th><th>显示名</th><th>角色</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead>
+                <tbody id="userTableBody"></tbody>
+            </table>
+        </div>
+
+
+
+        <div class="module-box" id="messageBoard">
+            <div class="page-title">留言板管理</div>
+            <div style="margin-bottom: 20px;">
+                <button class="btn-main" id="openAddMsg">新增留言</button>
+                <button class="btn-main" id="lookMsgByAll">看全部</button>
+                <button class="btn-main" id="lookMsgByMe">只看我的</button>
+            </div>
+            <table class="data-table">
+                <thead>
+                <tr>
+                    <th width="10%">序号</th>
+                    <th width="15%">昵称</th>
+                    <th width="50%">留言内容</th>
+                    <th width="15%">留言时间</th>
+                    <th width="10%">操作</th>
+                </tr>
+                </thead>
+                <tbody id="msgTableBody"></tbody>
+            </table>
+            <div class="pag-box" id="msgPag"></div>
+        </div>
+
+        <div class="module-box" id="robotManage">
+            <div class="page-title">钉钉机器人</div>
+            <div class="tool-bar">
+                <button class="btn-main" id="btnAddRobot">新增机器人</button>
+                <button class="btn-main" id="btnRefreshRobot">刷新</button>
+            </div>
+            <table class="data-table">
+                <thead><tr><th>序号</th><th>名称</th><th>Token</th><th>操作</th></tr></thead>
+                <tbody id="robotTableBody"></tbody>
+            </table>
+            <div class="cert-card" id="robotForm" style="display:none">
+                <div class="cert-form-row"><label>名称：</label><input id="robotName" type="text"></div>
+                <div class="cert-form-row"><label>ACCESS_TOKEN：</label><input id="robotToken" type="text" style="width:400px"></div>
+                <div class="cert-form-row"><label>SECRET：</label><input id="robotSecret" type="text" style="width:400px"></div>
+                <div class="cert-btn-group"><button class="btn-main" id="btnSaveRobot">保存</button>
+                    <input type="hidden" id="robotId"></div>
+            </div>
+            <div class="cert-card">
+                <div class="cert-card-tit">发送消息</div>
+                <div class="cert-form-row">
+                    <label>选择机器人：</label><select id="sendRobotSel"></select>
+                    <label>类型：</label><select id="sendType"><option value="text">纯文本</option><option value="file">文件</option></select>
+                </div>
+                <div class="cert-form-item" id="textInput"><textarea id="sendText" style="width:600px;height:120px"></textarea></div>
+                <div class="cert-form-item" id="fileInput" style="display:none"><input type="file" id="sendFile"></div>
+                <div class="cert-btn-group"><button class="btn-main" id="btnSend">发送</button></div>
+                <div id="sendResult" style="margin-top:10px;color:rgba(255,255,255,.7)"></div>
+            </div>
+        </div>
+
+    </main>
+</div>
+</body>
+</html>

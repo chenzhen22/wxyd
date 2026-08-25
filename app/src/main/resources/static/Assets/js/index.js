@@ -113,6 +113,25 @@ $(function () {
     });
     loadRobots();
 
+    // ===================== 设置昵称 =====================
+    $("#btnSaveNick").click(function () {
+        let nick = $("#nickInput").val().trim();
+        if (!nick) { alterModal("昵称不能为空"); return; }
+        $.ajax({
+            url: "user/updateDisplayName", type: "post", contentType: "application/json",
+            data: JSON.stringify({body: {displayName: nick}}),
+            success: function (res) {
+                if (res.errorCode == "000000") {
+                    alterModal("昵称设置成功");
+                    $("#nickModal").hide();
+                    loadMsg('');
+                } else {
+                    alterModal(res.errorMsg);
+                }
+            }
+        });
+    });
+
     // ===================== 用户管理 =====================
     $("#btnRefreshUser").click(loadUsers);
     loadUsers();
@@ -215,8 +234,17 @@ function loadMsg(flag) {
         success: function (data) {
             loading(false);
             let msgList = data.body.msgList || [];
-            let userName = data.body.userName;
-            $("#userName").html(userName);
+            let displayName = data.body.displayName;
+            let username = data.body.username;
+            // 昵称优先显示 display_name，没有则显示"设置昵称"链接
+            if (displayName) {
+                $("#userName").html(displayName).css("color", "rgba(255,255,255,.9)").off("click");
+            } else {
+                $("#userName").html('<span style="color:#a78bfa;">设置昵称</span>').off("click").on("click", function () {
+                    $("#nickInput").val(username || "");
+                    $("#nickModal").show();
+                });
+            }
             localStorage.setItem(MSG_KEY, JSON.stringify(msgList));
             renderMsg(1, 10);
         },

@@ -14,5 +14,7 @@ public interface UserService {
 
     int deleteUser(Long id);
 
+    int updateDisplayName(Long id, String displayName);
+
     String getUserName(String clientIp);
 }

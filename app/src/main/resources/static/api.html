@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width,initial-scale=1.0" name="viewport">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <title>小泽助手</title>
     <!-- 引入jQuery -->
     <script src="Assets/js/jquery-1.8.3.min.js" type="text/javascript"></script>
@@ -16,7 +17,7 @@
 <header class="top-header">
     <div class="top-logo">小泽助手</div>
     <div class="top-user">
-        <span id="userName" style="padding-right: 30px;"></span>
+        <span id="userName" style="padding-right: 30px;cursor:pointer;"></span>
         <button class="btn-logout" onclick="doLogout()">退出登录</button>
     </div>
 </header>
@@ -45,6 +46,17 @@
         <div class="modal-btn-group">
             <button class="btn-cancel close-modal">取消</button>
             <button class="btn-primary" id="confirmAddMsg">提交留言</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="nickModal">
+    <div class="modal-content">
+        <div class="modal-title">设置昵称 <span class="close-modal">×</span></div>
+        <div class="form-item"><label>昵称：</label><input id="nickInput" type="text" placeholder="请输入昵称" maxlength="20"></div>
+        <div class="modal-btn-group">
+            <button class="btn-cancel close-modal">取消</button>
+            <button class="btn-primary" id="btnSaveNick">保存</button>
         </div>
     </div>
 </div>

@@ -34,6 +34,11 @@ public class UserSericeImpl implements UserService {
     }
 
     @Override
+    public int updateDisplayName(Long id, String displayName) {
+        return mysqlMapper.updateDisplayName(id, displayName);
+    }
+
+    @Override
     public String getUserName(String clientIp) {
         // 旧 client 表已废弃；留言板改用登录用户名（见 MessageController 改造）
         return null;

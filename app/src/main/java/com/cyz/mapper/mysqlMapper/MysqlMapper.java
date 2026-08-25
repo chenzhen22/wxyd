@@ -41,6 +41,8 @@ public interface MysqlMapper {
 
 	int updateUserStatus(@Param("id") Long id, @Param("status") Integer status);
 
+	int updateDisplayName(@Param("id") Long id, @Param("displayName") String displayName);
+
 	int deleteUser(Long id);
 
 	// ===== ding_robot =====

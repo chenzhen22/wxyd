@@ -84,6 +84,22 @@ public class UserController implements CommController {
         return CommUtils.handleDaoResult(idx);
     }
 
+    @ResponseBody
+    @RequestMapping("user/updateDisplayName")
+    public Result updateDisplayName(@RequestBody Result result, HttpSession session) {
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        String displayName = (String) map.get("displayName");
+        Long uid = (Long) session.getAttribute("userId");
+        if (uid == null) {
+            Result r = Result.getInstance();
+            r.setErrorCode("000003");
+            r.setErrorMsg("未登录");
+            return r;
+        }
+        int idx = userService.updateDisplayName(uid, displayName);
+        return CommUtils.handleDaoResult(idx);
+    }
+
     private boolean isAdmin(HttpSession session) {
         Integer role = (Integer) session.getAttribute("role");
         return role != null && role == 0;

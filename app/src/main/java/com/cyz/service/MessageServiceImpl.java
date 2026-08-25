@@ -43,17 +43,20 @@ public class MessageServiceImpl implements MessageService {
         Long filterUserId = "1".equals(flag) ? userId : null;
         List<Map<String, Object>> messageList = mysqlMapper.queryMessage(null, filterUserId);
         int count = mysqlMapper.queryMessageCount();
-        String userName = "游客";
+        String displayName = null;
+        String username = null;
         if (userId != null) {
             User u = mysqlMapper.queryUserById(userId);
-            if (u != null && u.getDisplayName() != null) {
-                userName = u.getDisplayName();
+            if (u != null) {
+                displayName = u.getDisplayName();
+                username = u.getUsername();
             }
         }
         Map<String, Object> map = new HashMap<>();
         map.put("msgList", messageList);
         map.put("count", count);
-        map.put("userName", userName);
+        map.put("displayName", displayName);
+        map.put("username", username);
         result.setBody(map);
         return result;
     }

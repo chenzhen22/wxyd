@@ -15,7 +15,7 @@
 	</delete>
 
 	<select id="queryMessage" resultType="java.util.HashMap">
-		select m.`id`, m.`user_id` as userId, COALESCE(u.`display_name`,'游客') as name,
+		select m.`id`, m.`user_id` as userId, COALESCE(NULLIF(u.`display_name`,''), u.`username`) as name,
 		       m.`info` as content, date_format(m.`time`,'%Y-%m-%d %H:%i:%s') as "time"
 		from `message` m
 		left join `users` u on m.`user_id` = u.`id`
@@ -74,6 +74,10 @@
 
 	<update id="updateUserStatus">
 		update `users` set `status`=#{status} where `id`=#{id}
+	</update>
+
+	<update id="updateDisplayName">
+		update `users` set `display_name`=#{displayName} where `id`=#{id}
 	</update>
 
 	<delete id="deleteUser" parameterType="Long">

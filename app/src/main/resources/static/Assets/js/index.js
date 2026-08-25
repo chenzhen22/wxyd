@@ -42,37 +42,67 @@ $(function () {
         $("#alterModal").hide();
     });
 
-    // ===================== 用户管理 - 调用公共分页 =====================
-    let userPage = 1;
-    const userSize = 10;
-    queryWhiteInfo('');
-    $("#openAddUser").click(() => $("#userModal").show());
-    $("#confirmAddUser").click(function () {
-        let n = $("#addUserName").val().trim();
-        if (!n) {
-            alter("用户名不能为空！");
-            return;
-        }
-        $("#userModal").hide();
-        $("#addUserName").val("");
-        addWhite(n);
+    // ===================== 钉钉机器人 =====================
+    $("#btnRefreshRobot").click(loadRobots);
+    $("#btnAddRobot").click(function () {
+        $("#robotForm").show();
+        $("#robotId").val("");
     });
-    $("#userSearch").click(function () {
-        let n = $("#userSearchInp").val().trim();
-        queryWhiteInfo(n);
+    $("#btnSaveRobot").click(function () {
+        let body = {name: $("#robotName").val(), accessToken: $("#robotToken").val(), secret: $("#robotSecret").val()};
+        let id = $("#robotId").val();
+        let url = id ? "robot/update" : "robot/add";
+        if (id) body.id = parseInt(id);
+        $.ajax({
+            url, type: "post", contentType: "application/json", data: JSON.stringify({body}),
+            success: function (res) {
+                alterModal(res.errorCode == "000000" ? "保存成功" : res.errorMsg);
+                loadRobots();
+                $("#robotForm").hide();
+            }
+        });
     });
-    $("#userTableBody").on("click", ".btn-del", function () {
-        let username = $(this).context.dataset.i;
-        deleteWhiteInfo(username);
+    $(document).on("click", "#robotTableBody .btn-del", function () {
+        let id = $(this).data("id");
+        if (!confirm("确定删除？")) return;
+        $.ajax({
+            url: "robot/delete", type: "post", contentType: "application/json", data: JSON.stringify({body: {id: parseInt(id)}}),
+            success: function (res) {
+                alterModal(res.errorCode == "000000" ? "删除成功" : res.errorMsg);
+                loadRobots();
+            }
+        });
     });
-    $("#userTableBody").on("click", ".btn-update", function () {
-        let username = $(this).context.dataset.i;
-        updateWhite(username);
+    $("#sendType").change(function () {
+        $("#textInput").toggle($(this).val() == "text");
+        $("#fileInput").toggle($(this).val() == "file");
     });
-    $("#userPag").on("click", ".pag-btn", function () {
-        userPage = $(this).data("p");
-        renderUser(userPage, userSize);
+    $("#btnSend").click(function () {
+        let fd = new FormData();
+        fd.append("robotId", $("#sendRobotSel").val());
+        fd.append("type", $("#sendType").val());
+        if ($("#sendType").val() == "text") fd.append("text", $("#sendText").val());
+        else fd.append("file", $("#sendFile")[0].files[0]);
+        $.ajax({
+            url: "robot/send", type: "post", processData: false, contentType: false, data: fd,
+            success: function (res) {
+                if (res.errorCode == "000000") {
+                    let b = res.body || {};
+                    $("#sendResult").text(b.type == "file" ? `文件已发：共${b.totalChunks}块` : "文本已发");
+                } else {
+                    $("#sendResult").text(res.errorMsg);
+                }
+            },
+            error: function () {
+                $("#sendResult").text("发送异常");
+            }
+        });
     });
+    loadRobots();
+
+    // ===================== 用户管理 =====================
+    $("#btnRefreshUser").click(loadUsers);
+    loadUsers();
 
     // ===================== 留言板 - 调用公共分页 =====================
     let msgPage = 1;
@@ -104,115 +134,55 @@ $(function () {
     });
 });
 
-function addWhite(whitename) {
-    var message = {};
-    message.transData = '{"action":"addWhite","whitename":"' + whitename + '"}';
-    message.transData = sbtoa(message.transData);
-    $.ajax({
-        url: "tbphx.do",
-        dataType: "json",
-        type: "post",
-        data: message,
-        success: function (data) {
-            var errorCode = data.errorCode;
-            if (errorCode == "000000") {
-                queryWhiteInfo('');
-                alter("提交成功，请联系管理员审批")
-            } else {
-                alter(data.errorMsg);
-            }
-
-        },
-        error: function (data) {
-            alter(data.responseText);
+// ===================== 钉钉机器人 =====================
+function loadRobots() {
+    $.get("robot/list", function (res) {
+        let list = res.body || [];
+        let html = "";
+        for (let i = 0; i < list.length; i++) {
+            let r = list[i];
+            html += `<tr><td>${i + 1}</td><td>${r.name}</td><td>${(r.accessToken || '').slice(-6)}</td>
+                <td><button class="btn-del" data-id="${r.id}">删除</button></td></tr>`;
         }
-    })
+        $("#robotTableBody").html(html);
+        let sel = $("#sendRobotSel").html("");
+        for (let r of list) {
+            sel.append(`<option value="${r.id}">${r.name}</option>`);
+        }
+    }, "json");
 }
 
-function updateWhite(whitename) {
-    var message = {};
-    message.transData = '{"action":"updateWhite","whitename":"' + whitename + '"}';
-    message.transData = sbtoa(message.transData);
-    loading(true);
-    $.ajax({
-        url: "tbphx.do",
-        dataType: "json",
-        type: "post",
-        data: message,
-        success: function (data) {
-            loading(false);
-            var errorCode = data.errorCode;
-            if (errorCode == "000000") {
-                alterModal("成功");
-                queryWhiteInfo('');
-            } else {
-                alert(data.errorMsg);
-            }
-
-        },
-        error: function (data) {
-            loading(false);
-            alterModal(data.responseText);
+// ===================== 用户管理 =====================
+function loadUsers() {
+    $.get("user/list", function (res) {
+        let list = res.body || [];
+        let html = "";
+        for (let i = 0; i < list.length; i++) {
+            let u = list[i];
+            let role = u.role == 0 ? "超管" : "普通";
+            let st = u.status == 0 ? "已通过" : u.status == 1 ? "待审批" : "已拒绝";
+            let op = u.status == 1 ? `<button class="btn-main" onclick="approveUser(${u.id})">通过</button> <button class="btn-del" onclick="rejectUser(${u.id})">拒绝</button>` : "";
+            html += `<tr><td>${i + 1}</td><td>${u.username}</td><td>${u.displayName || ''}</td><td>${role}</td><td>${st}</td><td>${u.createTime || ''}</td><td>${op}</td></tr>`;
         }
-    })
+        $("#userTableBody").html(html);
+    }, "json");
 }
 
-function queryWhiteInfo(userName) {
-    var message = {};
-    message.transData = '{"action":"queryWhiteInfo","userName":"' + userName + '"}';
-    message.transData = sbtoa(message.transData);
-    loading(true);
+function approveUser(id) {
     $.ajax({
-        url: "tbphx.do",
-        dataType: "json",
-        type: "post",
-        data: message,
-        success: function (data) {
-            loading(false);
-            let list = data.body || [];
-            localStorage.setItem(USER_KEY, JSON.stringify(list));
-            renderUser(1, 10);
-        },
-        error: function (data) {
-            loading(false);
-            alterModal(data.responseText);
+        url: "approveUser", type: "post", contentType: "application/json", data: JSON.stringify({body: {id: id}}),
+        success: function () {
+            loadUsers();
         }
-    })
+    });
 }
 
-function deleteWhiteInfo(whitename) {
-    var message = {};
-    message.transData = '{"action":"deleteWhite","whitename":"' + whitename + '"}';
-    message.transData = sbtoa(message.transData);
-    loading(true);
+function rejectUser(id) {
     $.ajax({
-        url: "tbphx.do",
-        dataType: "json",
-        type: "post",
-        data: message,
-        success: function (data) {
-            loading(false);
-            var errorCode = data.errorCode;
-            if (errorCode == "000000") {
-                queryWhiteInfo('');
-                alterModal("成功");
-            } else {
-                alterModal(data.errorMsg);
-            }
-
-        },
-        error: function (data) {
-            loading(false);
-            alterModal(data.responseText);
+        url: "rejectUser", type: "post", contentType: "application/json", data: JSON.stringify({body: {id: id}}),
+        success: function () {
+            loadUsers();
         }
-    })
-}
-
-function renderUser(userPage, userSize) {
-    let userList = JSON.parse(localStorage.getItem(USER_KEY)) || [];
-    commonPagination(userList, userPage, userSize, "#userTableBody", "#userPag", function (start, idx, item) {
-        item.status = item.status == "0" ? "正常" : "待审批";
-        return '<tr><td>' + (start + idx + 1) + '</td><td>' + item.userName + '</td><td>' + item.ip + '</td><td>' + item.status + '</td><td><button class="btn-update" data-i="' + item.userName + '">通过</button><button style="margin-left: 20px;" class="btn-del" data-i="' + item.userName + '">删除</button></tr>';
     });
 }
 

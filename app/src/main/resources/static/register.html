@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"><title>注册 — 微银行</title>
+    <link rel="stylesheet" href="Assets/css/style.css">
+</head>
+<body>
+<div class="login-box">
+    <h2>注册新用户</h2>
+    <div class="cert-form-row"><label>用户名：</label><input id="rUser" type="text"></div>
+    <div class="cert-form-row"><label>密码：</label><input id="rPwd" type="password"></div>
+    <div class="cert-form-row"><label>显示名：</label><input id="rName" type="text"></div>
+    <div class="cert-btn-group"><button class="btn-main" onclick="doRegister()">提交注册</button>
+        <a href="login.html">返回登录</a></div>
+    <div id="rTip" style="color:green;margin-top:10px"></div>
+</div>
+<script src="https://cdn.bootcss.com/jquery/3.4.1/jquery.min.js"></script>
+<script>
+function doRegister(){
+    var u=$("#rUser").val(),p=$("#rPwd").val(),n=$("#rName").val();
+    if(!u||!p){$("#rTip").text("用户名和密码必填");return;}
+    $.ajax({url:"register",type:"post",contentType:"application/json",
+        data:JSON.stringify({body:{username:u,password:p,displayName:n}}),
+        success:function(data){
+            if(data.errorCode=="000000"){$("#rTip").text("注册成功，等待管理员审批");}
+            else{$("#rTip").text(data.errorMsg);}
+        },error:function(){$("#rTip").text("网络异常");}});
+}
+</script>
+</body>
+</html>

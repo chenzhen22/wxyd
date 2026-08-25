@@ -34,17 +34,6 @@
     </div>
 </div>
 
-<div class="modal" id="userModal">
-    <div class="modal-content">
-        <div class="modal-title">新增白名单 <span class="close-modal">×</span></div>
-        <div class="form-item"><label>用户名：</label><input id="addUserName" type="text"></div>
-        <div class="modal-btn-group">
-            <button class="btn-cancel close-modal">取消</button>
-            <button class="btn-primary" id="confirmAddUser">确定新增</button>
-        </div>
-    </div>
-</div>
-
 <div class="modal" id="msgModal">
     <div class="modal-content">
         <div class="modal-title">新增留言 <span class="close-modal">×</span></div>
@@ -63,6 +52,7 @@
             <li class="menu-item" data-target="userManage"><i>👤</i>用户管理</li>
             <li class="menu-item" data-target="noPwdLogin"><i>🔑</i>免密登录</li>
             <li class="menu-item" data-target="messageBoard"><i>💬</i>留言板</li>
+            <li class="menu-item" data-target="robotManage"><i>🤖</i>钉钉机器人</li>
         </ul>
     </aside>
 
@@ -79,27 +69,12 @@
         </div>
 
         <div class="module-box" id="userManage">
-            <div class="page-title">用户管理 / 白名单配置</div>
-            <div class="tool-bar">
-                <button class="btn-primary" id="openAddUser">新增白名单</button>
-                <div class="search-group">
-                    <input id="userSearchInp" placeholder="输入用户名搜索" type="text">
-                    <button class="btn-search" id="userSearch">搜索</button>
-                </div>
-            </div>
+            <div class="page-title">用户管理</div>
+            <div class="cert-btn-group"><button class="btn-main" id="btnRefreshUser">刷新</button></div>
             <table class="data-table">
-                <thead>
-                <tr>
-                    <th>序号</th>
-                    <th>用户名</th>
-                    <th>ip</th>
-                    <th>状态</th>
-                    <th>操作</th>
-                </tr>
-                </thead>
+                <thead><tr><th>序号</th><th>用户名</th><th>显示名</th><th>角色</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead>
                 <tbody id="userTableBody"></tbody>
             </table>
-            <div class="pag-box" id="userPag"></div>
         </div>
 
         <div class="module-box" id="noPwdLogin">
@@ -182,6 +157,36 @@
                 <tbody id="msgTableBody"></tbody>
             </table>
             <div class="pag-box" id="msgPag"></div>
+        </div>
+
+        <div class="module-box" id="robotManage">
+            <div class="page-title">钉钉机器人</div>
+            <div class="tool-bar">
+                <button class="btn-main" id="btnAddRobot">新增机器人</button>
+                <button class="btn-main" id="btnRefreshRobot">刷新</button>
+            </div>
+            <table class="data-table">
+                <thead><tr><th>序号</th><th>名称</th><th>Token</th><th>操作</th></tr></thead>
+                <tbody id="robotTableBody"></tbody>
+            </table>
+            <div class="cert-card" id="robotForm" style="display:none">
+                <div class="cert-form-row"><label>名称：</label><input id="robotName" type="text"></div>
+                <div class="cert-form-row"><label>ACCESS_TOKEN：</label><input id="robotToken" type="text" style="width:400px"></div>
+                <div class="cert-form-row"><label>SECRET：</label><input id="robotSecret" type="text" style="width:400px"></div>
+                <div class="cert-btn-group"><button class="btn-main" id="btnSaveRobot">保存</button>
+                    <input type="hidden" id="robotId"></div>
+            </div>
+            <div class="cert-card">
+                <div class="cert-card-tit">发送消息</div>
+                <div class="cert-form-row">
+                    <label>选择机器人：</label><select id="sendRobotSel"></select>
+                    <label>类型：</label><select id="sendType"><option value="text">纯文本</option><option value="file">文件</option></select>
+                </div>
+                <div class="cert-form-item" id="textInput"><textarea id="sendText" style="width:600px;height:120px"></textarea></div>
+                <div class="cert-form-item" id="fileInput" style="display:none"><input type="file" id="sendFile"></div>
+                <div class="cert-btn-group"><button class="btn-main" id="btnSend">发送</button></div>
+                <div id="sendResult" style="margin-top:10px;color:#555"></div>
+            </div>
         </div>
 
     </main>

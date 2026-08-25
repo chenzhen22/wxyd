@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>登录 — 微银行</title>
+    <link rel="stylesheet" href="Assets/css/style.css">
+</head>
+<body>
+<div class="login-box">
+    <h2>登录</h2>
+    <div class="cert-form-row">
+        <label>用户名：</label><input id="loginUser" type="text">
+    </div>
+    <div class="cert-form-row">
+        <label>密码：</label><input id="loginPwd" type="password">
+    </div>
+    <div class="cert-btn-group">
+        <button class="btn-main" onclick="doLogin()">登录</button>
+        <a href="register.html">注册新用户</a>
+    </div>
+    <div id="loginTip" style="color:red;margin-top:10px"></div>
+</div>
+<script src="https://cdn.bootcss.com/jquery/3.4.1/jquery.min.js"></script>
+<script>
+function doLogin(){
+    var u=$("#loginUser").val(),p=$("#loginPwd").val();
+    if(!u||!p){$("#loginTip").text("请输入用户名和密码");return;}
+    $.ajax({url:"login",type:"post",contentType:"application/json",
+        data:JSON.stringify({body:{username:u,password:p}}),
+        success:function(data){
+            if(data.errorCode=="000000"){location.href="api.html";}
+            else{$("#loginTip").text(data.errorMsg);}
+        },error:function(){$("#loginTip").text("网络异常");}});
+}
+</script>
+</body>
+</html>

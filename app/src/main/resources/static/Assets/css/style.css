@@ -1,0 +1,66 @@
+/* 登录 / 注册页面样式 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+    background: #f0f2f5;
+    color: #333;
+}
+.login-box {
+    width: 360px;
+    margin: 80px auto;
+    padding: 32px 36px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+}
+.login-box h2 {
+    text-align: center;
+    margin-bottom: 22px;
+    color: #2b6cb0;
+}
+.cert-form-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.cert-form-row label {
+    width: 80px;
+    text-align: right;
+    padding-right: 10px;
+}
+.cert-form-row input {
+    flex: 1;
+    height: 34px;
+    padding: 4px 8px;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    font-size: 14px;
+}
+.cert-btn-group {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 8px;
+}
+.cert-btn-group a {
+    color: #2b6cb0;
+    text-decoration: none;
+    font-size: 14px;
+}
+.cert-btn-group a:hover {
+    text-decoration: underline;
+}
+.btn-main {
+    display: inline-block;
+    padding: 8px 22px;
+    background: #2b6cb0;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.btn-main:hover {
+    background: #245599;
+}

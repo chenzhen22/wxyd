@@ -20,10 +20,10 @@
     <!--单文件最大保存文件大小-->
     <property name="KEEP_FILE_MAX_SIZE" value="100MB" />
     <!-- 跟踪日志-->
-    <appender name="TRACE" class="com.chenzhen.appender.TraceLogConsoleAppender"/>
+    <appender name="TRACE" class="com.cyz.appender.TraceLogConsoleAppender"/>
 
     <!-- 控制台日志 -->
-    <appender name="CONSOLE" class="com.chenzhen.logback.WxydConsoleAppender">
+    <appender name="CONSOLE" class="com.cyz.logback.WxydConsoleAppender">
         <encoder>
             <pattern>${CONSOLE_LOG_PATTERN}</pattern>
             <immediateFlush>false</immediateFlush>

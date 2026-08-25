@@ -50,7 +50,6 @@
         <ul class="menu-list">
             <li class="menu-item active" data-target="welcome"><i>🏠</i>首页</li>
             <li class="menu-item" data-target="userManage"><i>👤</i>用户管理</li>
-            <li class="menu-item" data-target="noPwdLogin"><i>🔑</i>免密登录</li>
             <li class="menu-item" data-target="messageBoard"><i>💬</i>留言板</li>
             <li class="menu-item" data-target="robotManage"><i>🤖</i>钉钉机器人</li>
         </ul>
@@ -77,65 +76,7 @@
             </table>
         </div>
 
-        <div class="module-box" id="noPwdLogin">
-            <div class="page-title">免密登录服务</div>
-            <div class="cert-card">
-                <div class="cert-card-tit">网银登录</div>
-                <div class="cert-form-row">
-                    <div class="cert-form-item">
-                        <label>用户名：</label>
-                        <input id="userName1" placeholder="请输入用户名" type="text">
-                    </div>
-                    <div class="cert-form-item">
-                        <label>选择环境：</label>
-                        <select id="Ostype1">
-                            <option value="">请选择环境</option>
-                            <option value="0">SIT1</option>
-                            <option value="1">SIT2</option>
-                            <option value="2">UAT1</option>
-                            <option value="3">UAT2</option>
-                            <option value="4">DEV</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="cert-btn-group">
-                    <button class="btn-main" id="loginWy" onclick="loginWy()">登录</button>
-                </div>
-            </div>
-            <div class="cert-card">
-                <div class="cert-card-tit">内管登录</div>
-                <div class="cert-form-row">
-                    <div class="cert-form-item">
-                        <label>用户名：</label>
-                        <input id="userName2" placeholder="请输入用户名" type="text" value="00150366">
-                    </div>
-                    <div class="cert-form-item">
-                        <label>选择环境：</label>
-                        <select id="Ostype2" onchange="NGLoginChange();">
-                            <option value="">请选择环境</option>
-                            <option value="0">SIT1</option>
-                            <option value="1">SIT2</option>
-                            <option value="2">UAT1</option>
-                            <option value="3">UAT2</option>
-                            <option value="4">DEV</option>
-                            <option value="5">本地</option>
-                        </select>
-                    </div>
-                    <div class="cert-form-item" id="nglocalType" style="display: none;">
-                        <label>本地环境：</label>
-                        <select id="lstype">
-                            <option value="0">SIT1</option>
-                            <option value="1">SIT2</option>
-                            <option value="2">UAT1</option>
-                            <option value="3">UAT2</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="cert-btn-group">
-                    <button class="btn-main" id="ngLogin" onclick="NGLogin()">登录</button>
-                </div>
-            </div>
-        </div>
+
 
         <div class="module-box" id="messageBoard">
             <div class="page-title">留言板管理</div>

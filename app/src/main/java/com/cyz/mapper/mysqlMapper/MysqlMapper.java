@@ -14,9 +14,13 @@ public interface MysqlMapper {
 
 	int delMessage(String msgId);
 
-	List<Map<String,Object>> queryMessage(String msgId, String requetIp);
+	int delMessageByUser(@Param("userId") Long userId, @Param("msgId") String msgId);
+
+	List<Map<String,Object>> queryMessage(@Param("msgId") String msgId, @Param("userId") Long userId);
 
 	int queryMessageCount();
+
+	int trimMessages();
 
 	List<Map<String,String>> queryClientInfo();
 

@@ -42,11 +42,11 @@ public class ActionDispatcher {
             }
             switch (action) {
                 case "addMessage":
-                    return messageService.addMessage(json.getString("message"));
+                    return messageService.addMessage(null, json.getString("message"));
                 case "delMessage":
                     return messageService.delMessage(json.getString("msgId"));
                 case "queryMessage":
-                    return messageService.queryMessage(json.getString("flag"));
+                    return messageService.queryMessage(null, json.getString("flag"));
                 case "getParamValue": {
                     Result r = Result.getInstance();
                     r.setTraceId(result.getTraceId());

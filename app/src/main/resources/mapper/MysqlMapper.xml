@@ -2,30 +2,42 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="com.cyz.mapper.mysqlMapper.MysqlMapper">
 
-	<update id="addMessage" parameterType="com.cyz.pojo.Messages">
-		INSERT INTO `message` (`ip`,`info`,`time`) VALUES (#{ip},#{info},now())
-	</update>
+	<insert id="addMessage" parameterType="com.cyz.pojo.Messages">
+		INSERT INTO `message` (`user_id`,`ip`,`info`,`time`) VALUES (#{userId},#{ip},#{info},now())
+	</insert>
 
-	<update id="delMessage" parameterType="String">
+	<delete id="delMessage" parameterType="String">
 		DELETE FROM `message` where `id` = #{msgId}
-	</update>
+	</delete>
 
-	<select id="queryMessage" parameterType="String" resultType="java.util.HashMap">
-		select `id`,`ip`,`info`,date_format(`time`,'%Y-%m-%d %H:%i:%s') as "time" from `message`
+	<delete id="delMessageByUser">
+		DELETE FROM `message` where `id` = #{msgId} and `user_id` = #{userId}
+	</delete>
+
+	<select id="queryMessage" resultType="java.util.HashMap">
+		select m.`id`, m.`user_id` as userId, COALESCE(u.`display_name`,'游客') as name,
+		       m.`info` as content, date_format(m.`time`,'%Y-%m-%d %H:%i:%s') as "time"
+		from `message` m
+		left join `users` u on m.`user_id` = u.`id`
 		<where>
 			<if test="msgId != null and msgId != ''">
-				`id` = #{msgId}
+				m.`id` = #{msgId}
 			</if>
-			<if test="requetIp != null and requetIp != ''">
-				and `ip` = #{requetIp}
+			<if test="userId != null">
+				and m.`user_id` = #{userId}
 			</if>
 		</where>
-		order by `id` desc limit 200
+		order by m.`id` desc limit 200
 	</select>
 
 	<select id="queryMessageCount" resultType="Integer">
 		select count(1) from `message`
 	</select>
+
+	<delete id="trimMessages">
+		DELETE FROM `message` WHERE `id` NOT IN
+		(SELECT id FROM (SELECT `id` FROM `message` ORDER BY `id` DESC LIMIT 50) t)
+	</delete>
 
 	<select id="queryClientInfo" resultType="java.util.HashMap">
 		select ip,username,status from client

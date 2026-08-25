@@ -1,9 +1,9 @@
 package com.cyz.service;
 
-import cfca.yuzhi.vo.util.StringUtil;
 import com.cyz.mapper.mysqlMapper.MysqlMapper;
 import com.cyz.pojo.Messages;
 import com.cyz.pojo.Result;
+import com.cyz.pojo.User;
 import com.cyz.util.CommUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,14 +17,12 @@ public class MessageServiceImpl implements MessageService {
     @Resource
     MysqlMapper mysqlMapper;
 
-    @Autowired
-    UserService userService;
-
     @Override
-    public Result addMessage(String message) {
+    public Result addMessage(Long userId, String message) {
         String clientIp = CommUtils.getClientIpByMDC();
-        Messages messages = new Messages(clientIp, message);
+        Messages messages = new Messages(userId, clientIp, message);
         mysqlMapper.addMessage(messages);
+        mysqlMapper.trimMessages(); // 最多保留 50 条，超出删最旧
         return Result.getInstance();
     }
 
@@ -35,41 +33,39 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
-    public Result queryMessage(String flag) {
-        return queryMessageById(null, flag);
+    public int delMessageByUser(Long userId, String msgId) {
+        return mysqlMapper.delMessageByUser(userId, msgId);
+    }
+
+    @Override
+    public Result queryMessage(Long userId, String flag) {
+        Result result = Result.getInstance();
+        Long filterUserId = "1".equals(flag) ? userId : null;
+        List<Map<String, Object>> messageList = mysqlMapper.queryMessage(null, filterUserId);
+        int count = mysqlMapper.queryMessageCount();
+        String userName = "游客";
+        if (userId != null) {
+            User u = mysqlMapper.queryUserById(userId);
+            if (u != null && u.getDisplayName() != null) {
+                userName = u.getDisplayName();
+            }
+        }
+        Map<String, Object> map = new HashMap<>();
+        map.put("msgList", messageList);
+        map.put("count", count);
+        map.put("userName", userName);
+        result.setBody(map);
+        return result;
     }
 
     @Override
     public Result queryMessageById(String msgId, String flag) {
         Result result = Result.getInstance();
-        String requetIp = CommUtils.getClientIpByMDC();
-        List<Map<String, Object>> messageList;
-        if("1".equals(flag)) {
-            messageList = mysqlMapper.queryMessage(msgId, requetIp);
-        } else {
-            messageList = mysqlMapper.queryMessage(msgId, "");
-        }
-        List<Map<String, Object>> msgList = new ArrayList<>();
-        for (Map<String, Object> map : messageList) {
-            Map<String, Object> msgMap = new HashMap<>();
-            String clientIp = (String) map.get("ip");
-            String userName = userService.getUserName(clientIp);
-            if (StringUtil.isEmpty(userName)) {
-                userName = "游客";
-            }
-            msgMap.put("id", map.get("id"));
-            msgMap.put("ip", clientIp);
-            msgMap.put("name", userName+"("+clientIp+")");
-            msgMap.put("content", map.get("info"));
-            msgMap.put("time", (map.get("time")+""));
-            msgList.add(msgMap);
-        }
-        int count = mysqlMapper.queryMessageCount();
+        List<Map<String, Object>> messageList = mysqlMapper.queryMessage(msgId, null);
         Map<String, Object> map = new HashMap<>();
-        map.put("msgList", msgList);
-        map.put("count", count);
-        String requetName = userService.getUserName(requetIp);
-        map.put("userName", requetName);
+        map.put("msgList", messageList);
+        map.put("count", mysqlMapper.queryMessageCount());
+        map.put("userName", "");
         result.setBody(map);
         return result;
     }

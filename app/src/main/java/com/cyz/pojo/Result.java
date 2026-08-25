@@ -1,6 +1,6 @@
-package com.chenzhen.pojo;
+package com.cyz.pojo;
 
-import com.chenzhen.constant.ErrorEnum;
+import com.cyz.constant.ErrorEnum;
 import lombok.Data;
 import org.slf4j.MDC;
 

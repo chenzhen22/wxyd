@@ -1,4 +1,4 @@
-package com.chenzhen.config;
+package com.cyz.config;
 
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurationSupport;

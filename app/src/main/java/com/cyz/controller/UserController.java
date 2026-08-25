@@ -1,9 +1,9 @@
-package com.chenzhen.controller;
+package com.cyz.controller;
 
-import com.chenzhen.pojo.Result;
-import com.chenzhen.pojo.WhiteUser;
-import com.chenzhen.service.UserService;
-import com.chenzhen.util.CommUtils;
+import com.cyz.pojo.Result;
+import com.cyz.pojo.WhiteUser;
+import com.cyz.service.UserService;
+import com.cyz.util.CommUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestBody;

@@ -1,6 +1,6 @@
-package com.chenzhen.mapper.mysqlMapper;
+package com.cyz.mapper.mysqlMapper;
 
-import com.chenzhen.pojo.*;
+import com.cyz.pojo.*;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;

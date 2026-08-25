@@ -1,4 +1,4 @@
-package com.chenzhen.constant;
+package com.cyz.constant;
 
 import lombok.Getter;
 import lombok.Setter;

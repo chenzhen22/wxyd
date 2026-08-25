@@ -1,4 +1,4 @@
-package com.chenzhen.controller;
+package com.cyz.controller;
 
 public interface CommController {
 }

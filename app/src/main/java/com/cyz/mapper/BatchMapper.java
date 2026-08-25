@@ -1,6 +1,6 @@
-package com.chenzhen.mapper;
+package com.cyz.mapper;
 
-import com.chenzhen.pojo.Message;
+import com.cyz.pojo.Message;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;

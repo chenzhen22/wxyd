@@ -1,6 +1,6 @@
-package com.chenzhen.service;
+package com.cyz.service;
 
-import com.chenzhen.pojo.LogPojo;
+import com.cyz.pojo.LogPojo;
 
 import java.util.Map;
 

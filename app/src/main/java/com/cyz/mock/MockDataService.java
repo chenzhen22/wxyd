@@ -1,4 +1,4 @@
-package com.chenzhen.mock;
+package com.cyz.mock;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;

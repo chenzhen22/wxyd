@@ -1,7 +1,7 @@
-package com.chenzhen.config;
+package com.cyz.config;
 
-import com.chenzhen.util.CommUtils;
-import com.chenzhen.util.LogUtil;
+import com.cyz.util.CommUtils;
+import com.cyz.util.LogUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.Configuration;

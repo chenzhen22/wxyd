@@ -1,8 +1,8 @@
-package com.chenzhen.controller;
+package com.cyz.controller;
 
-import com.chenzhen.pojo.Result;
-import com.chenzhen.service.MessageService;
-import com.chenzhen.util.CommUtils;
+import com.cyz.pojo.Result;
+import com.cyz.service.MessageService;
+import com.cyz.util.CommUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;

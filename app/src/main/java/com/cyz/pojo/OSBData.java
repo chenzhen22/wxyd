@@ -1,4 +1,4 @@
-package com.chenzhen.pojo;
+package com.cyz.pojo;
 
 import com.alibaba.excel.annotation.ExcelProperty;
 import lombok.Data;

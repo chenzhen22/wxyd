@@ -1,8 +1,8 @@
-package com.chenzhen.aspect;
+package com.cyz.aspect;
 
 import cn.hutool.core.util.StrUtil;
-import com.chenzhen.pojo.Result;
-import com.chenzhen.util.LogUtil;
+import com.cyz.pojo.Result;
+import com.cyz.util.LogUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class ControllerAspect {
 
-    @Pointcut("execution(* com.chenzhen.controller.CommController+.*(..))")
+    @Pointcut("execution(* com.cyz.controller.CommController+.*(..))")
     public void controllerLog() {}
 
     @Around("controllerLog()")

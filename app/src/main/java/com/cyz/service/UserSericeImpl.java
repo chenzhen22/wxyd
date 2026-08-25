@@ -1,7 +1,7 @@
-package com.chenzhen.service;
+package com.cyz.service;
 
-import com.chenzhen.mapper.mysqlMapper.MysqlMapper;
-import com.chenzhen.pojo.WhiteUser;
+import com.cyz.mapper.mysqlMapper.MysqlMapper;
+import com.cyz.pojo.WhiteUser;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;

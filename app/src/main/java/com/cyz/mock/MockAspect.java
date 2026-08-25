@@ -1,9 +1,9 @@
-package com.chenzhen.mock;
+package com.cyz.mock;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.chenzhen.pojo.Result;
-import com.chenzhen.util.BtoAAtoB;
+import com.cyz.pojo.Result;
+import com.cyz.util.BtoAAtoB;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -42,7 +42,7 @@ public class MockAspect {
         log.info("[MOCK] MockAspect initialized, mockEnabled={}", mockEnabled);
     }
 
-    @Around("execution(* com.chenzhen.controller.CommController+.*(..))")
+    @Around("execution(* com.cyz.controller.CommController+.*(..))")
     public Object mockAround(ProceedingJoinPoint joinPoint) throws Throwable {
         if (!mockEnabled) {
             return joinPoint.proceed();

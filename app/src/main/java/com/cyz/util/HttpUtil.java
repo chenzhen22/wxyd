@@ -1,4 +1,4 @@
-package com.chenzhen.util;
+package com.cyz.util;
 
 import java.io.*;
 import java.net.HttpURLConnection;

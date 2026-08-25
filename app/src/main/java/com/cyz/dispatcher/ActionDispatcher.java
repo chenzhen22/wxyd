@@ -1,9 +1,9 @@
-package com.chenzhen.dispatcher;
+package com.cyz.dispatcher;
 
 import com.alibaba.fastjson.JSONObject;
-import com.chenzhen.pojo.Result;
-import com.chenzhen.service.*;
-import com.chenzhen.util.CommUtils;
+import com.cyz.pojo.Result;
+import com.cyz.service.*;
+import com.cyz.util.CommUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

@@ -1,8 +1,8 @@
-package com.chenzhen.controller;
+package com.cyz.controller;
 
-import com.chenzhen.pojo.Result;
-import com.chenzhen.service.TbpService;
-import com.chenzhen.util.CommUtils;
+import com.cyz.pojo.Result;
+import com.cyz.service.TbpService;
+import com.cyz.util.CommUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -1,4 +1,4 @@
-package com.chenzhen.config;
+package com.cyz.config;
 
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.SqlSessionFactoryBean;
@@ -15,7 +15,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import javax.sql.DataSource;
 
 @Configuration
-@MapperScan(basePackages = {"com.chenzhen.mapper"}, sqlSessionFactoryRef = "sqlSessionFactory")
+@MapperScan(basePackages = {"com.cyz.mapper"}, sqlSessionFactoryRef = "sqlSessionFactory")
 public class mybatisMysqlConfig {
 
 	@Value("${mybatis.mapperLocations}")

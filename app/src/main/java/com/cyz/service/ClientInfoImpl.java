@@ -1,7 +1,7 @@
-package com.chenzhen.service;
+package com.cyz.service;
 
-import com.chenzhen.mapper.mysqlMapper.MysqlMapper;
-import com.chenzhen.pojo.LogPojo;
+import com.cyz.mapper.mysqlMapper.MysqlMapper;
+import com.cyz.pojo.LogPojo;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 

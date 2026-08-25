@@ -1,6 +1,6 @@
-package com.chenzhen.service;
+package com.cyz.service;
 
-import com.chenzhen.pojo.WhiteUser;
+import com.cyz.pojo.WhiteUser;
 
 import java.util.List;
 

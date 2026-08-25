@@ -1,6 +1,6 @@
-package com.chenzhen.util;
+package com.cyz.util;
 
-import com.chenzhen.config.ProperConfig;
+import com.cyz.config.ProperConfig;
 
 import javax.mail.Message;
 import javax.mail.MessagingException;

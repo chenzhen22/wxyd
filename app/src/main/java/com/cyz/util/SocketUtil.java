@@ -1,4 +1,4 @@
-package com.chenzhen.util;
+package com.cyz.util;
 
 import com.alibaba.fastjson.JSONObject;
 import lombok.Data;

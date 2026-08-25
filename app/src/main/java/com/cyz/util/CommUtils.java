@@ -1,7 +1,7 @@
-package com.chenzhen.util;
+package com.cyz.util;
 
-import com.chenzhen.config.ProperConfig;
-import com.chenzhen.pojo.Result;
+import com.cyz.config.ProperConfig;
+import com.cyz.pojo.Result;
 import lombok.SneakyThrows;
 import net.sf.json.xml.XMLSerializer;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -26,7 +26,7 @@ import java.util.zip.ZipInputStream;
 /**
  *
  * @description: 工具类
- * @author: chenzhen 254669004@qq.com
+ * @author: cyz 254669004@qq.com
  * @create: 2024-06-06
  *
  **/

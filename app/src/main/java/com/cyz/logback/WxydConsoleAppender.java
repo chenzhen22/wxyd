@@ -1,8 +1,8 @@
-package com.chenzhen.logback;
+package com.cyz.logback;
 
 import ch.qos.logback.classic.spi.LoggingEvent;
 import ch.qos.logback.core.ConsoleAppender;
-import com.chenzhen.util.CommUtils;
+import com.cyz.util.CommUtils;
 
 import org.springframework.util.StringUtils;
 

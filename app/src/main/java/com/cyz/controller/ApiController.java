@@ -1,6 +1,6 @@
-package com.chenzhen.controller;
+package com.cyz.controller;
 
-import com.chenzhen.service.ApiService;
+import com.cyz.service.ApiService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 

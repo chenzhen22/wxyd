@@ -1,8 +1,8 @@
-package com.chenzhen.service;
+package com.cyz.service;
 
-import com.chenzhen.pojo.Result;
-import com.chenzhen.util.CommUtils;
-import com.chenzhen.util.DesUtil;
+import com.cyz.pojo.Result;
+import com.cyz.util.CommUtils;
+import com.cyz.util.DesUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

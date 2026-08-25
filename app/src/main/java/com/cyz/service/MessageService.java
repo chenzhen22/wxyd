@@ -1,6 +1,6 @@
-package com.chenzhen.service;
+package com.cyz.service;
 
-import com.chenzhen.pojo.Result;
+import com.cyz.pojo.Result;
 
 public interface MessageService {
 

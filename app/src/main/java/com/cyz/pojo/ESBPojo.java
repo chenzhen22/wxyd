@@ -1,4 +1,4 @@
-package com.chenzhen.pojo;
+package com.cyz.pojo;
 
 import com.alibaba.fastjson.annotation.JSONField;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -18,7 +18,7 @@ public class ESBPojo {
         return ReqSvcHeader;
     }
 
-    public void setReqSvcHeader(com.chenzhen.pojo.ReqSvcHeader reqSvcHeader) {
+    public void setReqSvcHeader(com.cyz.pojo.ReqSvcHeader reqSvcHeader) {
         ReqSvcHeader = reqSvcHeader;
     }
 
@@ -27,7 +27,7 @@ public class ESBPojo {
         return SvcBody;
     }
 
-    public void setSvcBody(com.chenzhen.pojo.SvcBody svcBody) {
+    public void setSvcBody(com.cyz.pojo.SvcBody svcBody) {
         SvcBody = svcBody;
     }
 

@@ -1,10 +1,10 @@
-package com.chenzhen.service;
+package com.cyz.service;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.chenzhen.mapper.mysqlMapper.MysqlMapper;
-import com.chenzhen.pojo.*;
-import com.chenzhen.util.CommUtils;
+import com.cyz.mapper.mysqlMapper.MysqlMapper;
+import com.cyz.pojo.*;
+import com.cyz.util.CommUtils;
 import org.dom4j.Document;
 import org.dom4j.DocumentHelper;
 import org.springframework.stereotype.Service;

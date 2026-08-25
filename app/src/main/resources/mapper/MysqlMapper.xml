@@ -44,18 +44,6 @@
 		select count(1) from `action` where `actions`=#{url}
 	</select>
 
-	<update id="addSocketMessage" parameterType="com.cyz.pojo.SocketMessage">
-		INSERT INTO `socketMessages` (`type`,`url`,`message`,`date`,`status`,`clientIp`,`serverIp`,`handleIp`) VALUES (#{type},#{url},#{message},#{date},'0',#{clientIp},#{serverIp},#{handleIp})
-	</update>
-
-	<select id="querySocketRevice" resultType="String" parameterType="String">
-		select `recive` from  `socketMessages` where date=#{date}
-	</select>
-
-	<update id="updateSocketMsgStatus" parameterType="String">
-		update `socketMessages` set `status`=#{status} where `date`=#{date}
-	</update>
-
 	<select id="queryWhiteInfo" resultType="com.cyz.pojo.WhiteUser" parameterType="com.cyz.pojo.WhiteUser">
 		select ip,status,username from client
 		<where>

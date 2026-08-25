@@ -24,7 +24,6 @@ import org.springframework.stereotype.Component;
 public class ActionDispatcher {
 
     @Autowired private MessageService messageService;
-    @Autowired private LoginService loginService;
     @Autowired private UserService userService;
 
     public Result dispatch(Result result) {

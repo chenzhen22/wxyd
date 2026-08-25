@@ -25,12 +25,6 @@ public interface MysqlMapper {
 
 	int queryWhiteUrl(String url);
 
-	int addSocketMessage(SocketMessage SocketMessage);
-
-	String querySocketRevice(String date);
-
-	int updateSocketMsgStatus(String date, String status);
-
 	List<WhiteUser> queryWhiteInfo(WhiteUser whiteUser);
 
 	int addWhite(WhiteUser whiteUser);

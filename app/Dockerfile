@@ -6,7 +6,7 @@ ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # 替换成你自己target下jar包名字
-COPY target/app-1.0.0.jar app.jar
+COPY app/target/app-1.0.0.jar app.jar
 
 EXPOSE ${PORT}
 

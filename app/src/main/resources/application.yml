@@ -2,6 +2,11 @@ server:
   port: ${PORT:8090}
   servlet:
     context-path: /api
+  # 适配Railway反向代理，解决请求挂起pending
+  forward-headers-strategy: NATIVE
+  tomcat:
+    remote-ip:
+      enabled: true
 
 spring:
   application:
@@ -32,4 +37,3 @@ mybatis:
 wxyd:
   mock:
     enabled: false
-

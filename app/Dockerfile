@@ -1,5 +1,5 @@
-# JDK8 轻量镜像
-FROM openjdk:8-jre-slim
+# JDK8
+FROM eclipse-temurin:8-jre
 
 # 设置时区东八区
 ENV TZ=Asia/Shanghai

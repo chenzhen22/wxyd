@@ -68,6 +68,7 @@
             <li class="menu-item" data-target="userManage"><i>👤</i>用户管理</li>
             <li class="menu-item" data-target="messageBoard"><i>💬</i>留言板</li>
             <li class="menu-item" data-target="robotManage"><i>🤖</i>钉钉机器人</li>
+            <li class="menu-item" data-target="javaApi"><i>☕</i>Java8-API</li>
         </ul>
     </aside>
 
@@ -146,7 +147,45 @@
             </div>
         </div>
 
+        <div class="module-box" id="javaApi">
+            <div class="page-title">Java8 API 交互式学习</div>
+            <div class="javaapi-wrap">
+                <div class="javaapi-sidebar">
+                    <input type="text" id="jaSearch" class="javaapi-search" placeholder="🔍 搜索 API..." autocomplete="off">
+                    <div class="javaapi-list" id="jaApiList"></div>
+                </div>
+                <div class="javaapi-detail" id="jaDetail">
+                    <div class="javaapi-welcome">
+                        <h2>☕ Java API 学习平台</h2>
+                        <p>请从左侧选择一个 API 开始学习，支持在线编辑运行测试代码</p>
+                    </div>
+                    <div class="javaapi-content" id="jaContent" style="display:none">
+                        <h1 id="jaTitle"></h1>
+                        <span id="jaPackage" class="package-badge"></span>
+                        <div id="jaIntro"></div>
+                        <h3>📋 方法列表</h3>
+                        <div id="jaMethods"></div>
+                        <h3>🧪 测试</h3>
+                        <div id="jaTestSection">
+                            <div style="margin-bottom:12px">
+                                <label style="font-weight:600">选择测试用例：</label>
+                                <select id="jaTestSelector"></select>
+                            </div>
+                            <div id="jaTestDesc" class="javaapi-test-desc"></div>
+                            <textarea id="jaCodeEditor" class="javaapi-editor" spellcheck="false"></textarea>
+                            <button class="btn-main" id="jaRunBtn" style="margin-top:12px">▶ 运行测试</button>
+                            <div id="jaResultSection" style="display:none;margin-top:16px">
+                                <div id="jaResultStatus" class="javaapi-result-status"></div>
+                                <pre id="jaResultOutput" class="javaapi-result-output"></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </main>
 </div>
+<script src="Assets/js/javaapi.js?v=1" type="text/javascript"></script>
 </body>
 </html>

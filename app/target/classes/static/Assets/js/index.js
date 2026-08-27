@@ -30,6 +30,10 @@ $(function () {
         $(this).addClass("active");
         $(".module-box").removeClass("active");
         $("#" + $(this).data("target")).addClass("active");
+        // Java8 API 模块懒加载
+        if ($(this).data("target") === "javaApi" && window.JavaApi) {
+            JavaApi.init();
+        }
     });
 
     $("#welcome").click(function () {

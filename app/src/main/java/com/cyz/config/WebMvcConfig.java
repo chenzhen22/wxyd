@@ -17,7 +17,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // 避免误拦截机器到机器的 transData 集成调用。
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns(
-                        "/user/**", "/robot/**",
+                        "/user/**", "/robot/**", "/javaapi/**",
                         "/approveUser", "/rejectUser", "/deleteUser",
                         "/queryMessage", "/addMessage", "/delMessage"
                 );

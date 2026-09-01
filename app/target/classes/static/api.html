@@ -69,6 +69,7 @@
             <li class="menu-item" data-target="messageBoard"><i>💬</i>留言板</li>
             <li class="menu-item" data-target="robotManage"><i>🤖</i>钉钉机器人</li>
             <li class="menu-item" data-target="javaApi"><i>☕</i>Java8-API</li>
+            <li class="menu-item" data-target="dubboCall"><i>🔌</i>Dubbo调用</li>
         </ul>
     </aside>
 
@@ -190,8 +191,76 @@
             </div>
         </div>
 
+        <div class="module-box" id="dubboCall">
+            <div class="page-title">Dubbo 调用测试工具</div>
+            <div class="dubbo-toolbar">
+                <button class="btn-main" id="dubboNew">新建请求</button>
+                <button class="btn-main" id="dubboInvokeTop">调用</button>
+                <input type="file" id="dubboFileInput" accept=".json,application/json,text/json,text/plain" style="display:none">
+                <button class="btn-api" id="dubboLoadBtn">加载文件</button>
+                <button class="btn-api" id="dubboSaveFileBtn">保存文件</button>
+            </div>
+            <div class="dubbo-wrap">
+                <aside class="dubbo-sidebar">
+                    <div class="dubbo-sidebar-head">已保存请求</div>
+                    <div class="dubbo-search-box">
+                        <input type="text" id="dubboSearch" placeholder="🔍 搜索名称（模糊）" autocomplete="off">
+                    </div>
+                    <ul id="dubboConfigList" class="dubbo-list"></ul>
+                </aside>
+                <main class="dubbo-main">
+                    <div class="cert-card">
+                        <input type="hidden" id="dubboId">
+                        <div class="cert-form-row">
+                            <label>名称</label>
+                            <input id="dubboName" type="text" placeholder="如：CPR020181-省别查询">
+                        </div>
+                        <div class="cert-form-row">
+                            <label>注册中心</label>
+                            <input id="dubboRegistryAddress" type="text" value="zookeeper://127.0.0.1:2181">
+                        </div>
+                        <div class="cert-form-row">
+                            <label>服务名</label>
+                            <input id="dubboServiceName" type="text" placeholder="如：dubbov_CPR020181Flow">
+                        </div>
+                        <div class="cert-form-row">
+                            <label>版本</label>
+                            <input id="dubboVersion" type="text" value="1.0.0">
+                            <label>超时(ms)</label>
+                            <input id="dubboTimeout" type="text" value="30000">
+                        </div>
+                        <div class="cert-form-row">
+                            <label>接口</label>
+                            <input id="dubboInterfaceName" type="text" value="com.ifp.core.flow.service.FlowService">
+                            <label>方法</label>
+                            <input id="dubboMethodName" type="text" value="execute">
+                        </div>
+                        <div class="cert-form-row">
+                            <label>请求参数 JSON</label>
+                            <button class="btn-api" id="dubboFormat" type="button">格式化</button>
+                        </div>
+                        <textarea id="dubboParamJson" class="dubbo-editor" rows="12" spellcheck="false"
+                                  placeholder='{"reqId":"$reqId","dataMap":{"provinceCode":"44"}}  &lt;-- reqId 写 $reqId 由后端按规则生成'></textarea>
+                        <div class="cert-btn-group">
+                            <button class="btn-main" id="dubboSave" type="button">保存</button>
+                            <button class="btn-main" id="dubboInvoke" type="button">调用</button>
+                            <button class="btn-api" id="dubboRename" type="button">重命名</button>
+                            <button class="btn-del" id="dubboDelete" type="button">删除</button>
+                        </div>
+                    </div>
+                    <div class="cert-card">
+                        <div class="cert-card-tit">调用结果 <span id="dubboCost" class="dubbo-cost"></span></div>
+                        <pre id="dubboResult" class="dubbo-result"></pre>
+                        <div class="cert-card-tit dubbo-error-title">错误信息</div>
+                        <pre id="dubboError" class="dubbo-error"></pre>
+                    </div>
+                </main>
+            </div>
+        </div>
+
     </main>
 </div>
 <script src="Assets/js/javaapi.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/dubbo.js?v=1" type="text/javascript"></script>
 </body>
 </html>

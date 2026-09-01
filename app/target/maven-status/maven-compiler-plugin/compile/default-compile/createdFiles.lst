@@ -1,5 +1,6 @@
 com\cyz\logback\WxydConsoleAppender.class
 com\cyz\pojo\LogPojo.class
+com\cyz\dubbo\controller\DubboController.class
 com\cyz\config\mybatisMysqlConfig.class
 com\cyz\controller\RobotController.class
 com\cyz\service\ClientInfoImpl.class
@@ -7,6 +8,7 @@ com\cyz\dispatcher\ActionDispatcher.class
 com\cyz\pojo\Messages.class
 com\cyz\aspect\ControllerAspect.class
 com\cyz\util\HttpUtil.class
+com\cyz\dubbo\service\DubboInvoker.class
 com\cyz\service\ApiServiceImpl.class
 com\cyz\mock\MockDataService.class
 com\cyz\filter\RepeatReadFilter.class
@@ -15,6 +17,7 @@ com\cyz\util\DesUtil.class
 com\cyz\controller\AuthController.class
 com\cyz\service\MessageServiceImpl.class
 com\cyz\request\RepeatReadRequestWrapper$1.class
+com\cyz\dubbo\service\ReqIdGenerator.class
 com\cyz\javaapi\model\TestCase.class
 com\cyz\controller\IndexController.class
 com\cyz\service\ApiService.class
@@ -45,15 +48,18 @@ com\cyz\request\RepeatReadRequestWrapper.class
 com\cyz\javaapi\model\ApiClass.class
 com\cyz\service\MsgService.class
 com\cyz\util\DingTalkRobotUtil.class
+com\cyz\dubbo\util\StringUtil.class
 com\cyz\controller\UserController.class
 com\cyz\controller\CommController.class
 com\cyz\config\Sm4KeyHolder.class
+com\cyz\dubbo\model\CallResult.class
 com\cyz\mapper\BatchMapper.class
 com\cyz\javaapi\controller\JavaApiController.class
 com\cyz\service\AuthServiceImpl.class
 com\cyz\util\SMUtil.class
 com\cyz\util\BtoAAtoB.class
 com\cyz\service\RobotServiceImpl.class
+com\cyz\dubbo\model\DubboConfig.class
 com\cyz\service\UserService.class
 com\cyz\mapper\mysqlMapper\MysqlMapper.class
 com\cyz\util\LogUtil.class

@@ -9,5 +9,6 @@
 *.log
 /msg/
 /docfile/
+/history/
 # 环境配置（含真实 DB 密钥 / SM4 密钥 / 超管密码，绝不提交）
 app/src/main/resources/env.properties

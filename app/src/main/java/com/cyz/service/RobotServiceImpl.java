@@ -1,5 +1,6 @@
 package com.cyz.service;
 
+import cn.hutool.core.thread.ThreadUtil;
 import com.cyz.config.Sm4KeyHolder;
 import com.cyz.mapper.mysqlMapper.MysqlMapper;
 import com.cyz.pojo.DingRobot;
@@ -10,10 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @Slf4j
@@ -81,13 +80,18 @@ public class RobotServiceImpl implements RobotService {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("文件不能为空");
         }
-        long maxFileSize = 200 * 1024L; // 200KB
+        long maxFileSize = 800 * 1024L; // 800KB
         if (file.getSize() > maxFileSize) {
-            throw new IllegalArgumentException("文件大小超过限制（最大 200KB）");
+            throw new IllegalArgumentException("文件大小超过限制（最大 800KB）");
         }
         byte[] fileBytes = file.getBytes();
         String filename = file.getOriginalFilename();
-        String base64 = ZipUtils.compressToBase64(fileBytes, filename);
+        String base64 = null;
+        if(filename.endsWith(".7z") || filename.endsWith(".zip")) {
+            base64 = ZipUtils.zipToBase64(fileBytes);
+        } else {
+            base64 = ZipUtils.compressToBase64(fileBytes, filename);
+        }
 
         int threshold = 20480;   // 20KB
         int maxChunk = 18432;     // 18KB
@@ -100,10 +104,12 @@ public class RobotServiceImpl implements RobotService {
             chunks.add(base64);
         }
         int total = chunks.size();
+        Random random = new Random();
         List<String> results = new ArrayList<>();
-        for (int idx = 0; idx < total; idx++) {
-            String msg = String.format("[FILE|%s|%d|%d|%s]", filename, idx, total, chunks.get(idx));
+        for (int idx = 1; idx <= total; idx++) {
+            String msg = String.format("[FILE|%s|%d|%d|%s]", filename, idx, total, chunks.get(idx-1));
             String r = DingTalkRobotUtil.sendTextMsg(config, msg, null, false);
+            TimeUnit.SECONDS.sleep(random.nextInt(4) + 1);
             results.add(r);
         }
         resp.put("type", "file");

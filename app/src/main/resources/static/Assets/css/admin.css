@@ -1015,3 +1015,40 @@ select option { background: #302b63; color: #fff; }
 }
 .dubbo-error-title { color: #ff7875; }
 .dubbo-error { color: #ff7875; }
+
+/* Dubbo 加载浮层（暗色玻璃 + 紫色 spinner） */
+.dubbo-loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.dubbo-loading-box {
+    background: rgba(30, 27, 60, .85);
+    border: 1px solid rgba(255, 255, 255, .15);
+    border-radius: 16px;
+    padding: 28px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, .45);
+}
+.dubbo-loading-text {
+    color: rgba(255, 255, 255, .85);
+    font-size: 14px;
+}
+.dubbo-loading-spinner {
+    width: 34px;
+    height: 34px;
+    border: 3px solid rgba(255, 255, 255, .12);
+    border-top-color: #a78bfa;
+    border-radius: 50%;
+    animation: dubbo-loading-spin .8s linear infinite;
+}
+@keyframes dubbo-loading-spin { to { transform: rotate(360deg); } }

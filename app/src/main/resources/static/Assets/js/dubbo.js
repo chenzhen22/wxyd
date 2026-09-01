@@ -72,6 +72,14 @@ var DubboTool = (function ($) {
         gid('dubboCost').textContent = '';
     }
 
+    function showLoading() {
+        gid('dubboLoadingOverlay').style.display = 'flex';
+    }
+
+    function hideLoading() {
+        gid('dubboLoadingOverlay').style.display = 'none';
+    }
+
     function showError(msg) {
         gid('dubboError').textContent = msg || '未知错误';
     }
@@ -127,26 +135,35 @@ var DubboTool = (function ($) {
     }
 
     function saveConfig() {
-        var cfg = readForm();
-        if (!cfg.name) { showError('请填写名称'); return; }
-        if (isNameTaken(cfg.name, cfg.id)) {
-            var newName = prompt('名称已存在：' + cfg.name + '\n请输入新名称：', cfg.name + '-副本');
-            if (!newName || !newName.trim()) { showError('已取消保存'); return; }
-            gid('dubboName').value = cfg.name = newName.trim();
-            saveConfig();
-            return;
-        }
-        var now = new Date().toISOString();
-        if (cfg.id) {
-            var idx = -1;
-            for (var i = 0; i < requests.length; i++) {
-                if (requests[i].id === cfg.id) { idx = i; break; }
+        showLoading();
+        try {
+            var cfg = readForm();
+            if (!cfg.name) { showError('请填写名称'); return; }
+            if (isNameTaken(cfg.name, cfg.id)) {
+                var newName = prompt('名称已存在：' + cfg.name + '\n请输入新名称：', cfg.name + '-副本');
+                if (!newName || !newName.trim()) { showError('已取消保存'); return; }
+                gid('dubboName').value = cfg.name = newName.trim();
+                saveConfig();
+                return;
             }
-            if (idx >= 0) {
-                var old = requests[idx];
-                cfg.createTime = old.createTime || now;
-                cfg.updateTime = now;
-                requests[idx] = cfg;
+            var now = new Date().toISOString();
+            if (cfg.id) {
+                var idx = -1;
+                for (var i = 0; i < requests.length; i++) {
+                    if (requests[i].id === cfg.id) { idx = i; break; }
+                }
+                if (idx >= 0) {
+                    var old = requests[idx];
+                    cfg.createTime = old.createTime || now;
+                    cfg.updateTime = now;
+                    requests[idx] = cfg;
+                } else {
+                    cfg.id = genId();
+                    cfg.createTime = now;
+                    cfg.updateTime = now;
+                    currentId = cfg.id;
+                    requests.push(cfg);
+                }
             } else {
                 cfg.id = genId();
                 cfg.createTime = now;
@@ -154,17 +171,13 @@ var DubboTool = (function ($) {
                 currentId = cfg.id;
                 requests.push(cfg);
             }
-        } else {
-            cfg.id = genId();
-            cfg.createTime = now;
-            cfg.updateTime = now;
-            currentId = cfg.id;
-            requests.push(cfg);
+            saveToStorage();
+            refreshList();
+            clearResult();
+            gid('dubboId').value = cfg.id;
+        } finally {
+            hideLoading();
         }
-        saveToStorage();
-        refreshList();
-        clearResult();
-        gid('dubboId').value = cfg.id;
     }
 
     function renameConfig(id) {
@@ -235,16 +248,19 @@ var DubboTool = (function ($) {
         var cfg = readForm();
         if (!cfg.registryAddress || !cfg.serviceName) { showError('请填写注册中心与服务名'); return; }
         clearResult();
+        showLoading();
         $.ajax({
             url: 'dubbo/invoke',
             type: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify(cfg),
-            success: function (cr) { showResult(cr); },
-            error: function (jqXHR) {
-                if (jqXHR.status === 401) return; // 全局 ajaxError 处理并跳转
-                showError('调用失败：HTTP ' + jqXHR.status);
-            }
+            data: JSON.stringify(cfg)
+        }).done(function (cr) {
+            showResult(cr);
+        }).fail(function (jqXHR) {
+            if (jqXHR.status === 401) return; // 全局 ajaxError 处理并跳转
+            showError('调用失败：HTTP ' + jqXHR.status);
+        }).always(function () {
+            hideLoading();
         });
     }
 

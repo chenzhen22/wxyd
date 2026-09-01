@@ -1,5 +1,6 @@
 D:\GIT\wxyd\app\src\main\java\com\cyz\aspect\ControllerAspect.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\util\SMUtil.java
+D:\GIT\wxyd\app\src\main\java\com\cyz\dubbo\model\CallResult.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\WxydApplication.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\controller\MessageController.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\service\MessageServiceImpl.java
@@ -12,11 +13,13 @@ D:\GIT\wxyd\app\src\main\java\com\cyz\pojo\Number.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\controller\UserController.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\config\WebMvcConfig.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\filter\RepeatReadFilter.java
+D:\GIT\wxyd\app\src\main\java\com\cyz\dubbo\controller\DubboController.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\constant\ErrorEnum.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\controller\CommController.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\javaapi\service\CodeExecutionService.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\service\RobotServiceImpl.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\service\ClientInfo.java
+D:\GIT\wxyd\app\src\main\java\com\cyz\dubbo\service\DubboInvoker.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\pojo\WhiteUser.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\util\HttpUtil.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\service\RobotService.java
@@ -39,10 +42,12 @@ D:\GIT\wxyd\app\src\main\java\com\cyz\javaapi\controller\JavaApiController.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\util\CommUtils.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\controller\RobotController.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\service\MessageService.java
+D:\GIT\wxyd\app\src\main\java\com\cyz\dubbo\model\DubboConfig.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\javaapi\model\ApiMethod.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\logback\WxydConsoleAppender.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\service\UserSericeImpl.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\config\InterceptorConfig.java
+D:\GIT\wxyd\app\src\main\java\com\cyz\dubbo\service\ReqIdGenerator.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\service\ApiServiceImpl.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\service\AuthService.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\config\mybatisMysqlConfig.java
@@ -61,6 +66,7 @@ D:\GIT\wxyd\app\src\main\java\com\cyz\javaapi\model\TestCase.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\mapper\mysqlMapper\MysqlMapper.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\util\ZipUtils.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\pojo\DingRobot.java
+D:\GIT\wxyd\app\src\main\java\com\cyz\dubbo\util\StringUtil.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\request\RepeatReadRequestWrapper.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\util\BtoAAtoB.java
 D:\GIT\wxyd\app\src\main\java\com\cyz\javaapi\service\ApiDataService.java

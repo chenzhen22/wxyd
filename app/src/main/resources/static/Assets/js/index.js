@@ -93,6 +93,45 @@ $(function () {
         $("#textInput").toggle($(this).val() == "text");
         $("#fileInput").toggle($(this).val() == "file");
     });
+    // 文件拖拽/选择展示
+    function showSelectedFile(file) {
+        if (!file) return;
+        let size = file.size > 1048576 ? (file.size / 1048576).toFixed(2) + " MB" : (file.size / 1024).toFixed(2) + " KB";
+        $("#dropZoneHint").hide();
+        let $f = $("#dropZoneFile").text("✅ " + file.name + " （" + size + "）").show();
+        $f.data("name", file.name);
+    }
+    // 点击拖拽区 → 触发原生文件选择
+    $("#dropZone").on("click", function (e) {
+        if (e.target.id === "sendFile") return;
+        $("#sendFile").click();
+    });
+    // 原生选择回调
+    $("#sendFile").on("change", function () {
+        if (this.files && this.files[0]) showSelectedFile(this.files[0]);
+    });
+    // 拖拽事件
+    let $dz = $("#dropZone");
+    $dz.on("dragover dragenter", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        $dz.addClass("dragover");
+    }).on("dragleave", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        $dz.removeClass("dragover");
+    }).on("drop", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        $dz.removeClass("dragover");
+        let ev = e.originalEvent;
+        let files = ev && ev.dataTransfer ? ev.dataTransfer.files : null;
+        if (!files || files.length === 0) return;
+        let file = files[0];
+        // 通过 DataTransfer 把拖入的文件写回隐藏 input，保证发送逻辑不变
+        let dt = new DataTransfer();
+        dt.items.add(file);
+        $("#sendFile")[0].files = dt.files;
+        if (files.length > 1) $("#dropZoneFile").show().text("⚠️ 仅发送第一个文件：" + file.name);
+        showSelectedFile(file);
+    });
     $("#btnSend").click(function () {
         let fd = new FormData();
         fd.append("robotId", $("#sendRobotSel").val());

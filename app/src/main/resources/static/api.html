@@ -141,7 +141,13 @@
                     <label>类型：</label><select id="sendType"><option value="text">纯文本</option><option value="file">文件</option></select>
                 </div>
                 <div class="cert-form-item" id="textInput"><textarea id="sendText" style="width:600px;height:120px"></textarea></div>
-                <div class="cert-form-item" id="fileInput" style="display:none"><input type="file" id="sendFile"></div>
+                <div class="cert-form-item" id="fileInput" style="display:none">
+                    <div class="drop-zone" id="dropZone">
+                        <input type="file" id="sendFile" style="display:none">
+                        <div class="drop-zone-hint" id="dropZoneHint">📄 将文件拖拽到此处，或点击选择</div>
+                        <div class="drop-zone-file" id="dropZoneFile" style="display:none"></div>
+                    </div>
+                </div>
                 <div class="cert-btn-group"><button class="btn-main" id="btnSend">发送</button></div>
                 <div id="sendResult" style="margin-top:10px;color:rgba(255,255,255,.7)"></div>
             </div>

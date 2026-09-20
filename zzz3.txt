@@ -1,0 +1,1 @@
+﻿exists: True | ERR: [safe-delete][SAFE_DELETE_FAIL_CLOSED] {"target":"D:\\GIT\\wxyd\\.workbuddy\\zzz.txt","reason":"trash-failed","detail":"OK D:\\GIT\\wxyd\\.workbuddy\\zzz.txt"} | exists-after: False

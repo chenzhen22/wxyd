@@ -61,6 +61,13 @@
     </div>
 </div>
 
+<div id="dubboLoadingOverlay" class="dubbo-loading-overlay" style="display:none;">
+    <div class="dubbo-loading-box">
+        <div class="dubbo-loading-spinner"></div>
+        <div class="dubbo-loading-text">加载中，请稍后...</div>
+    </div>
+</div>
+
 <div class="wrap-container">
     <aside class="left-sidebar">
         <ul class="menu-list">
@@ -69,7 +76,9 @@
             <li class="menu-item" data-target="messageBoard"><i>💬</i>留言板</li>
             <li class="menu-item" data-target="robotManage"><i>🤖</i>钉钉机器人</li>
             <li class="menu-item" data-target="javaApi"><i>☕</i>Java8-API</li>
+            <li class="menu-item" data-target="shellScript"><i>🐚</i>Shell脚本</li>
             <li class="menu-item" data-target="dubboCall"><i>🔌</i>Dubbo调用</li>
+            <li class="menu-item" data-target="archiveTool"><i>📦</i>归档下载</li>
         </ul>
     </aside>
 
@@ -191,6 +200,31 @@
             </div>
         </div>
 
+        <div class="module-box" id="shellScript">
+            <div class="page-title">Shell 脚本学习</div>
+            <div class="shellscript-wrap">
+                <div class="shellscript-sidebar">
+                    <input type="text" id="ssSearch" class="shellscript-search" placeholder="🔍 搜索主题..." autocomplete="off">
+                    <div class="shellscript-list" id="ssTopicList"></div>
+                </div>
+                <div class="shellscript-detail" id="ssDetail">
+                    <div class="shellscript-welcome">
+                        <h2>🐚 Shell 脚本学习平台</h2>
+                        <p>请从左侧选择一个主题开始学习</p>
+                    </div>
+                    <div class="shellscript-content" id="ssContent" style="display:none">
+                        <h1 id="ssTitle"></h1>
+                        <span id="ssCategory" class="category-badge"></span>
+                        <div id="ssIntro"></div>
+                        <h3>📋 语法速查</h3>
+                        <div id="ssSyntaxes"></div>
+                        <h3>💡 示例</h3>
+                        <div id="ssExamples"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="module-box" id="dubboCall">
             <div class="page-title">Dubbo 调用测试工具</div>
             <div class="dubbo-toolbar">
@@ -258,9 +292,54 @@
             </div>
         </div>
 
+        <div class="module-box" id="archiveTool">
+            <div class="page-title">报文归档下载</div>
+            <div class="cert-card">
+                <div class="cert-card-tit">抓取参数</div>
+                <div class="cert-form-row">
+                    <label>目标网址</label>
+                    <input id="arcUrl" type="text" style="width:620px"
+                           value="https://kstest1.kshbank.cn:9091/extService/index.html">
+                </div>
+                <div class="cert-form-row">
+                    <label>元素 ID</label>
+                    <input id="arcElementId" type="text" value="xzz" style="width:110px">
+                    <label>文件名</label>
+                    <input id="arcFileName" type="text" style="width:260px"
+                           placeholder="留空自动生成 主机名_时间戳.7z">
+                </div>
+                <div class="cert-form-row">
+                    <label>超时(ms)</label>
+                    <input id="arcTimeout" type="text" value="60000" style="width:110px">
+                    <label class="archive-inline-check"
+                           title="默认已内置 CFCA EV ROOT 根证书，通常无需勾选；仅当目标站使用自签证书时才需要">
+                        <input id="arcInsecure" type="checkbox"> 忽略证书校验
+                    </label>
+                </div>
+                <div class="cert-btn-group">
+                    <button class="btn-main" id="arcFetch" type="button">获取并下载</button>
+                    <button class="btn-api" id="arcReset" type="button">重置默认</button>
+                </div>
+                <div class="archive-hint">
+                    后台会访问该网址、解析 HTML、取出指定元素内的 Base64 内容并解码为 7z 下载。
+                    默认目标 <code>&lt;span id="xzz"&gt;</code> 即该地址的归档数据。
+                </div>
+            </div>
+            <div class="cert-card">
+                <div class="cert-card-tit">执行结果 <span id="arcCost" class="dubbo-cost"></span></div>
+                <div id="arcSteps" class="archive-steps">
+                    <div class="archive-empty">尚未执行。点击「获取并下载」开始。</div>
+                </div>
+                <div class="cert-card-tit dubbo-error-title" id="arcErrTitle" style="display:none">错误信息</div>
+                <pre id="arcError" class="dubbo-error" style="display:none"></pre>
+            </div>
+        </div>
+
     </main>
 </div>
 <script src="Assets/js/javaapi.js?v=1" type="text/javascript"></script>
-<script src="Assets/js/dubbo.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/shellscript.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/dubbo.js?v=2" type="text/javascript"></script>
+<script src="Assets/js/archive.js?v=1" type="text/javascript"></script>
 </body>
 </html>

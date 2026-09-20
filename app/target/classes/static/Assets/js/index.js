@@ -34,6 +34,14 @@ $(function () {
         if ($(this).data("target") === "javaApi" && window.JavaApi) {
             JavaApi.init();
         }
+        // Shell 脚本学习模块懒加载
+        if ($(this).data("target") === "shellScript" && window.ShellScript) {
+            ShellScript.init();
+        }
+        // 报文归档下载模块懒加载
+        if ($(this).data("target") === "archiveTool" && window.Archive) {
+            Archive.init();
+        }
     });
 
     $("#welcome").click(function () {

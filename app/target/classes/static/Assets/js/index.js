@@ -24,6 +24,54 @@ $(function () {
     setTime();
     setInterval(setTime, 1000);
 
+    // ===================== 主题切换（持久化到当前用户）=====================
+    var THEMES = ["dark", "light", "eyecare", "techblue", "orange", "pink", "system"];
+    function systemTheme() {
+        return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? "dark" : "light";
+    }
+    function applyTheme(theme) {
+        if (THEMES.indexOf(theme) < 0) theme = "dark";
+        // “跟随系统”：按操作系统的浅色/深色动态套用
+        if (theme === "system") {
+            document.documentElement.setAttribute("data-theme", systemTheme());
+            $("#themeSelect").val("system");
+        } else {
+            document.documentElement.setAttribute("data-theme", theme);
+            $("#themeSelect").val(theme);
+        }
+        try { localStorage.setItem("wxyd-theme", theme); } catch (e) {}
+    }
+    // 选中“跟随系统”时，随系统配色切换实时更新
+    var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    function onSystemChange() {
+        if ($("#themeSelect").val() === "system") applyTheme("system");
+    }
+    if (mq) {
+        if (mq.addEventListener) mq.addEventListener('change', onSystemChange);
+        else if (mq.addListener) mq.addListener(onSystemChange);
+    }
+
+    // 进入页面：以服务端保存的主题为准（localStorage 仅用于首屏防闪烁）
+    $.get("user/theme", function (res) {
+        let t = (res && res.body) || "dark";
+        applyTheme(t);
+    }, "json");
+
+    $("#themeSelect").change(function () {
+        let theme = $(this).val();
+        applyTheme(theme);
+        // 立即本地生效，再异步落库
+        try { localStorage.setItem("wxyd-theme", theme); } catch (e) {}
+        $.ajax({
+            url: "user/updateTheme", type: "post", contentType: "application/json",
+            data: JSON.stringify({body: {theme: theme}}),
+            success: function (res) {
+                if (res.errorCode !== "000000") alterModal(res.errorMsg || "主题保存失败");
+            },
+            error: function () { alterModal("主题保存失败，请稍后重试"); }
+        });
+    });
+
     // 菜单切换
     $(".menu-item").click(function () {
         $(".menu-item").removeClass("active");
@@ -37,6 +85,10 @@ $(function () {
         // Shell 脚本学习模块懒加载
         if ($(this).data("target") === "shellScript" && window.ShellScript) {
             ShellScript.init();
+        }
+        // 记忆笔记模块懒加载
+        if ($(this).data("target") === "note" && window.Note) {
+            Note.init();
         }
         // 报文归档下载模块懒加载
         if ($(this).data("target") === "archiveTool" && window.Archive) {
@@ -289,9 +341,9 @@ function loadMsg(flag) {
             let username = data.body.username;
             // 昵称优先显示 display_name，没有则显示"设置昵称"链接
             if (displayName) {
-                $("#userName").html(displayName).css("color", "rgba(255,255,255,.9)").off("click");
+                $("#userName").html(displayName).css("color", "var(--text-1)").off("click");
             } else {
-                $("#userName").html('<span style="color:#a78bfa;">设置昵称</span>').off("click").on("click", function () {
+                $("#userName").html('<span style="color:var(--accent);">设置昵称</span>').off("click").on("click", function () {
                     $("#nickInput").val(username || "");
                     $("#nickModal").show();
                 });

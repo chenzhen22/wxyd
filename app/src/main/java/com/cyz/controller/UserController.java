@@ -100,6 +100,43 @@ public class UserController implements CommController {
         return CommUtils.handleDaoResult(idx);
     }
 
+    @ResponseBody
+    @RequestMapping("user/updateTheme")
+    public Result updateTheme(@RequestBody Result result, HttpSession session) {
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        String theme = (String) map.get("theme");
+        Long uid = (Long) session.getAttribute("userId");
+        if (uid == null) {
+            Result r = Result.getInstance();
+            r.setErrorCode("000003");
+            r.setErrorMsg("未登录");
+            return r;
+        }
+        if (!java.util.Arrays.asList("dark", "light", "eyecare", "techblue", "orange", "pink", "system").contains(theme)) {
+            Result r = Result.getInstance();
+            r.setErrorCode("000003");
+            r.setErrorMsg("不支持的主题：" + theme);
+            return r;
+        }
+        int idx = userService.updateUserTheme(uid, theme);
+        return CommUtils.handleDaoResult(idx);
+    }
+
+    @ResponseBody
+    @RequestMapping("user/theme")
+    public Result getTheme(HttpSession session) {
+        Long uid = (Long) session.getAttribute("userId");
+        Result r = Result.getInstance();
+        if (uid == null) {
+            r.setErrorCode("000003");
+            r.setErrorMsg("未登录");
+            return r;
+        }
+        String theme = userService.getTheme(uid);
+        r.setBody(theme == null ? "dark" : theme);
+        return r;
+    }
+
     private boolean isAdmin(HttpSession session) {
         Integer role = (Integer) session.getAttribute("role");
         return role != null && role == 0;

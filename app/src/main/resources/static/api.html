@@ -9,6 +9,20 @@
     <script src="Assets/js/jquery-1.8.3.min.js" type="text/javascript"></script>
     <script src="Assets/js/index.js" type="text/javascript"></script>
     <link href="Assets/css/admin.css" rel="stylesheet" type="text/css">
+    <!-- 进入页面前先套用已保存主题，避免闪烁 -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem("wxyd-theme");
+                if (t === "system") {
+                    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? "dark" : "light";
+                }
+                if (t === "light" || t === "dark") {
+                    document.documentElement.setAttribute("data-theme", t);
+                }
+            } catch (e) {}
+        })();
+    </script>
 </head>
 <body>
 <div class="blob blob1"></div>
@@ -17,6 +31,18 @@
 <header class="top-header">
     <div class="top-logo">小泽助手</div>
     <div class="top-user">
+        <div class="theme-switch">
+            <label for="themeSelect">主题</label>
+            <select id="themeSelect" class="theme-select">
+                <option value="dark">暗色（默认）</option>
+                <option value="light">亮色</option>
+                <option value="eyecare">护眼绿</option>
+                <option value="techblue">科技蓝</option>
+                <option value="orange">活力橙</option>
+                <option value="pink">少女粉</option>
+                <option value="system">跟随系统</option>
+            </select>
+        </div>
         <span id="userName" style="padding-right: 30px;cursor:pointer;"></span>
         <button class="btn-logout" onclick="doLogout()">退出登录</button>
     </div>
@@ -77,6 +103,7 @@
             <li class="menu-item" data-target="robotManage"><i>🤖</i>钉钉机器人</li>
             <li class="menu-item" data-target="javaApi"><i>☕</i>Java8-API</li>
             <li class="menu-item" data-target="shellScript"><i>🐚</i>Shell脚本</li>
+            <li class="menu-item" data-target="note"><i>📝</i>记忆笔记</li>
             <li class="menu-item" data-target="dubboCall"><i>🔌</i>Dubbo调用</li>
             <li class="menu-item" data-target="archiveTool"><i>📦</i>归档下载</li>
         </ul>
@@ -335,10 +362,37 @@
             </div>
         </div>
 
+        <div class="module-box" id="note">
+            <div class="page-title">记忆笔记</div>
+            <div class="note-wrap">
+                <div class="note-sidebar">
+                    <input type="text" id="noteSearch" class="note-search" placeholder="🔍 搜索笔记..." autocomplete="off">
+                    <div class="note-list" id="noteList"></div>
+                </div>
+                <main class="note-article-col" id="noteArticleCol">
+                    <div class="note-breadcrumb" id="noteBreadcrumb">记忆笔记</div>
+                    <div class="note-welcome">
+                        <h2>📝 记忆笔记</h2>
+                        <p>请从左侧选择一篇笔记开始阅读</p>
+                    </div>
+                    <article class="note-content" id="noteContent" style="display:none">
+                        <h1 id="noteTitle"></h1>
+                        <div class="note-meta"><span id="noteCategory" class="category-badge"></span></div>
+                        <div id="noteBody"></div>
+                    </article>
+                </main>
+                <aside class="note-toc" id="noteToc" style="display:none">
+                    <div class="note-toc-title">本页目录</div>
+                    <ul id="noteTocList"></ul>
+                </aside>
+            </div>
+        </div>
+
     </main>
 </div>
 <script src="Assets/js/javaapi.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/shellscript.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/note.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/dubbo.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/archive.js?v=1" type="text/javascript"></script>
 </body>

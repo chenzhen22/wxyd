@@ -11,4 +11,5 @@ public class User {
     private Integer role;
     private Integer status;
     private String createTime;
+    private String theme;
 }

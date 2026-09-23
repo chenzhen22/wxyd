@@ -39,6 +39,16 @@ public class UserSericeImpl implements UserService {
     }
 
     @Override
+    public int updateUserTheme(Long id, String theme) {
+        return mysqlMapper.updateUserTheme(id, theme);
+    }
+
+    @Override
+    public String getTheme(Long id) {
+        return mysqlMapper.selectThemeById(id);
+    }
+
+    @Override
     public String getUserName(String clientIp) {
         // 旧 client 表已废弃；留言板改用登录用户名（见 MessageController 改造）
         return null;

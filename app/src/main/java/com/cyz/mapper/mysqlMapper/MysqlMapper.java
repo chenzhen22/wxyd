@@ -43,6 +43,10 @@ public interface MysqlMapper {
 
 	int updateDisplayName(@Param("id") Long id, @Param("displayName") String displayName);
 
+	int updateUserTheme(@Param("id") Long id, @Param("theme") String theme);
+
+	String selectThemeById(Long id);
+
 	int deleteUser(Long id);
 
 	// ===== ding_robot =====

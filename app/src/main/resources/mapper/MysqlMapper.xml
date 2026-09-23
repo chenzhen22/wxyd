@@ -65,11 +65,15 @@
 	</select>
 
 	<select id="queryUserById" parameterType="Long" resultType="com.cyz.pojo.User">
-		select `id`,`username`,`display_name`,`role`,`status`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` where `id`=#{id}
+		select `id`,`username`,`display_name`,`role`,`status`,`theme`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` where `id`=#{id}
 	</select>
 
 	<select id="listUsers" resultType="com.cyz.pojo.User">
-		select `id`,`username`,`display_name`,`role`,`status`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` order by `status`,`id`
+		select `id`,`username`,`display_name`,`role`,`status`,`theme`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` order by `status`,`id`
+	</select>
+
+	<select id="selectThemeById" parameterType="Long" resultType="String">
+		select `theme` from `users` where `id`=#{id}
 	</select>
 
 	<update id="updateUserStatus">
@@ -78,6 +82,10 @@
 
 	<update id="updateDisplayName">
 		update `users` set `display_name`=#{displayName} where `id`=#{id}
+	</update>
+
+	<update id="updateUserTheme">
+		update `users` set `theme`=#{theme} where `id`=#{id}
 	</update>
 
 	<delete id="deleteUser" parameterType="Long">

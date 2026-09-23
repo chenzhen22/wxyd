@@ -16,5 +16,9 @@ public interface UserService {
 
     int updateDisplayName(Long id, String displayName);
 
+    int updateUserTheme(Long id, String theme);
+
+    String getTheme(Long id);
+
     String getUserName(String clientIp);
 }

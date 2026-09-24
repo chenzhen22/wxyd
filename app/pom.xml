@@ -49,6 +49,13 @@
             <version>8.0.30</version>
         </dependency>
 
+        <!-- Excel 导出（SQL 查询工具） -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>3.17</version>
+        </dependency>
+
         <!-- JSON: fastjson2 + fastjson1-compat (code uses both APIs) -->
         <dependency>
             <groupId>com.alibaba.fastjson2</groupId>

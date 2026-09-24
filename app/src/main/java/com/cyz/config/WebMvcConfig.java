@@ -19,6 +19,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns(
                         "/user/**", "/robot/**", "/javaapi/**", "/shellscript/**", "/note", "/note/**", "/dubbo/**",
                         "/archive/**",
+                        "/sql/**",
                         "/approveUser", "/rejectUser", "/deleteUser",
                         "/queryMessage", "/addMessage", "/delMessage"
                 );

@@ -104,6 +104,7 @@
             <li class="menu-item" data-target="javaApi"><i>☕</i>Java8-API</li>
             <li class="menu-item" data-target="shellScript"><i>🐚</i>Shell脚本</li>
             <li class="menu-item" data-target="note"><i>📝</i>记忆笔记</li>
+            <li class="menu-item" data-target="sqlTool" id="menuSqlTool" style="display:none;"><i>🗄️</i>SQL 查询</li>
             <li class="menu-item" data-target="dubboCall"><i>🔌</i>Dubbo调用</li>
             <li class="menu-item" data-target="archiveTool"><i>📦</i>归档下载</li>
         </ul>
@@ -388,6 +389,58 @@
             </div>
         </div>
 
+        <div class="module-box" id="sqlTool">
+            <div class="page-title">SQL 查询 <span class="admin-badge">仅管理员</span></div>
+
+            <div class="cert-card">
+                <div class="cert-card-tit">
+                    SQL 语句
+                    <span class="sql-tit-actions">
+                        <select id="sqlTableSelect" class="sql-table-select" title="选择表自动生成 SELECT">
+                            <option value="">— 选择表 —</option>
+                        </select>
+                        <button class="btn-api" id="sqlClear" type="button">清空</button>
+                    </span>
+                </div>
+                <textarea id="sqlInput" class="sql-input" spellcheck="false">SELECT * FROM users LIMIT 20</textarea>
+                <div class="sql-action-bar">
+                    <button class="btn-main" id="sqlExecute" type="button">▶ 执行</button>
+                    <button class="btn-api" id="sqlCsv" type="button" disabled>⬇ CSV</button>
+                    <button class="btn-api" id="sqlXlsx" type="button" disabled>⬇ Excel</button>
+                    <span class="sql-hint">Ctrl + Enter 执行 · 仅允许 SELECT/SHOW/DESC/EXPLAIN/WITH 单条语句</span>
+                </div>
+            </div>
+
+            <div class="error-box" id="sqlError" style="display:none;"></div>
+
+            <div class="cert-card">
+                <div class="cert-card-tit">
+                    查询结果 <span id="sqlResultInfo" class="sql-result-info"></span>
+                </div>
+                <div class="table-wrap" id="sqlTableWrap">
+                    <table class="data-table">
+                        <thead id="sqlTableHead"></thead>
+                        <tbody id="sqlTableBody">
+                            <tr><td>点击「执行」运行查询</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pag-box" id="sqlPag" style="display:none;"></div>
+            </div>
+
+            <div class="sql-preview-mask" id="sqlPreviewMask">
+                <div class="sql-preview">
+                    <div class="sql-preview-header">
+                        <h4>📄 字段内容</h4>
+                        <button class="sql-modal-close" id="sqlPreviewClose">✕</button>
+                    </div>
+                    <div class="sql-preview-body">
+                        <pre id="sqlPreviewContent"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </main>
 </div>
 <script src="Assets/js/javaapi.js?v=1" type="text/javascript"></script>
@@ -395,5 +448,6 @@
 <script src="Assets/js/note.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/dubbo.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/archive.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/sqltool.js?v=1" type="text/javascript"></script>
 </body>
 </html>

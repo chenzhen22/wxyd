@@ -137,6 +137,26 @@ public class UserController implements CommController {
         return r;
     }
 
+    @ResponseBody
+    @RequestMapping("user/info")
+    public Result userInfo(HttpSession session) {
+        Result r = Result.getInstance();
+        Long uid = (Long) session.getAttribute("userId");
+        if (uid == null) {
+            r.setErrorCode("000003");
+            r.setErrorMsg("未登录");
+            return r;
+        }
+        Integer role = (Integer) session.getAttribute("role");
+        String username = (String) session.getAttribute("username");
+        java.util.Map<String, Object> info = new java.util.HashMap<>();
+        info.put("username", username);
+        info.put("role", role == null ? -1 : role);
+        info.put("isAdmin", role != null && role == 0);
+        r.setBody(info);
+        return r;
+    }
+
     private boolean isAdmin(HttpSession session) {
         Integer role = (Integer) session.getAttribute("role");
         return role != null && role == 0;

@@ -267,6 +267,15 @@ $(function () {
         msgPage = $(this).data("p");
         renderMsg(msgPage, msgSize);
     });
+
+    // ===================== SQL 查询（仅管理员可见）=====================
+    $.get("user/info", function (res) {
+        let info = (res && res.body) || {};
+        if (info.isAdmin) {
+            $("#menuSqlTool").show();
+            if (window.initSqlTool) window.initSqlTool();
+        }
+    }, "json");
 });
 
 // 退出登录：销毁会话并跳转登录页

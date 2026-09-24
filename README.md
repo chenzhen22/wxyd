@@ -11,6 +11,7 @@
 | 💬 留言板 | 按用户 ID 鉴权（管理员删任意 / 用户删自己的），最多保留 50 条，昵称显示名回退用户名 |
 | 🤖 钉钉机器人 | 每用户独立机器人 CRUD，发送文本/文件消息（文件→zip→base64，>20KB 分块 ≤18KB），文件限制 200KB |
 | ☕ Java8-API | 384 个 Java API 文档 + 在线编辑运行测试代码（javax.tools.JavaCompiler + JUnit 4，10 秒超时，安全黑名单） |
+| 🗄️ SQL 查询 | 仅超级管理员可见的在线 SQL 工具，直连 wxyd 自有 MySQL 数据源；仅允许 SELECT/SHOW/DESC/EXPLAIN/WITH 单语句，分页查询，支持 CSV/Excel 导出 |
 
 ## 🛠 技术栈
 
@@ -97,12 +98,14 @@ wxyd/
 │   │   ├── WxydApplication.java      # 启动入口（@PropertySource env.properties）
 │   │   ├── config/                   # WebMvcConfig, DataInitializer, mybatisMysqlConfig
 │   │   ├── controller/               # AuthController, UserController, MessageController,
-│   │   │                             #   RobotController, ApiController(tbphx.do)
+│   │   │                             #   RobotController, ApiController(tbphx.do),
+│   │   │                             #   SqlQueryController(仅管理员 SQL 工具)
 │   │   ├── javaapi/                  # Java8 API 学习平台（独立子包）
 │   │   │   ├── model/                #   ApiClass, ApiMethod, TestCase, CodeResult
 │   │   │   ├── service/              #   ApiDataService, CodeExecutionService
 │   │   │   └── controller/           #   JavaApiController
-│   │   ├── service/                  # AuthService, UserService, MessageService, RobotService
+│   │   ├── service/                  # AuthService, UserService, MessageService, RobotService,
+│   │   │                             #   SqlQueryService(直连 mysqlDataSource)
 │   │   ├── filter/                   # RepeatReadFilter（multipart 免包装）
 │   │   ├── mock/                     # MockAspect（mock 模式兜底 tbphx.do）
 │   │   └── aspect/                   # ControllerAspect（traceId/clientIp MDC）
@@ -115,12 +118,13 @@ wxyd/
 │   │   ├── sql/V2__user_robot.sql    # users + ding_robot 建表
 │   │   └── static/                   # 前端页面 + CSS + JS
 │   │       ├── login.html            # 登录/注册（暗色玻璃 + 流动渐变动画）
-│   │       ├── api.html              # 管理后台（5 大模块）
+│   │       ├── api.html              # 管理后台（6 大模块，含 SQL 查询）
 │   │       └── Assets/
 │   │           ├── css/admin.css     # 暗色玻璃主题
 │   │           └── js/
-│   │               ├── index.js      # 用户/机器人/留言板逻辑
-│   │               └── javaapi.js    # Java API 学习平台逻辑
+│   │               ├── index.js      # 用户/机器人/留言板逻辑 + 管理员菜单门控
+│   │               ├── javaapi.js    # Java API 学习平台逻辑
+│   │               └── sqltool.js    # SQL 查询工具逻辑（仅管理员加载）
 │   └── pom.xml
 ├── wxyd.sql                          # 基础数据库建表脚本
 └── pom.xml                           # 父 POM
@@ -175,6 +179,22 @@ Context-path：`/api`，所有路径前缀 `/api/`。除登录/注册外均需 S
 | POST | `javaapi/classes/{name}/test` | 编译执行测试代码 |
 | POST | `javaapi/classes/reload` | 重新加载 API 数据 |
 
+### 用户会话信息
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `user/info` | 返回当前登录用户的 `username` / `role` / `isAdmin`（前端据此决定 SQL 查询菜单是否可见） |
+
+### SQL 查询（仅超级管理员）
+
+直连 wxyd 自有 MySQL 数据源（`mysqlDataSource`），**仅 `role=0` 超级管理员**可用；`/sql/**` 同时受 `AuthInterceptor` 登录拦截。语句经校验仅允许 `SELECT` / `SHOW` / `DESC` / `DESCRIBE` / `EXPLAIN` / `WITH` 单语句，禁止多语句拼接。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `sql/tables` | 列出当前库所有表名 |
+| POST | `sql/query` | 执行查询，body：`{"sql":"...","page":1,"size":20}`；返回列/行/总数/总页数/耗时 |
+| GET | `sql/export?type=csv\|xlsx&sql=...` | 导出查询结果（CSV 带 UTF-8 BOM / Excel 由 Apache POI `SXSSFWorkbook` 生成） |
+
 ### 外部网关（遗留）
 
 | 方法 | 路径 | 说明 |
@@ -196,6 +216,7 @@ Context-path：`/api`，所有路径前缀 `/api/`。除登录/注册外均需 S
 - **机器人 SECRET**：SM4 加密存储
 - **鉴权**：HTTP Session + AuthInterceptor（按路径白名单）
 - **代码沙箱**：Java8-API 执行黑名单（禁止 File/网络/反射/进程/SQL），10 秒超时
+- **SQL 查询工具**：仅 `role=0` 超级管理员可用（前端 `user/info` 门控 + 控制器 `role==0` 校验 + `AuthInterceptor` 登录拦截三重防护）；语句白名单仅允许只读查询，禁止 DML/DDL 与多语句
 - **密钥**：`env.properties` 已 gitignore，永不提交；SM4 密钥由 `SMUtil.generateSM4Key()` 生成
 
 ## 🎨 前端主题

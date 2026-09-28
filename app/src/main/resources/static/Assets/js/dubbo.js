@@ -194,12 +194,13 @@ var DubboTool = (function ($) {
     }
 
     function deleteConfig(id) {
-        if (!confirm('确定删除该请求？')) { return; }
-        requests = requests.filter(function (c) { return c.id !== id; });
-        saveToStorage();
-        if (currentId === id) { fillForm({}); }
-        refreshList();
-        clearResult();
+        confirmModal('确定删除该请求？', function () {
+            requests = requests.filter(function (c) { return c.id !== id; });
+            saveToStorage();
+            if (currentId === id) { fillForm({}); }
+            refreshList();
+            clearResult();
+        });
     }
 
     function exportFile() {

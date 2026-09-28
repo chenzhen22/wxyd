@@ -278,26 +278,27 @@ window.ShareFile = (function () {
         $("#shareTableBody").on("click", ".btn-del", function () {
             let $btn = $(this);
             let name = $btn.data("name");
-            if (!confirm("确定删除文件「" + name + "」？")) return;
-            // 按钮进入加载态，防止重复点击
-            $btn.prop("disabled", true).text("删除中…");
-            $.ajax({
-                url: "share/delete", type: "post", contentType: "application/json",
-                data: JSON.stringify({body: {name: name}}),
-                success: function (res) {
-                    if (res.errorCode === "000000") {
-                        alterModal("已删除：" + name);
-                        loadList(); // 重建列表，行随表格刷新
-                    } else {
-                        alterModal(res.errorMsg || "删除失败");
+            confirmModal("确定删除文件「" + name + "」？", function () {
+                // 按钮进入加载态，防止重复点击
+                $btn.prop("disabled", true).text("删除中…");
+                $.ajax({
+                    url: "share/delete", type: "post", contentType: "application/json",
+                    data: JSON.stringify({body: {name: name}}),
+                    success: function (res) {
+                        if (res.errorCode === "000000") {
+                            alterModal("已删除：" + name);
+                            loadList(); // 重建列表，行随表格刷新
+                        } else {
+                            alterModal(res.errorMsg || "删除失败");
+                            $btn.prop("disabled", false).text("删除");
+                        }
+                    },
+                    error: function (jqXHR) {
+                        if (jqXHR.status === 401) return;
+                        alterModal("删除异常");
                         $btn.prop("disabled", false).text("删除");
                     }
-                },
-                error: function (jqXHR) {
-                    if (jqXHR.status === 401) return;
-                    alterModal("删除异常");
-                    $btn.prop("disabled", false).text("删除");
-                }
+                });
             });
         });
     }

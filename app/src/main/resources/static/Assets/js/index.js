@@ -144,13 +144,14 @@ $(function () {
     });
     $(document).on("click", "#robotTableBody .btn-del", function () {
         let id = $(this).data("id");
-        if (!confirm("确定删除？")) return;
-        $.ajax({
-            url: "robot/delete", type: "post", contentType: "application/json", data: JSON.stringify({body: {id: parseInt(id)}}),
-            success: function (res) {
-                alterModal(res.errorCode == "000000" ? "删除成功" : res.errorMsg);
-                loadRobots();
-            }
+        confirmModal("确定删除该机器人？", function () {
+            $.ajax({
+                url: "robot/delete", type: "post", contentType: "application/json", data: JSON.stringify({body: {id: parseInt(id)}}),
+                success: function (res) {
+                    alterModal(res.errorCode == "000000" ? "删除成功" : res.errorMsg);
+                    loadRobots();
+                }
+            });
         });
     });
     $("#sendType").change(function () {
@@ -446,3 +447,27 @@ function alterModal(msg) {
     $("#alterSpan").html(msg);
     $("#alterModal").show();
 }
+
+// 公共确认弹框（居中，复用 alterModal 的视觉样式）：点击“确认”时执行 onOk 回调
+let _confirmOk = null;
+function confirmModal(msg, onOk) {
+    loading(false);
+    $("#confirmModalMsg").html(msg);
+    _confirmOk = onOk;
+    $("#confirmModal").show();
+}
+
+$(function () {
+    $("#confirmModalOk").click(function () {
+        $("#confirmModal").hide();
+        if (typeof _confirmOk === "function") {
+            let cb = _confirmOk;
+            _confirmOk = null;
+            cb();
+        }
+    });
+    $("#confirmModalCancel, #close-confirmModal").click(function () {
+        $("#confirmModal").hide();
+        _confirmOk = null;
+    });
+});

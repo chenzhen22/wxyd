@@ -268,7 +268,7 @@ $(function () {
         delMsg(msgId);
     });
     $("#msgPag").on("click", ".pag-btn", function () {
-        msgPage = $(this).data("p");
+        msgPage = Number($(this).data("p"));
         renderMsg(msgPage, msgSize);
     });
 

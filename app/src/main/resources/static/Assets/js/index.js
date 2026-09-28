@@ -94,25 +94,6 @@ $(function () {
         if ($(this).data("target") === "archiveTool" && window.Archive) {
             Archive.init();
         }
-        // 文件共享模块懒加载
-        if ($(this).data("target") === "shareFile" && window.ShareFile) {
-            ShareFile.init();
-        }
-        // 移动端：选中菜单后自动收起抽屉
-        closeSidebar();
-    });
-
-    // ===================== 移动端侧边栏抽屉 =====================
-    function openSidebar() { document.body.classList.add("sidebar-open"); }
-    function closeSidebar() { document.body.classList.remove("sidebar-open"); }
-    $("#menuToggle").click(function (e) {
-        e.stopPropagation();
-        document.body.classList.toggle("sidebar-open");
-    });
-    $("#sidebarOverlay").click(closeSidebar);
-    // 视口放大到桌面尺寸时，若仍残留抽屉态则复位
-    $(window).resize(function () {
-        if (window.innerWidth > 768) closeSidebar();
     });
 
     $("#welcome").click(function () {

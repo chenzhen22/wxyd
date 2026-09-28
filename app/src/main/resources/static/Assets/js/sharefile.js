@@ -198,7 +198,7 @@ window.ShareFile = (function () {
                     $("#shareUploadMsg").text("上传中：" + name + " 分片 " + c + "/" + t + "（已完成文件 " + done + "/" + files.length + "）");
                 }).then(function () {
                     done++;
-                }).catch(function (jqXHR) {
+                }).fail(function (jqXHR) {
                     failed = true;
                     if (jqXHR && jqXHR.status === 401) return; // 全局处理跳转
                     failMsg = (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.errorMsg) || "上传失败";

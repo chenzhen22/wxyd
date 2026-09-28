@@ -283,7 +283,7 @@ $(function () {
         $("#addMsgContent").val("");
     });
     $("#msgTableBody").on("click", ".btn-del", function () {
-        let msgId = $(this).context.dataset.i;
+        let msgId = $(this).data("i");
         delMsg(msgId);
     });
     $("#msgPag").on("click", ".pag-btn", function () {

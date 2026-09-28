@@ -133,23 +133,33 @@ $(function () {
         let id = $("#robotId").val();
         let url = id ? "robot/update" : "robot/add";
         if (id) body.id = parseInt(id);
+        loading(true);
         $.ajax({
             url, type: "post", contentType: "application/json", data: JSON.stringify({body}),
             success: function (res) {
+                loading(false);
                 alterModal(res.errorCode == "000000" ? "保存成功" : res.errorMsg);
                 loadRobots();
                 $("#robotForm").hide();
+            },
+            error: function () {
+                loading(false);
             }
         });
     });
     $(document).on("click", "#robotTableBody .btn-del", function () {
         let id = $(this).data("id");
         confirmModal("确定删除该机器人？", function () {
+            loading(true);
             $.ajax({
                 url: "robot/delete", type: "post", contentType: "application/json", data: JSON.stringify({body: {id: parseInt(id)}}),
                 success: function (res) {
+                    loading(false);
                     alterModal(res.errorCode == "000000" ? "删除成功" : res.errorMsg);
                     loadRobots();
+                },
+                error: function () {
+                    loading(false);
                 }
             });
         });
@@ -203,9 +213,11 @@ $(function () {
         fd.append("type", $("#sendType").val());
         if ($("#sendType").val() == "text") fd.append("text", $("#sendText").val());
         else fd.append("file", $("#sendFile")[0].files[0]);
+        loading(true);
         $.ajax({
             url: "robot/send", type: "post", processData: false, contentType: false, data: fd,
             success: function (res) {
+                loading(false);
                 if (res.errorCode == "000000") {
                     let b = res.body || {};
                     $("#sendResult").text(b.type == "file" ? `文件已发：共${b.totalChunks}块` : "文本已发");
@@ -215,6 +227,7 @@ $(function () {
             },
             error: function (jqXHR) {
                 if (jqXHR.status == 401) return; // 由全局 ajaxError 处理并跳转
+                loading(false);
                 $("#sendResult").text("发送异常");
             }
         });
@@ -225,10 +238,12 @@ $(function () {
     $("#btnSaveNick").click(function () {
         let nick = $("#nickInput").val().trim();
         if (!nick) { alterModal("昵称不能为空"); return; }
+        loading(true);
         $.ajax({
             url: "user/updateDisplayName", type: "post", contentType: "application/json",
             data: JSON.stringify({body: {displayName: nick}}),
             success: function (res) {
+                loading(false);
                 if (res.errorCode == "000000") {
                     alterModal("昵称设置成功");
                     $("#nickModal").hide();
@@ -236,6 +251,9 @@ $(function () {
                 } else {
                     alterModal(res.errorMsg);
                 }
+            },
+            error: function () {
+                loading(false);
             }
         });
     });
@@ -293,7 +311,9 @@ function doLogout() {
 
 // ===================== 钉钉机器人 =====================
 function loadRobots() {
+    loading(true);
     $.get("robot/list", function (res) {
+        loading(false);
         let list = res.body || [];
         let html = "";
         for (let i = 0; i < list.length; i++) {
@@ -306,12 +326,14 @@ function loadRobots() {
         for (let r of list) {
             sel.append(`<option value="${r.id}">${r.name}</option>`);
         }
-    }, "json");
+    }, "json").fail(function () { loading(false); });
 }
 
 // ===================== 用户管理 =====================
 function loadUsers() {
+    loading(true);
     $.get("user/list", function (res) {
+        loading(false);
         let list = res.body || [];
         let html = "";
         for (let i = 0; i < list.length; i++) {
@@ -322,23 +344,33 @@ function loadUsers() {
             html += `<tr><td>${i + 1}</td><td>${u.username}</td><td>${u.displayName || ''}</td><td>${role}</td><td>${st}</td><td>${u.createTime || ''}</td><td>${op}</td></tr>`;
         }
         $("#userTableBody").html(html);
-    }, "json");
+    }, "json").fail(function () { loading(false); });
 }
 
 function approveUser(id) {
+    loading(true);
     $.ajax({
         url: "approveUser", type: "post", contentType: "application/json", data: JSON.stringify({body: {id: id}}),
         success: function () {
+            loading(false);
             loadUsers();
+        },
+        error: function () {
+            loading(false);
         }
     });
 }
 
 function rejectUser(id) {
+    loading(true);
     $.ajax({
         url: "rejectUser", type: "post", contentType: "application/json", data: JSON.stringify({body: {id: id}}),
         success: function () {
+            loading(false);
             loadUsers();
+        },
+        error: function () {
+            loading(false);
         }
     });
 }
@@ -379,6 +411,7 @@ function renderMsg(msgPage, msgSize) {
 }
 
 function addMsg(msg) {
+    loading(true);
     $.ajax({
         url: "addMessage", type: "post", contentType: "application/json",
         data: JSON.stringify({body: {message: msg}}),
@@ -386,6 +419,7 @@ function addMsg(msg) {
             loadMsg('');
         },
         error: function (data) {
+            loading(false);
             alterModal(JSON.stringify(data));
         }
     })

@@ -158,15 +158,19 @@ var Note = (function () {
         $('#noteToc').hide();
         $('.note-welcome').hide();
         $('.note-content').hide();
+        loading(true);
+        $("#loadingMsg").text("正在加载笔记详情…");
 
         $.ajax({
             url: 'note/' + encodeURIComponent(name), type: 'GET',
             success: function (data) {
+                loading(false);
                 currentNote = data;
                 renderNoteDetail(data);
                 $('.note-content').show();
             },
             error: function () {
+                loading(false);
                 $('.note-welcome').show();
                 $('#noteBreadcrumb').text('记忆笔记');
             }

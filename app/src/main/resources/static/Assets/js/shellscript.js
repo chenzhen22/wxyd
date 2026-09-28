@@ -98,15 +98,19 @@ var ShellScript = (function () {
         $('#ssTopicList .ss-item[data-name="' + name + '"]').addClass('active');
         $('.shellscript-welcome').hide();
         $('.shellscript-content').hide();
+        loading(true);
+        $("#loadingMsg").text("正在加载脚本主题详情…");
 
         $.ajax({
             url: 'shellscript/topics/' + encodeURIComponent(name), type: 'GET',
             success: function (data) {
+                loading(false);
                 currentTopic = data;
                 renderTopicDetail(data);
                 $('.shellscript-content').show();
             },
             error: function () {
+                loading(false);
                 $('.shellscript-welcome').show();
             }
         });

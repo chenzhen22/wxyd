@@ -99,15 +99,19 @@ var JavaApi = (function () {
         $('#jaApiList .ja-item[data-name="' + name + '"]').addClass('active');
         $('.javaapi-welcome').hide();
         $('.javaapi-content').hide();
+        loading(true);
+        $("#loadingMsg").text("正在加载 API 详情…");
 
         $.ajax({
             url: 'javaapi/classes/' + encodeURIComponent(name), type: 'GET',
             success: function (data) {
+                loading(false);
                 currentApi = data;
                 renderApiDetail(data);
                 $('.javaapi-content').show();
             },
             error: function () {
+                loading(false);
                 $('.javaapi-welcome').show();
             }
         });
@@ -220,6 +224,8 @@ var JavaApi = (function () {
         $('#jaRunBtn').text('⏳ 运行中...').prop('disabled', true);
         $('#jaResultSection').hide();
         $('#jaResultError').hide();
+        loading(true);
+        $("#loadingMsg").text("正在运行测试…");
 
         $.ajax({
             url: 'javaapi/classes/' + encodeURIComponent(currentApi.name) + '/test',
@@ -229,6 +235,7 @@ var JavaApi = (function () {
             error: function () { showError('请求失败，请检查网络连接后重试'); },
             complete: function () {
                 isRunning = false;
+                loading(false);
                 $('#jaRunBtn').text('▶ 运行测试').prop('disabled', false);
             }
         });

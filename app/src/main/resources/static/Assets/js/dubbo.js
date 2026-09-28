@@ -73,11 +73,11 @@ var DubboTool = (function ($) {
     }
 
     function showLoading() {
-        gid('dubboLoadingOverlay').style.display = 'flex';
+        loading(true);
     }
 
     function hideLoading() {
-        gid('dubboLoadingOverlay').style.display = 'none';
+        loading(false);
     }
 
     function showError(msg) {
@@ -249,6 +249,7 @@ var DubboTool = (function ($) {
         var cfg = readForm();
         if (!cfg.registryAddress || !cfg.serviceName) { showError('请填写注册中心与服务名'); return; }
         clearResult();
+        $("#loadingMsg").text("正在调用 Dubbo 接口…");
         showLoading();
         $.ajax({
             url: 'dubbo/invoke',

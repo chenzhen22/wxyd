@@ -108,6 +108,8 @@
     function executeQueryWithParams(sql, page, size) {
         currentSql = sql; currentPage = page; currentSize = size;
         $executeBtn.prop('disabled', true).text('⏳ 执行中...');
+        loading(true);
+        $("#loadingMsg").text("正在执行 SQL 查询…");
         clearError();
         $tableBody.html('<tr><td>查询中...</td></tr>');
         $tableHead.html('');
@@ -120,6 +122,7 @@
             dataType: 'json',
             success: function (res) {
                 $executeBtn.prop('disabled', false).text('▶ 执行');
+                loading(false);
                 if (!res || res.errorCode !== '000000') {
                     showError((res && res.errorMsg) ? res.errorMsg : '查询失败');
                     $tableBody.html('<tr><td>查询出错</td></tr>');
@@ -132,6 +135,7 @@
             },
             error: function (xhr) {
                 $executeBtn.prop('disabled', false).text('▶ 执行');
+                loading(false);
                 var msg = '请求失败';
                 try {
                     var r = JSON.parse(xhr.responseText || '{}');

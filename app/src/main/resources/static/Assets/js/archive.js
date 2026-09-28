@@ -107,6 +107,8 @@ var Archive = (function () {
         pushStep('→', 'run', '① 目标网址', url);
         pushStep('→', 'run', '② 待提取元素', '#' + elementId);
         setBusy(true);
+        loading(true);
+        $("#loadingMsg").text("正在获取并下载归档文件…");
         var t0 = Date.now();
 
         fetch('archive/fetch', {
@@ -181,6 +183,7 @@ var Archive = (function () {
             $('#arcError').show().text(j.errorMsg || err.message || '未知错误');
         }).then(function () {
             setBusy(false);
+            loading(false);
         });
     }
 

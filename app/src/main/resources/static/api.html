@@ -104,6 +104,7 @@
             <li class="menu-item" data-target="javaApi"><i>☕</i>Java8-API</li>
             <li class="menu-item" data-target="shellScript"><i>🐚</i>Shell脚本</li>
             <li class="menu-item" data-target="note"><i>📝</i>记忆笔记</li>
+            <li class="menu-item" data-target="shareFile"><i>📁</i>文件共享</li>
             <li class="menu-item" data-target="sqlTool" id="menuSqlTool" style="display:none;"><i>🗄️</i>SQL 查询</li>
             <li class="menu-item" data-target="dubboCall"><i>🔌</i>Dubbo调用</li>
             <li class="menu-item" data-target="archiveTool"><i>📦</i>归档下载</li>
@@ -389,6 +390,43 @@
             </div>
         </div>
 
+        <div class="module-box" id="shareFile">
+            <div class="page-title">文件共享 <span class="admin-badge" id="shareAdminBadge" style="display:none;">管理员可上传/删除</span></div>
+
+            <div class="cert-card" id="shareUploadCard" style="display:none;">
+                <div class="cert-card-tit">上传文件（支持拖拽）</div>
+                <div class="drop-zone" id="shareDropZone">
+                    <input type="file" id="shareFileInput" multiple style="display:none">
+                    <div class="drop-zone-hint" id="shareDropZoneHint">📄 将文件拖拽到此处，或点击选择（可多选）</div>
+                    <div class="drop-zone-file" id="shareDropZoneFile" style="display:none"></div>
+                </div>
+                <div class="cert-btn-group" style="margin-top:12px;">
+                    <button class="btn-main" id="shareUploadBtn" type="button">开始上传</button>
+                    <span id="shareUploadMsg" style="color:rgba(255,255,255,.75);"></span>
+                </div>
+            </div>
+
+            <div class="cert-card">
+                <div class="cert-card-tit">
+                    共享文件 <span id="shareCount" class="sql-result-info"></span>
+                </div>
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        <th width="8%">序号</th>
+                        <th width="47%">文件名</th>
+                        <th width="15%">大小</th>
+                        <th width="20%">修改时间</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="shareTableBody">
+                        <tr><td colspan="99" style="text-align:center;color:#999;">加载中…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="module-box" id="sqlTool">
             <div class="page-title">SQL 查询 <span class="admin-badge">仅管理员</span></div>
 
@@ -449,5 +487,6 @@
 <script src="Assets/js/dubbo.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/archive.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/sqltool.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/sharefile.js?v=1" type="text/javascript"></script>
 </body>
 </html>

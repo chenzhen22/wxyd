@@ -94,6 +94,10 @@ $(function () {
         if ($(this).data("target") === "archiveTool" && window.Archive) {
             Archive.init();
         }
+        // 文件共享模块懒加载
+        if ($(this).data("target") === "shareFile" && window.ShareFile) {
+            ShareFile.init();
+        }
     });
 
     $("#welcome").click(function () {

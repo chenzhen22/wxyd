@@ -171,54 +171,68 @@ window.ShareFile = (function () {
             return;
         }
         let files = pendingFiles.slice();
-        $("#shareUploadMsg").text("上传中…（0/" + files.length + "）");
         $("#shareUploadBtn").prop("disabled", true);
+        // 弹出全屏浮层「加载中」，并实时更新进度
+        loading(true);
+        $("#loadingMsg").text("准备上传 " + files.length + " 个文件…");
         let done = 0;
         let failed = false;
+        let failMsg = "";
         let p = $.Deferred().resolve().promise();
         files.forEach(function (file) {
             p = p.then(function () {
                 if (failed) return;
                 return uploadOneFile(file, function (c, t, name) {
+                    $("#loadingMsg").text("上传中（" + (done + 1) + "/" + files.length + "）：" + name + " 分片 " + c + "/" + t);
                     $("#shareUploadMsg").text("上传中：" + name + " 分片 " + c + "/" + t + "（已完成文件 " + done + "/" + files.length + "）");
                 }).then(function () {
                     done++;
                 }).catch(function (jqXHR) {
                     failed = true;
                     if (jqXHR && jqXHR.status === 401) return; // 全局处理跳转
-                    let msg = (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.errorMsg) || "上传失败";
-                    $("#shareUploadMsg").text("失败：" + msg);
+                    failMsg = (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.errorMsg) || "上传失败";
+                    $("#shareUploadMsg").text("失败：" + failMsg);
                 });
             });
         });
         p.then(function () {
             $("#shareUploadBtn").prop("disabled", false);
+            loading(false); // 无论成功或失败都关闭浮层
             if (!failed) {
                 $("#shareUploadMsg").text("上传成功：" + done + " 个文件");
+                alterModal("上传成功：" + done + " 个文件");
                 pendingFiles = [];
                 showSelectedFiles();
                 loadList();
+            } else {
+                alterModal("上传失败：" + (failMsg || "请稍后重试"));
             }
         });
     }
 
     function bindDelete() {
         $("#shareTableBody").on("click", ".btn-del", function () {
-            let name = $(this).data("name");
+            let $btn = $(this);
+            let name = $btn.data("name");
             if (!confirm("确定删除文件「" + name + "」？")) return;
+            // 按钮进入加载态，防止重复点击
+            $btn.prop("disabled", true).text("删除中…");
             $.ajax({
                 url: "share/delete", type: "post", contentType: "application/json",
                 data: JSON.stringify({body: {name: name}}),
                 success: function (res) {
                     if (res.errorCode === "000000") {
-                        loadList();
+                        alterModal("已删除：" + name);
+                        loadList(); // 重建列表，行随表格刷新
                     } else {
                         alterModal(res.errorMsg || "删除失败");
+                        $btn.prop("disabled", false).text("删除");
                     }
                 },
                 error: function (jqXHR) {
                     if (jqXHR.status === 401) return;
                     alterModal("删除异常");
+                    $btn.prop("disabled", false).text("删除");
                 }
             });
         });

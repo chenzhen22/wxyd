@@ -161,6 +161,9 @@ window.ShareFile = (function () {
         });
     }
 
+    // 上传轮询句柄，避免重复上传时叠加定时器
+    let uploadTimer = null;
+
     function doUpload() {
         if (!isAdmin) {
             alterModal("仅管理员可上传文件");
@@ -171,13 +174,17 @@ window.ShareFile = (function () {
             return;
         }
         let files = pendingFiles.slice();
+        let names = files.map(function (f) { return f.name; });
         $("#shareUploadBtn").prop("disabled", true);
-        // 弹出全屏浮层「加载中」，并实时更新进度
+        // 弹出全屏浮层「加载中」
         loading(true);
         $("#loadingMsg").text("准备上传 " + files.length + " 个文件…");
         let done = 0;
         let failed = false;
         let failMsg = "";
+        // 分片上传链路：仅用于推进进度、并捕获「分片上传本身」的失败；
+        // 合并是否成功以文件列表轮询为准（反向代理/Cloudflare 可能吞掉 merge 响应，
+        // 导致 merge 的 Promise 永远不返回，浮层卡死——故不依赖它来关闭浮层）。
         let p = $.Deferred().resolve().promise();
         files.forEach(function (file) {
             p = p.then(function () {
@@ -195,19 +202,57 @@ window.ShareFile = (function () {
                 });
             });
         });
-        p.then(function () {
-            $("#shareUploadBtn").prop("disabled", false);
-            loading(false); // 无论成功或失败都关闭浮层
-            if (!failed) {
-                $("#shareUploadMsg").text("上传成功：" + done + " 个文件");
-                alterModal("上传成功：" + done + " 个文件");
-                pendingFiles = [];
-                showSelectedFiles();
-                loadList();
-            } else {
+        let chainSettled = false;
+        p.always(function () { chainSettled = true; });
+
+        // 以列表轮询确认实际上传结果，避免依赖可能被代理吞掉的 merge 响应
+        if (uploadTimer) clearInterval(uploadTimer);
+        let waited = 0;
+        let finished = false;
+        uploadTimer = setInterval(function () {
+            if (finished) return;
+            waited++;
+            if (failed) { // 分片上传本身失败（非合并响应丢失）
+                finished = true; clearInterval(uploadTimer);
+                $("#shareUploadBtn").prop("disabled", false);
+                loading(false);
                 alterModal("上传失败：" + (failMsg || "请稍后重试"));
+                return;
             }
-        });
+            if (chainSettled) {
+                $("#loadingMsg").text("文件已上传，正在确认结果…（" + waited + "s）");
+            }
+            $.get("share/list", function (res) {
+                if (finished) return;
+                let list = (res && res.body) || [];
+                let have = {};
+                for (let i = 0; i < list.length; i++) have[list[i].name] = true;
+                if (names.every(function (n) { return have[n]; })) {
+                    finished = true; clearInterval(uploadTimer);
+                    $("#shareUploadBtn").prop("disabled", false);
+                    loading(false);
+                    $("#shareUploadMsg").text("上传成功：" + files.length + " 个文件");
+                    alterModal("上传成功：" + files.length + " 个文件");
+                    pendingFiles = [];
+                    showSelectedFiles();
+                    loadList();
+                } else if (chainSettled && waited >= 30) {
+                    // 合并已发起但列表 30s 仍未出现目标文件
+                    finished = true; clearInterval(uploadTimer);
+                    $("#shareUploadBtn").prop("disabled", false);
+                    loading(false);
+                    alterModal("上传已完成，但列表未及时刷新，请手动刷新查看");
+                }
+            }, "json").fail(function () {
+                if (finished) return;
+                if (chainSettled && waited >= 30) {
+                    finished = true; clearInterval(uploadTimer);
+                    $("#shareUploadBtn").prop("disabled", false);
+                    loading(false);
+                    alterModal("上传已完成，但获取列表失败，请刷新查看");
+                }
+            });
+        }, 1000);
     }
 
     function bindDelete() {

@@ -30,32 +30,36 @@ window.ShareFile = (function () {
     }
 
     function loadList() {
-        $.get("share/list", function (res) {
-            let list = (res && res.body) || [];
-            $("#shareCount").text("共 " + list.length + " 个文件");
-            if (list.length === 0) {
-                $("#shareTableBody").html('<tr><td colspan="99" style="text-align:center;color:#999;">暂无文件</td></tr>');
-                return;
-            }
-            let html = "";
-            for (let i = 0; i < list.length; i++) {
-                let f = list[i];
-                let op = '<a class="btn-api" href="share/download?name='
-                    + encodeURIComponent(f.name) + '" target="_blank" rel="noopener">下载</a>';
-                if (isAdmin) {
-                    op += ' <button class="btn-del" data-name="' + escapeHtml(f.name) + '">删除</button>';
+        $.ajax({
+            url: "share/list", type: "get", cache: false, dataType: "json",
+            success: function (res) {
+                let list = (res && res.body) || [];
+                $("#shareCount").text("共 " + list.length + " 个文件");
+                if (list.length === 0) {
+                    $("#shareTableBody").html('<tr><td colspan="99" style="text-align:center;color:#999;">暂无文件</td></tr>');
+                    return;
                 }
-                html += '<tr>'
-                    + '<td>' + (i + 1) + '</td>'
-                    + '<td>' + escapeHtml(f.name) + '</td>'
-                    + '<td>' + fmtSize(f.size) + '</td>'
-                    + '<td>' + fmtTime(f.lastModified) + '</td>'
-                    + '<td>' + op + '</td>'
-                    + '</tr>';
+                let html = "";
+                for (let i = 0; i < list.length; i++) {
+                    let f = list[i];
+                    let op = '<a class="btn-api" href="share/download?name='
+                        + encodeURIComponent(f.name) + '" target="_blank" rel="noopener">下载</a>';
+                    if (isAdmin) {
+                        op += ' <button class="btn-del" data-name="' + escapeHtml(f.name) + '">删除</button>';
+                    }
+                    html += '<tr>'
+                        + '<td>' + (i + 1) + '</td>'
+                        + '<td>' + escapeHtml(f.name) + '</td>'
+                        + '<td>' + fmtSize(f.size) + '</td>'
+                        + '<td>' + fmtTime(f.lastModified) + '</td>'
+                        + '<td>' + op + '</td>'
+                        + '</tr>';
+                }
+                $("#shareTableBody").html(html);
+            },
+            error: function () {
+                $("#shareTableBody").html('<tr><td colspan="99" style="text-align:center;color:#999;">加载失败</td></tr>');
             }
-            $("#shareTableBody").html(html);
-        }, "json").fail(function () {
-            $("#shareTableBody").html('<tr><td colspan="99" style="text-align:center;color:#999;">加载失败</td></tr>');
         });
     }
 
@@ -222,34 +226,49 @@ window.ShareFile = (function () {
             if (chainSettled) {
                 $("#loadingMsg").text("文件已上传，正在确认结果…（" + waited + "s）");
             }
-            $.get("share/list", function (res) {
-                if (finished) return;
-                let list = (res && res.body) || [];
-                let have = {};
-                for (let i = 0; i < list.length; i++) have[list[i].name] = true;
-                if (names.every(function (n) { return have[n]; })) {
-                    finished = true; clearInterval(uploadTimer);
-                    $("#shareUploadBtn").prop("disabled", false);
-                    loading(false);
-                    $("#shareUploadMsg").text("上传成功：" + files.length + " 个文件");
-                    alterModal("上传成功：" + files.length + " 个文件");
-                    pendingFiles = [];
-                    showSelectedFiles();
-                    loadList();
-                } else if (chainSettled && waited >= 30) {
-                    // 合并已发起但列表 30s 仍未出现目标文件
-                    finished = true; clearInterval(uploadTimer);
-                    $("#shareUploadBtn").prop("disabled", false);
-                    loading(false);
-                    alterModal("上传已完成，但列表未及时刷新，请手动刷新查看");
-                }
-            }, "json").fail(function () {
-                if (finished) return;
-                if (chainSettled && waited >= 30) {
-                    finished = true; clearInterval(uploadTimer);
-                    $("#shareUploadBtn").prop("disabled", false);
-                    loading(false);
-                    alterModal("上传已完成，但获取列表失败，请刷新查看");
+            $.ajax({
+                url: "share/list", type: "get", cache: false, dataType: "json",
+                success: function (res) {
+                    if (finished) return;
+                    let list = (res && res.body) || [];
+                    let have = {};
+                    for (let i = 0; i < list.length; i++) have[list[i].name] = true;
+                    if (names.every(function (n) { return have[n]; })) {
+                        finished = true; clearInterval(uploadTimer);
+                        $("#shareUploadBtn").prop("disabled", false);
+                        loading(false);
+                        $("#shareUploadMsg").text("上传成功：" + files.length + " 个文件");
+                        alterModal("上传成功：" + files.length + " 个文件");
+                        pendingFiles = [];
+                        showSelectedFiles();
+                        loadList();
+                    } else if (chainSettled && waited >= 30) {
+                        // 合并已发起但列表 30s 仍未出现目标文件
+                        finished = true; clearInterval(uploadTimer);
+                        $("#shareUploadBtn").prop("disabled", false);
+                        loading(false);
+                        alterModal("上传已完成，但列表未及时刷新，请手动刷新查看");
+                    } else if (waited >= 600) {
+                        // 绝对兜底：10 分钟内任何情况都关闭浮层，绝不卡死
+                        finished = true; clearInterval(uploadTimer);
+                        $("#shareUploadBtn").prop("disabled", false);
+                        loading(false);
+                        alterModal("上传状态未知，请刷新页面查看文件列表");
+                    }
+                },
+                error: function () {
+                    if (finished) return;
+                    if (chainSettled && waited >= 30) {
+                        finished = true; clearInterval(uploadTimer);
+                        $("#shareUploadBtn").prop("disabled", false);
+                        loading(false);
+                        alterModal("上传已完成，但获取列表失败，请刷新查看");
+                    } else if (waited >= 600) {
+                        finished = true; clearInterval(uploadTimer);
+                        $("#shareUploadBtn").prop("disabled", false);
+                        loading(false);
+                        alterModal("上传状态未知，请刷新页面查看文件列表");
+                    }
                 }
             });
         }, 1000);

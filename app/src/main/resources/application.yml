@@ -7,6 +7,9 @@ server:
   tomcat:
     remote-ip:
       enabled: true
+    # 大文件/慢速上传：放宽连接空闲超时与断开后“吞咽”剩余请求体的上限，避免被 Tomcat 主动断流
+    connection-timeout: 300000
+    max-swallow-size: 2097152000
 
 spring:
   application:

@@ -2078,3 +2078,156 @@ select option { background: var(--select-bg); color: var(--select-fg); }
     cursor: pointer; border-radius: 6px;
 }
 .sql-modal-close:hover { background: var(--glass-1); color: var(--text-1); }
+
+/* ============================================================
+   响应式 / H5 兼容
+   - ≤992px：数据表格横向滚动（避免窄屏被撑破）
+   - ≤768px：侧边栏改为抽屉（汉堡按钮），多列面板堆叠，表单单列，固定宽度控件收拢
+   ============================================================ */
+
+/* 汉堡按钮：桌面隐藏 */
+.menu-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin-right: 6px;
+    border-radius: 8px;
+    border: 1px solid var(--border-3);
+    background: var(--glass-4);
+    color: var(--title);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .2s, border-color .2s;
+}
+.menu-toggle:hover { background: var(--glass-2); border-color: var(--accent); }
+
+/* 抽屉遮罩：默认隐藏，仅移动端 body.sidebar-open 时显示 */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--overlay);
+    z-index: 80;
+}
+
+/* 窄屏（平板及以下）：数据表格横向滚动 */
+@media (max-width: 992px) {
+    .data-table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 8px;
+    }
+    .data-table thead,
+    .data-table tbody,
+    .data-table tr,
+    .data-table th,
+    .data-table td {
+        white-space: nowrap;
+    }
+    /* 固定宽度的输入/文本域收拢到容器宽度，避免撑破布局 */
+    input:not([type="checkbox"]),
+    select,
+    textarea {
+        max-width: 100%;
+    }
+    .drop-zone { width: 100%; }
+}
+
+/* 移动端（手机）：侧边栏抽屉化 + 整体堆叠 */
+@media (max-width: 768px) {
+    .menu-toggle { display: inline-flex; }
+
+    .top-header { padding: 0 12px; }
+    .top-user { gap: 8px; }
+    .top-user #userName { padding-right: 8px !important; font-size: 13px; }
+    .theme-switch label { display: none; }
+
+    /* 侧边栏抽屉 */
+    .left-sidebar {
+        width: 240px;
+        transform: translateX(-100%);
+        transition: transform .25s ease;
+        z-index: 90;
+        box-shadow: 4px 0 24px var(--shadow);
+        border-right: 1px solid var(--border-3);
+    }
+    body.sidebar-open .left-sidebar { transform: translateX(0); }
+    body.sidebar-open .sidebar-overlay { display: block; }
+
+    /* 主内容占满宽度 */
+    .main-content { margin-left: 0; padding: 14px; }
+
+    /* 多列工作区改为竖向堆叠 */
+    .javaapi-wrap,
+    .shellscript-wrap,
+    .note-wrap,
+    .dubbo-wrap {
+        flex-direction: column;
+        height: auto;
+        min-height: 0;
+    }
+    .javaapi-sidebar,
+    .shellscript-sidebar,
+    .note-sidebar,
+    .dubbo-sidebar {
+        width: 100%;
+        max-height: 280px;
+    }
+    .javaapi-detail,
+    .shellscript-detail,
+    .note-article-col,
+    .dubbo-main {
+        min-height: 360px;
+    }
+
+    /* 卡片与标题缩排 */
+    .cert-card { padding: 16px; }
+    .page-title { margin-bottom: 16px; }
+    .welcome-content h2 { font-size: 24px; }
+    .welcome-content p { font-size: 14px; letter-spacing: 1px; }
+
+    /* 弹窗在小屏自适应 */
+    .modal-content { width: 92%; padding: 18px; }
+
+    /* 表单行单列排列 */
+    .cert-form-row { grid-template-columns: 1fr; gap: 12px; }
+    .cert-form-item { flex-wrap: wrap; }
+    .cert-form-item label { width: auto; text-align: left; }
+    .cert-form-item input,
+    .cert-form-item select { width: 100%; }
+
+    /* SQL 工具：标题操作区不再浮动，操作栏换行 */
+    .sql-tit-actions {
+        float: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    .sql-action-bar .sql-hint { margin-left: 0; width: 100%; }
+    .sql-table-select { max-width: 100%; }
+
+    /* 机器人/归档里写死的宽控件在窄屏收拢 */
+    #robotToken, #robotSecret, #sendText, #arcUrl, #arcFileName {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+}
+
+/* 超小屏进一步收紧间距 */
+@media (max-width: 480px) {
+    .main-content { padding: 12px; }
+    .cert-card { padding: 14px; }
+    .top-logo { font-size: 16px; }
+    .welcome-content h2 { font-size: 21px; }
+    .btn-main, .btn-api, .btn-primary { padding: 7px 12px; font-size: 13px; }
+    .pag-btn { padding: 5px 9px; }
+}

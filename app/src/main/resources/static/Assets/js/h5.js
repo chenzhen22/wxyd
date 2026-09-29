@@ -612,10 +612,13 @@ function loadShare() {
         var html = '';
         if (!list.length) html = '<div class="h5-empty">暂无共享文件' + (H5State.isAdmin ? '，点击 ＋ 上传' : '') + '</div>';
         list.forEach(function (f) {
+            /* 下载用真实 <a> 链接（target=_blank）：程序化 a.click() 在部分移动浏览器/WebView 会被拦截导致“没反应” */
+            var dlUrl = 'share/download?name=' + encodeURIComponent(f.name);
             html += '<div class="h5-card"><div class="h5-card-row"><div style="flex:1;min-width:0">' +
-                '<div class="h5-card-title" style="color:var(--accent-2);cursor:pointer" data-dl="' + esc(f.name) + '">' + esc(f.name) + '</div>' +
+                '<div class="h5-card-title" style="color:var(--accent-2)">' + esc(f.name) + '</div>' +
                 '<div class="h5-card-sub">' + fmtSize(f.size) + ' · ' + fmtTime(f.lastModified) + '</div></div>' +
-                (H5State.isAdmin ? '<button class="h5-btn-danger h5-btn-sm" data-del="' + esc(f.name) + '">删除</button>' : '') +
+                '<a class="h5-btn-primary h5-btn-sm" style="text-decoration:none;display:inline-block" href="' + dlUrl + '" target="_blank" rel="noopener">下载</a>' +
+                (H5State.isAdmin ? ' <button class="h5-btn-danger h5-btn-sm" data-del="' + esc(f.name) + '">删除</button>' : '') +
                 '</div></div>';
         });
         $('#shareList').html(html);
@@ -760,14 +763,7 @@ function bindDelegates() {
             });
         }
     });
-    /* 文件共享：下载 / 删除 */
-    $('#page-share').on('click', '[data-dl]', function () {
-        var a = document.createElement('a');
-        a.href = 'share/download?name=' + encodeURIComponent($(this).data('dl'));
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-    });
+    /* 文件共享：下载改为真实 <a> 链接直接导航，无需委托；删除仍走确认 */
     $('#page-share').on('click', '[data-del]', function () {
         var name = $(this).data('del');
         confirm('确定删除文件「' + name + '」？', function () {

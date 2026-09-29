@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover,interactive-widget=resizes-content" name="viewport">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <title>小泽助手 · H5</title>
+    <link href="Assets/css/admin.css" rel="stylesheet" type="text/css">
+    <link href="Assets/css/h5.css?v=3" rel="stylesheet" type="text/css">
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem("wxyd-theme");
+                if (t === "system") {
+                    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? "dark" : "light";
+                }
+                if (t) document.documentElement.setAttribute("data-theme", t);
+                else document.documentElement.setAttribute("data-theme", "dark");
+            } catch (e) {}
+        })();
+    </script>
+</head>
+<body>
+<div class="h5-app">
+    <!-- 顶部栏 -->
+    <header class="h5-header">
+        <div class="h5-logo">小泽<span>助手</span></div>
+        <div class="h5-head-actions">
+            <div class="h5-head-icon" id="h5ThemeBtn" title="主题">🎨</div>
+            <div class="h5-head-icon" id="h5LogoutBtn" title="退出">⎋</div>
+        </div>
+    </header>
+
+    <!-- 主滚动区 -->
+    <main class="h5-main">
+        <!-- 首页 -->
+        <section class="h5-page active" id="page-home"></section>
+
+        <!-- 留言板 -->
+        <section class="h5-page" id="page-message"></section>
+
+        <!-- 钉钉机器人 -->
+        <section class="h5-page" id="page-robot"></section>
+
+        <!-- 我的 -->
+        <section class="h5-page" id="page-profile"></section>
+
+        <!-- 其余模块（由 JS 按需在对应 section 内渲染） -->
+        <section class="h5-page" id="page-user"></section>
+        <section class="h5-page" id="page-group"></section>
+        <section class="h5-page" id="page-notes"></section>
+        <section class="h5-page" id="page-share"></section>
+        <section class="h5-page" id="page-shell"></section>
+        <section class="h5-page" id="page-javaapi"></section>
+        <section class="h5-page" id="page-sql"></section>
+        <section class="h5-page" id="page-dubbo"></section>
+        <section class="h5-page" id="page-archive"></section>
+    </main>
+
+    <!-- 底部 Tab -->
+    <nav class="h5-tabbar" id="h5Tabbar">
+        <div class="h5-tab active" data-target="home"><span class="h5-tab-ico">🏠</span>首页</div>
+        <div class="h5-tab" data-target="message"><span class="h5-tab-ico">💬</span>留言板</div>
+        <div class="h5-tab" data-target="robot"><span class="h5-tab-ico">🤖</span>机器人</div>
+        <div class="h5-tab" data-target="profile"><span class="h5-tab-ico">👤</span>我的</div>
+    </nav>
+</div>
+
+<!-- 浮动添加按钮（按模块显隐） -->
+<button class="h5-fab" id="h5Fab" style="display:none;">＋</button>
+
+<!-- 通用对话框（居中） -->
+<div class="h5-mask" id="h5DialogMask">
+    <div class="h5-dialog" id="h5Dialog"></div>
+</div>
+
+<!-- 通用底部抽屉 -->
+<div class="h5-sheet-mask" id="h5SheetMask"></div>
+<div class="h5-sheet" id="h5Sheet"></div>
+
+<!-- Toast -->
+<div class="h5-toast" id="h5Toast"></div>
+
+<!-- Loading -->
+<div class="h5-loading" id="h5Loading"><div class="h5-spinner"></div></div>
+
+<!-- 登录浮层 -->
+<div class="h5-login-mask" id="h5LoginMask">
+    <div class="h5-login-card">
+        <div class="h5-login-logo">小泽<span>助手</span></div>
+        <div class="h5-login-slogan">云端运维 · 安全管控 · 高效协同</div>
+        <input class="h5-input" id="h5LoginUser" type="text" placeholder="用户名" autocomplete="username">
+        <input class="h5-input" id="h5LoginPwd" type="password" placeholder="密码" autocomplete="current-password">
+        <div class="h5-login-err" id="h5LoginErr"></div>
+        <button class="h5-btn-primary h5-btn-block" id="h5LoginBtn">登 录</button>
+        <div class="h5-login-foot">还没有账号？<a href="register.html">注册新用户</a></div>
+    </div>
+</div>
+
+<!-- 主题抽屉（复用底部抽屉） -->
+
+<script src="Assets/js/jquery-3.7.1.min.js" type="text/javascript"></script>
+<script src="Assets/js/h5.js?v=3" type="text/javascript"></script>
+<script src="Assets/js/group-chat.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/h5-javaapi.js?v=2" type="text/javascript"></script>
+<script src="Assets/js/h5-sqltool.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/h5-dubbo.js?v=1" type="text/javascript"></script>
+</body>
+</html>

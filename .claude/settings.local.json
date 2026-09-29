@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn clean *)",
+      "Bash(mvn test *)",
+      "Bash(mvn spring-boot:run -pl api)",
+      "Bash(curl -s --connect-timeout 5 http://localhost:8090/spbt/tbphx.do)",
+      "Bash(netstat -ano)",
+      "Bash(mvn spring-boot:run -pl tbpApply -am)",
+      "Bash(mvn spring-boot:run -pl tbpApply)",
+      "Bash(mvn compile *)",
+      "mcp__ide__getDiagnostics",
+      "Bash(mvn test-compile *)",
+      "WebSearch",
+      "Read(//d/GIT/do_dubbo/**)",
+      "Bash(echo *)"
+    ]
+  }
+}

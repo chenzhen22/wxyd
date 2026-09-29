@@ -68,6 +68,10 @@
 		select `id`,`username`,`display_name`,`role`,`status`,`theme`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` where `id`=#{id}
 	</select>
 
+	<select id="queryUserPwdById" parameterType="Long" resultType="com.cyz.pojo.User">
+		select `id`,`username`,`password` from `users` where `id`=#{id}
+	</select>
+
 	<select id="listUsers" resultType="com.cyz.pojo.User">
 		select `id`,`username`,`display_name`,`role`,`status`,`theme`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` order by `status`,`id`
 	</select>
@@ -78,6 +82,10 @@
 
 	<update id="updateUserStatus">
 		update `users` set `status`=#{status} where `id`=#{id}
+	</update>
+
+	<update id="updateUserPassword">
+		update `users` set `password`=#{password} where `id`=#{id}
 	</update>
 
 	<update id="updateDisplayName">
@@ -115,6 +123,135 @@
 
 	<delete id="deleteRobot">
 		delete from `ding_robot` where `id`=#{id} and `user_id`=#{userId}
+	</delete>
+
+	<delete id="deleteRobotByUserId" parameterType="Long">
+		delete from `ding_robot` where `user_id`=#{userId}
+	</delete>
+
+	<!-- ===== group_chat ===== -->
+	<insert id="insertGroup" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="id">
+		insert into `group_chat` (`name`,`owner_id`) values (#{name},#{ownerId})
+	</insert>
+
+	<select id="countGroupsByOwner" parameterType="Long" resultType="Integer">
+		select count(1) from `group_chat` where `owner_id`=#{ownerId}
+	</select>
+
+	<select id="queryGroupById" parameterType="Long" resultType="java.util.HashMap">
+		select `id`,`name`,`owner_id` as ownerId,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as "createTime"
+		from `group_chat` where `id`=#{groupId}
+	</select>
+
+	<select id="listMyGroups" parameterType="Long" resultType="java.util.HashMap">
+		select g.`id`, g.`name`, g.`owner_id` as ownerId,
+		       COALESCE(NULLIF(u.`display_name`,''), u.`username`) as ownerName,
+		       (select count(1) from `group_member` m where m.`group_id`=g.`id`) as memberCount
+		from `group_chat` g
+		join `group_member` mm on mm.`group_id`=g.`id` and mm.`user_id`=#{userId}
+		left join `users` u on g.`owner_id`=u.`id`
+		order by g.`id` desc
+	</select>
+
+	<select id="searchGroups" resultType="java.util.HashMap">
+		select g.`id`, g.`name`,
+		       COALESCE(NULLIF(u.`display_name`,''), u.`username`) as ownerName,
+		       (select count(1) from `group_member` m where m.`group_id`=g.`id`) as memberCount,
+		       (select count(1) from `group_member` m2 where m2.`group_id`=g.`id` and m2.`user_id`=#{userId}) as joined,
+		       (select count(1) from `group_join_apply` a where a.`group_id`=g.`id` and a.`user_id`=#{userId} and a.`status`=0) as applying
+		from `group_chat` g
+		left join `users` u on g.`owner_id`=u.`id`
+		where g.`name` like concat('%',#{keyword},'%')
+		order by g.`id` desc limit 50
+	</select>
+
+	<!-- ===== group_member ===== -->
+	<insert id="insertGroupMember">
+		insert into `group_member` (`group_id`,`user_id`,`role`) values (#{groupId},#{userId},#{role})
+	</insert>
+
+	<select id="countMember" resultType="Integer">
+		select count(1) from `group_member` where `group_id`=#{groupId} and `user_id`=#{userId}
+	</select>
+
+	<select id="listGroupMembers" parameterType="Long" resultType="java.util.HashMap">
+		select m.`user_id` as userId, m.`role`,
+		       COALESCE(NULLIF(u.`display_name`,''), u.`username`) as name
+		from `group_member` m
+		left join `users` u on m.`user_id`=u.`id`
+		where m.`group_id`=#{groupId}
+		order by m.`id`
+	</select>
+
+	<select id="listMemberIds" resultType="Long">
+		select `user_id` from `group_member` where `group_id`=#{groupId}
+		<if test="excludeUserId != null">and `user_id` != #{excludeUserId}</if>
+	</select>
+
+	<delete id="deleteGroupMember">
+		delete from `group_member` where `group_id`=#{groupId} and `user_id`=#{userId}
+	</delete>
+
+	<!-- ===== group_join_apply ===== -->
+	<insert id="insertApply">
+		insert into `group_join_apply` (`group_id`,`user_id`,`reason`) values (#{groupId},#{userId},#{reason})
+	</insert>
+
+	<select id="queryApplyById" parameterType="Long" resultType="java.util.HashMap">
+		select `id`,`group_id` as groupId,`user_id` as userId,`status`
+		from `group_join_apply` where `id`=#{applyId}
+	</select>
+
+	<select id="countPendingApply" resultType="Integer">
+		select count(1) from `group_join_apply`
+		where `group_id`=#{groupId} and `user_id`=#{userId} and `status`=0
+	</select>
+
+	<select id="listPendingApplies" parameterType="Long" resultType="java.util.HashMap">
+		select a.`id`, a.`group_id` as groupId, g.`name` as groupName, a.`user_id` as userId,
+		       COALESCE(NULLIF(u.`display_name`,''), u.`username`) as name,
+		       a.`reason`, date_format(a.`apply_time`,'%Y-%m-%d %H:%i:%s') as "applyTime"
+		from `group_join_apply` a
+		join `group_chat` g on a.`group_id`=g.`id` and g.`owner_id`=#{ownerId}
+		left join `users` u on a.`user_id`=u.`id`
+		where a.`status`=0
+		order by a.`id` desc
+	</select>
+
+	<update id="updateApplyStatus">
+		update `group_join_apply` set `status`=#{status}, `handle_time`=now() where `id`=#{id}
+	</update>
+
+	<!-- ===== group_msg_transit ===== -->
+	<insert id="insertTransit">
+		insert into `group_msg_transit` (`group_id`,`from_user_id`,`to_user_id`,`msg_type`,`content`,`expire_time`)
+		values (#{groupId},#{fromUserId},#{toUserId},#{msgType},#{content},#{expireTime})
+	</insert>
+
+	<!-- 加 for update 配合事务：拉取后立即删除，避免双开页面重复收到 -->
+	<select id="pullTransitForUpdate" parameterType="Long" resultType="java.util.HashMap">
+		select t.`id`, t.`group_id` as groupId, t.`from_user_id` as fromUserId,
+		       COALESCE(NULLIF(u.`display_name`,''), u.`username`) as fromName,
+		       t.`msg_type` as msgType, t.`content`,
+		       date_format(t.`send_time`,'%Y-%m-%d %H:%i:%s') as "time"
+		from `group_msg_transit` t
+		left join `users` u on t.`from_user_id`=u.`id`
+		where t.`to_user_id`=#{userId}
+		order by t.`id`
+		for update
+	</select>
+
+	<delete id="deleteTransitByIds">
+		delete from `group_msg_transit` where `id` in
+		<foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+	</delete>
+
+	<delete id="deleteTransitByUser">
+		delete from `group_msg_transit` where `group_id`=#{groupId} and `to_user_id`=#{toUserId}
+	</delete>
+
+	<delete id="deleteExpiredTransit">
+		delete from `group_msg_transit` where `expire_time` &lt; now()
 	</delete>
 
 </mapper>

@@ -98,6 +98,10 @@ $(function () {
         if ($(this).data("target") === "shareFile" && window.ShareFile) {
             ShareFile.init();
         }
+        // 群聊模块懒加载
+        if ($(this).data("target") === "groupChat" && window.GroupChat) {
+            GroupChat.mount($("#groupChatBody")[0]);
+        }
     });
 
     $("#welcome").click(function () {
@@ -339,8 +343,19 @@ function loadUsers() {
         for (let i = 0; i < list.length; i++) {
             let u = list[i];
             let role = u.role == 0 ? "超管" : "普通";
-            let st = u.status == 0 ? "已通过" : u.status == 1 ? "待审批" : "已拒绝";
-            let op = u.status == 1 ? `<button class="btn-main" onclick="approveUser(${u.id})">通过</button> <button class="btn-del" onclick="rejectUser(${u.id})">拒绝</button>` : "";
+            let st = u.status == 0 ? "已通过" : u.status == 1 ? "待审批" : u.status == 2 ? "已拒绝" : u.status == 3 ? "已暂停" : "未知";
+            let op = "";
+            if (u.role == 0) {
+                op = '<span style="color:#999;">—</span>';
+            } else if (u.status == 0) {
+                op = `<button class="btn-main" onclick="pauseUser(${u.id})">暂停</button> <button class="btn-del" onclick="deleteUser(${u.id})">删除</button>`;
+            } else if (u.status == 1) {
+                op = `<button class="btn-main" onclick="approveUser(${u.id})">通过</button> <button class="btn-del" onclick="rejectUser(${u.id})">拒绝</button>`;
+            } else if (u.status == 2) {
+                op = `<button class="btn-del" onclick="deleteUser(${u.id})">删除</button>`;
+            } else if (u.status == 3) {
+                op = `<button class="btn-main" onclick="resumeUser(${u.id})">恢复</button> <button class="btn-del" onclick="deleteUser(${u.id})">删除</button>`;
+            }
             html += `<tr><td>${i + 1}</td><td>${u.username}</td><td>${u.displayName || ''}</td><td>${role}</td><td>${st}</td><td>${u.createTime || ''}</td><td>${op}</td></tr>`;
         }
         $("#userTableBody").html(html);
@@ -372,6 +387,49 @@ function rejectUser(id) {
         error: function () {
             loading(false);
         }
+    });
+}
+
+function pauseUser(id) {
+    confirmModal("确定暂停该用户？暂停后该用户将无法登录。", function () {
+        loading(true);
+        $.ajax({
+            url: "pauseUser", type: "post", contentType: "application/json", data: JSON.stringify({body: {id: id}}),
+            success: function (res) {
+                loading(false);
+                if (res.errorCode == "000000") loadUsers();
+                else alterModal(res.errorMsg || "操作失败");
+            },
+            error: function () { loading(false); }
+        });
+    });
+}
+
+function resumeUser(id) {
+    loading(true);
+    $.ajax({
+        url: "resumeUser", type: "post", contentType: "application/json", data: JSON.stringify({body: {id: id}}),
+        success: function (res) {
+            loading(false);
+            if (res.errorCode == "000000") loadUsers();
+            else alterModal(res.errorMsg || "操作失败");
+        },
+        error: function () { loading(false); }
+    });
+}
+
+function deleteUser(id) {
+    confirmModal("确定删除该用户？其关联的钉钉机器人也会一并删除，且不可恢复。", function () {
+        loading(true);
+        $.ajax({
+            url: "deleteUser", type: "post", contentType: "application/json", data: JSON.stringify({body: {id: id}}),
+            success: function (res) {
+                loading(false);
+                if (res.errorCode == "000000") loadUsers();
+                else alterModal(res.errorMsg || "操作失败");
+            },
+            error: function () { loading(false); }
+        });
     });
 }
 

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `password` VARCHAR(256) NOT NULL COMMENT 'SM4 密文 hex',
   `display_name` VARCHAR(64) DEFAULT NULL,
   `role` TINYINT NOT NULL DEFAULT 1 COMMENT '0=超级管理员,1=普通',
-  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '0=已通过,1=待审批,2=已拒绝',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '0=已通过,1=待审批,2=已拒绝,3=已暂停',
   `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_username` (`username`)

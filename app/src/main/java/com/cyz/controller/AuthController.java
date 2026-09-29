@@ -54,6 +54,11 @@ public class AuthController implements CommController {
                 result.setErrorMsg("账号已被拒绝");
                 return result;
             }
+            if (u.getStatus() != null && u.getStatus() == 3) {
+                result.setErrorCode("000003");
+                result.setErrorMsg("账号已被暂停，请联系管理员");
+                return result;
+            }
             session.setAttribute("userId", u.getId());
             session.setAttribute("username", u.getUsername());
             session.setAttribute("role", u.getRole());

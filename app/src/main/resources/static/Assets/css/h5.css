@@ -1,0 +1,274 @@
+/* ============================================================
+   H5 移动端样式（小泽助手）
+   仅复用 admin.css 的 [data-theme] 主题变量（暗色玻璃拟态）。
+   所有组件使用独立 .h5-* 类名，不依赖 admin.css 的桌面组件类。
+   h5.html 先引入 admin.css（变量），再引入本文件（组件）。
+   ============================================================ */
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg-gradient);
+    background-attachment: fixed;
+    color: var(--text-1);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow: hidden;
+}
+a { color: var(--accent-2); text-decoration: none; }
+input, textarea, select, button { font-family: inherit; font-size: 14px; }
+
+/* ---------- App 外壳：顶部栏 + 滚动区 + 底部 Tab ---------- */
+.h5-app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.h5-header {
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: calc(env(safe-area-inset-top) + 12px) 16px 12px;
+    background: var(--glass-3);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border-2);
+}
+.h5-header .h5-logo { font-size: 17px; font-weight: 700; letter-spacing: .5px; }
+.h5-header .h5-logo span { color: var(--accent); }
+.h5-header .h5-head-actions { display: flex; align-items: center; gap: 14px; }
+.h5-head-icon {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--glass-2); border: 1px solid var(--border-2);
+    color: var(--text-2); font-size: 16px; cursor: pointer;
+}
+
+.h5-main { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 14px 90px; }
+.h5-page { display: none; }
+.h5-page.active { display: block; animation: h5-fade .25s ease; }
+@keyframes h5-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ---------- 底部 Tab ---------- */
+.h5-tabbar {
+    flex: 0 0 auto;
+    display: flex;
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--glass-3);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border-2);
+}
+.h5-tab {
+    flex: 1; text-align: center; padding: 8px 0 6px; cursor: pointer;
+    color: var(--text-5); font-size: 11px; user-select: none;
+}
+.h5-tab .h5-tab-ico { font-size: 20px; display: block; line-height: 1.1; }
+.h5-tab.active { color: var(--accent); }
+.h5-tab.active .h5-tab-ico { transform: translateY(-1px); }
+
+/* ---------- 标题 / 区块 ---------- */
+.h5-section-title {
+    font-size: 13px; color: var(--text-5); margin: 18px 4px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.h5-section-title:first-child { margin-top: 4px; }
+
+/* ---------- 卡片 ---------- */
+.h5-card {
+    background: var(--glass-2);
+    border: 1px solid var(--border-2);
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.12);
+}
+.h5-card-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.h5-card .h5-card-title { font-size: 15px; font-weight: 600; color: var(--text-1); word-break: break-all; }
+.h5-card .h5-card-sub { font-size: 12px; color: var(--text-5); margin-top: 4px; word-break: break-all; }
+.h5-card .h5-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.h5-card .h5-card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+/* ---------- 模块九宫格 ---------- */
+.h5-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.h5-grid-item {
+    background: var(--glass-2);
+    border: 1px solid var(--border-2);
+    border-radius: 16px;
+    padding: 18px 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform .12s ease, background .2s ease;
+}
+.h5-grid-item:active { transform: scale(.96); background: var(--glass-3); }
+.h5-grid-item .h5-grid-ico { font-size: 28px; }
+.h5-grid-item .h5-grid-name { font-size: 13px; margin-top: 8px; color: var(--text-2); }
+.h5-grid-item .h5-grid-badge {
+    display: inline-block; margin-top: 6px; font-size: 10px; color: var(--accent);
+    border: 1px solid var(--accent-ring); border-radius: 8px; padding: 1px 6px;
+}
+
+/* ---------- 状态徽章 ---------- */
+.h5-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+.h5-badge-0 { color: #2bd47d; background: rgba(43,212,125,.14); }   /* 已通过 */
+.h5-badge-1 { color: #9aa3b2; background: rgba(154,163,178,.16); }  /* 待审批 */
+.h5-badge-2 { color: #ff6b6b; background: rgba(255,107,107,.16); }  /* 已拒绝 */
+.h5-badge-3 { color: #ffa94d; background: rgba(255,169,77,.16); }   /* 已暂停 */
+.h5-badge-role { color: var(--accent); background: var(--accent-chip-bg); }
+
+/* ---------- 按钮 ---------- */
+.h5-btn {
+    border: 1px solid var(--border-3); background: var(--glass-3); color: var(--text-2);
+    border-radius: 10px; padding: 8px 14px; cursor: pointer; font-size: 13px;
+}
+.h5-btn:active { background: var(--glass-4); }
+.h5-btn-primary {
+    border: none; color: #fff; background: var(--accent-grad);
+    border-radius: 10px; padding: 9px 16px; cursor: pointer; font-size: 13px; font-weight: 600;
+}
+.h5-btn-primary:active { opacity: .85; }
+.h5-btn-danger { border: 1px solid rgba(255,107,107,.5); color: #ff6b6b; background: rgba(255,107,107,.1); border-radius: 10px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
+.h5-btn-danger:active { background: rgba(255,107,107,.18); }
+.h5-btn-ghost { background: transparent; border: 1px solid var(--border-3); color: var(--text-3); border-radius: 10px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
+.h5-btn-block { display: block; width: 100%; text-align: center; }
+.h5-btn-sm { padding: 6px 10px; font-size: 12px; }
+
+/* ---------- 表单 ---------- */
+.h5-field { margin-bottom: 12px; }
+.h5-field label { display: block; font-size: 12px; color: var(--text-4); margin-bottom: 6px; }
+.h5-input, .h5-textarea, .h5-select {
+    width: 100%; padding: 12px; border-radius: 12px;
+    height: auto;               /* 覆盖 admin.css 对 input/select 的固定 36px 高，避免文本被裁切 */
+    min-height: 48px;
+    border: 1px solid var(--border-2); background: var(--glass-1); color: var(--text-1);
+    outline: none; line-height: 1.4;
+}
+.h5-input:focus, .h5-textarea:focus, .h5-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); background: var(--glass-2); }
+.h5-textarea { resize: vertical; min-height: 88px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height: 1.5; }
+.h5-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+
+/* ---------- 浮动添加按钮 ---------- */
+.h5-fab {
+    position: fixed; right: 18px; bottom: calc(78px + env(safe-area-inset-bottom));
+    width: 54px; height: 54px; border-radius: 50%; border: none;
+    background: var(--accent-grad); color: #fff; font-size: 28px; line-height: 54px; text-align: center;
+    box-shadow: 0 8px 22px var(--accent-glow); cursor: pointer; z-index: 30;
+}
+.h5-fab:active { opacity: .85; }
+
+/* ---------- 列表 ---------- */
+.h5-list { list-style: none; margin: 0; padding: 0; }
+.h5-list li {
+    padding: 13px 4px; border-bottom: 1px solid var(--border-1); display: flex;
+    align-items: center; justify-content: space-between; gap: 10px;
+}
+.h5-list li:last-child { border-bottom: none; }
+.h5-list .h5-li-main { flex: 1; min-width: 0; }
+.h5-list .h5-li-title { font-size: 14px; color: var(--text-1); word-break: break-all; }
+.h5-list .h5-li-sub { font-size: 12px; color: var(--text-5); margin-top: 3px; word-break: break-all; }
+
+/* ---------- 弹层（居中对话框 / 底部抽屉） ---------- */
+.h5-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px;
+}
+.h5-mask.show { display: flex; }
+.h5-dialog {
+    width: 100%; max-width: 360px; background: var(--glass-4);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--border-3); border-radius: 18px; padding: 18px;
+}
+.h5-dialog h3 { margin: 0 0 14px; font-size: 16px; }
+.h5-dialog .h5-dialog-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+.h5-dialog .h5-dialog-actions .h5-btn,
+.h5-dialog .h5-dialog-actions .h5-btn-primary { flex: 0 0 auto; min-width: 84px; text-align: center; }
+
+.h5-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+    background: var(--glass-4); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border-top: 1px solid var(--border-3); border-radius: 20px 20px 0 0;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    transform: translateY(110%); transition: transform .28s ease; max-height: 86vh; overflow-y: auto;
+}
+.h5-sheet.show { transform: translateY(0); }
+.h5-sheet .h5-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.h5-sheet .h5-sheet-head h3 { margin: 0; font-size: 16px; }
+.h5-sheet .h5-sheet-close { font-size: 22px; color: var(--text-5); cursor: pointer; line-height: 1; }
+.h5-sheet-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 55; }
+.h5-sheet-mask.show { display: block; }
+
+/* ---------- Toast ---------- */
+.h5-toast {
+    position: fixed; left: 50%; top: 42%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,.8); color: #fff; padding: 11px 18px; border-radius: 12px;
+    font-size: 13px; z-index: 90; max-width: 80%; text-align: center; display: none;
+}
+
+/* ---------- Loading ---------- */
+.h5-loading {
+    position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 80;
+    display: none; align-items: center; justify-content: center;
+}
+.h5-loading.show { display: flex; }
+.h5-spinner {
+    width: 38px; height: 38px; border: 3px solid var(--glass-4);
+    border-top-color: var(--accent); border-radius: 50%; animation: h5-spin .8s linear infinite;
+}
+@keyframes h5-spin { to { transform: rotate(360deg); } }
+
+/* ---------- 登录浮层 ---------- */
+.h5-login-mask {
+    position: fixed; inset: 0; z-index: 100; display: none;
+    align-items: center; justify-content: center; padding: 24px;
+    background: var(--bg-gradient); background-attachment: fixed;
+}
+.h5-login-mask.show { display: flex; }
+.h5-login-card { width: 100%; max-width: 340px; text-align: center; }
+.h5-login-card .h5-login-logo { font-size: 26px; font-weight: 800; margin-bottom: 6px; }
+.h5-login-card .h5-login-logo span { color: var(--accent); }
+.h5-login-card .h5-login-slogan { font-size: 12px; color: var(--text-5); margin-bottom: 22px; }
+.h5-login-card .h5-input { margin-bottom: 12px; text-align: left; }
+.h5-login-card .h5-login-err { color: #ff6b6b; font-size: 12px; min-height: 16px; margin: 2px 0 10px; }
+.h5-login-card .h5-login-foot { margin-top: 14px; font-size: 12px; color: var(--text-5); }
+.h5-login-card .h5-login-foot a { color: var(--accent-2); }
+
+/* ---------- 代码 / 横向滚动表 ---------- */
+.h5-pre {
+    background: var(--glass-1); border: 1px solid var(--border-1); border-radius: 12px;
+    padding: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word;
+    color: var(--text-2); max-height: 320px; overflow: auto;
+}
+.h5-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid var(--border-1); }
+.h5-table { border-collapse: collapse; width: 100%; font-size: 12px; min-width: 480px; }
+.h5-table th, .h5-table td { padding: 9px 10px; border-bottom: 1px solid var(--border-1); text-align: left; white-space: nowrap; color: var(--text-2); }
+.h5-table th { background: var(--glass-3); color: var(--text-3); position: sticky; top: 0; }
+.h5-table tr:last-child td { border-bottom: none; }
+
+/* ---------- 空状态 ---------- */
+.h5-empty { text-align: center; color: var(--text-6); padding: 40px 0; font-size: 13px; }
+
+/* ---------- 我的（资料） ---------- */
+.h5-profile { text-align: center; padding: 22px 0 8px; }
+.h5-profile .h5-avatar {
+    width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 10px;
+    background: var(--accent-grad); color: #fff; font-size: 26px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+}
+.h5-profile .h5-profile-name { font-size: 18px; font-weight: 700; }
+.h5-profile .h5-profile-role { font-size: 12px; color: var(--text-5); margin-top: 4px; }
+
+/* ---------- 主题选择 ---------- */
+.h5-theme-list { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
+.h5-theme-opt {
+    padding: 12px; border-radius: 12px; border: 1px solid var(--border-2); background: var(--glass-2);
+    text-align: center; cursor: pointer; font-size: 13px; color: var(--text-2);
+}
+.h5-theme-opt.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+/* ---------- 步骤进度（归档） ---------- */
+.h5-steps { list-style: none; margin: 8px 0 0; padding: 0; }
+.h5-steps li { font-size: 12px; color: var(--text-5); padding: 4px 0; }
+.h5-steps li.done { color: #2bd47d; }
+.h5-steps li.active { color: var(--accent); }
+.h5-steps li.err { color: #ff6b6b; }
+
+/* ---------- 错误/提示条 ---------- */
+.h5-alert { padding: 10px 12px; border-radius: 12px; font-size: 12px; margin-bottom: 12px; }
+.h5-alert-err { color: #ff6b6b; background: rgba(255,107,107,.1); border: 1px solid rgba(255,107,107,.3); }
+.h5-alert-info { color: var(--text-3); background: var(--glass-2); border: 1px solid var(--border-1); }

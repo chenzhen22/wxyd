@@ -70,16 +70,34 @@ public class UserController implements CommController {
     }
 
     @ResponseBody
+    @RequestMapping("pauseUser")
+    public Result pauseUser(@RequestBody Result result, HttpSession session) {
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        Long id = ((Number) map.get("id")).longValue();
+        Result guard = adminGuard(session, id);
+        if (guard != null) return guard;
+        int idx = userService.pauseUser(id);
+        return CommUtils.handleDaoResult(idx);
+    }
+
+    @ResponseBody
+    @RequestMapping("resumeUser")
+    public Result resumeUser(@RequestBody Result result, HttpSession session) {
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        Long id = ((Number) map.get("id")).longValue();
+        Result guard = adminGuard(session, id);
+        if (guard != null) return guard;
+        int idx = userService.resumeUser(id);
+        return CommUtils.handleDaoResult(idx);
+    }
+
+    @ResponseBody
     @RequestMapping("deleteUser")
     public Result deleteUser(@RequestBody Result result, HttpSession session) {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         Long id = ((Number) map.get("id")).longValue();
-        Result r = Result.getInstance();
-        if (!isAdmin(session)) {
-            r.setErrorCode("000003");
-            r.setErrorMsg("权限不足，仅超级管理员可操作");
-            return r;
-        }
+        Result guard = adminGuard(session, id);
+        if (guard != null) return guard;
         int idx = userService.deleteUser(id);
         return CommUtils.handleDaoResult(idx);
     }
@@ -98,6 +116,34 @@ public class UserController implements CommController {
         }
         int idx = userService.updateDisplayName(uid, displayName);
         return CommUtils.handleDaoResult(idx);
+    }
+
+    @ResponseBody
+    @RequestMapping("user/updatePassword")
+    public Result updatePassword(@RequestBody Result result, HttpSession session) {
+        Map<String, Object> map = (Map<String, Object>) result.getBody();
+        Long uid = (Long) session.getAttribute("userId");
+        Result r = Result.getInstance();
+        if (uid == null) {
+            r.setErrorCode("000003");
+            r.setErrorMsg("未登录");
+            return r;
+        }
+        String oldPassword = (String) map.get("oldPassword");
+        String newPassword = (String) map.get("newPassword");
+        if (oldPassword == null || oldPassword.isEmpty() || newPassword == null || newPassword.isEmpty()) {
+            r.setErrorCode("000003");
+            r.setErrorMsg("原密码与新密码不能为空");
+            return r;
+        }
+        try {
+            int idx = userService.updatePassword(uid, oldPassword, newPassword);
+            return CommUtils.handleDaoResult(idx);
+        } catch (IllegalArgumentException e) {
+            r.setErrorCode("000003");
+            r.setErrorMsg(e.getMessage());
+            return r;
+        }
     }
 
     @ResponseBody
@@ -150,6 +196,7 @@ public class UserController implements CommController {
         Integer role = (Integer) session.getAttribute("role");
         String username = (String) session.getAttribute("username");
         java.util.Map<String, Object> info = new java.util.HashMap<>();
+        info.put("id", uid);
         info.put("username", username);
         info.put("role", role == null ? -1 : role);
         info.put("isAdmin", role != null && role == 0);
@@ -160,5 +207,30 @@ public class UserController implements CommController {
     private boolean isAdmin(HttpSession session) {
         Integer role = (Integer) session.getAttribute("role");
         return role != null && role == 0;
+    }
+
+    /**
+     * 管理员操作校验：非管理员、目标用户不存在、目标为超级管理员(role=0) 均拒绝。
+     * 校验通过返回 null，否则返回错误 Result。
+     */
+    private Result adminGuard(HttpSession session, Long id) {
+        Result r = Result.getInstance();
+        if (!isAdmin(session)) {
+            r.setErrorCode("000003");
+            r.setErrorMsg("权限不足，仅超级管理员可操作");
+            return r;
+        }
+        User target = userService.getUserById(id);
+        if (target == null) {
+            r.setErrorCode("000003");
+            r.setErrorMsg("用户不存在");
+            return r;
+        }
+        if (target.getRole() != null && target.getRole() == 0) {
+            r.setErrorCode("000003");
+            r.setErrorMsg("不能操作超级管理员账号");
+            return r;
+        }
+        return null;
     }
 }

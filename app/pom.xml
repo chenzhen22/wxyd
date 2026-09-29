@@ -41,7 +41,8 @@
         <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
-            <version>3.0.0</version>
+            <!-- mybatis-spring-boot 2.3.x 适配 Spring Boot 2.7（3.0.x 需要 Boot 3 / Java 17） -->
+            <version>2.3.2</version>
         </dependency>
         <dependency>
             <groupId>mysql</groupId>

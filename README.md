@@ -1,6 +1,6 @@
 # 小泽助手（wxyd）
 
-基于 Spring Boot 2.2.5 的轻量运维管理平台，提供用户管理、留言板、钉钉机器人消息推送、Java 8 API 交互式学习等功能。前后端一体，单 jar 部署。
+基于 Spring Boot 2.7.18 的轻量运维管理平台，提供用户管理、留言板、群聊、钉钉机器人消息推送、用户级 Markdown 记忆笔记、菜单管理、Java 8 API 交互式学习等功能。前后端一体（桌面版 + H5），单 jar 部署。
 
 ## ✨ 功能模块
 
@@ -9,21 +9,27 @@
 | 🏠 首页 | 欢迎面板 + 实时时钟 |
 | 👤 用户管理 | 注册审批制（超级管理员审批），SM4 加密密码，HTTP Session 鉴权 |
 | 💬 留言板 | 按用户 ID 鉴权（管理员删任意 / 用户删自己的），最多保留 50 条，昵称显示名回退用户名 |
+| 👥 群聊 | 桌面/H5 双端；每用户限建 5 群；模糊搜索群名申请加入；群主审批/踢人/直接拉人（用户名/昵称模糊搜索）；消息支持文字/表情/图片；消息记录存浏览器 localStorage，服务器只做中转（拉取即删，7 天兜底清理）；已读回执（仅发送者可见「已读 N/M」，点击查看已读人明细） |
+| 📝 记忆笔记 | 用户级 Markdown 笔记（可新增/编辑/删除），md 存 `/apps/shareFile/{用户id}/`；分公共/私有（frontmatter visibility），公共笔记可被其他用户按标题模糊搜索；旧笔记迁移至 admin 用户下 |
+| 🧩 菜单管理 | 仅管理员；四态配置（全部可见/全部隐藏/白名单可见/黑名单不可见）控制各菜单对普通用户的显隐，桌面菜单与 H5 卡片/tab 同步生效；管理员始终可见全部 |
 | 🤖 钉钉机器人 | 每用户独立机器人 CRUD，发送文本/文件消息（文件→zip→base64，>20KB 分块 ≤18KB），文件限制 200KB |
 | ☕ Java8-API | 384 个 Java API 文档 + 在线编辑运行测试代码（javax.tools.JavaCompiler + JUnit 4，10 秒超时，安全黑名单） |
 | 🗄️ SQL 查询 | 仅超级管理员可见的在线 SQL 工具，直连 wxyd 自有 MySQL 数据源；仅允许 SELECT/SHOW/DESC/EXPLAIN/WITH 单语句，分页查询，支持 CSV/Excel 导出 |
+| 📁 文件共享 / 🐚 Shell脚本 / 🔌 Dubbo调用 / 📦 归档下载 | 辅助工具模块 |
+| 🎨 主题 | 7 套主题（含跟随系统），持久化到用户 |
+| 📱 H5 | 独立移动端页面（h5.html），桌面版功能基本对齐，群聊入口在底部 tab |
 
 ## 🛠 技术栈
 
 | 层级 | 技术 |
 |------|------|
 | 语言 / 运行时 | **Java 8**（JDK，非 JRE — Java8-API 模块需 `javax.tools.JavaCompiler`） |
-| 框架 | Spring Boot 2.2.5.RELEASE |
-| ORM | MyBatis 3.0.0（手动 SqlSessionFactoryBean，`mapUnderscoreToCamelCase`） |
+| 框架 | Spring Boot **2.7.18** |
+| ORM | MyBatis（mybatis-spring-boot-starter **2.3.2**，`mapUnderscoreToCamelCase`） |
 | 数据库 | MySQL 8.0.30 + HikariCP 连接池 |
 | 安全 | 国密 SM4（CBC + PKCS7Padding + 随机 IV）加密密码与机器人 SECRET，BouncyCastle |
 | HTTP 客户端 | OkHttp 4.9.3 |
-| 前端 | jQuery 1.8.3 + 暗色玻璃拟态（glassmorphism）主题 |
+| 前端 | jQuery 3.7.1 + 暗色玻璃拟态（glassmorphism）主题（多主题可切换） |
 | 构建 | Maven 3.8.x（`D:\cz\java\maven\apache-maven-3.8.4`） |
 | 本地仓库 | `D:\cz\repository` |
 
@@ -71,8 +77,11 @@ wxyd.admin.password=<initial_admin_password>
 # 基础表（message、action、requestlog 等）
 mysql -u root -p < wxyd.sql
 
-# 用户 & 钉钉机器人表
-mysql -u root -p < app/src/main/resources/sql/V2__user_robot.sql
+# 迁移脚本（按序号执行）
+mysql -u root -p < app/src/main/resources/sql/V2__user_robot.sql      # users + ding_robot
+mysql -u root -p < app/src/main/resources/sql/V4__group_chat.sql      # 群聊四表（group_chat/group_member/group_join_apply/group_msg_transit）
+mysql -u root -p < app/src/main/resources/sql/V5__group_msg_read.sql  # 群聊已读回执（group_msg/group_msg_read + transit.msg_id）
+mysql -u root -p < app/src/main/resources/sql/V6__menu_config.sql     # 菜单管理（menu_config）
 ```
 
 ### 3. 构建 & 运行
@@ -114,20 +123,26 @@ wxyd/
 │   │   ├── env.properties            # 真实密钥/数据库（gitignore）
 │   │   ├── env.properties.example    # 配置模板
 │   │   ├── data/                     # 384 个 Java API 文档（Markdown）
+│   │   ├── data-note/                # 旧版只读笔记（已迁移至 admin 用户目录，仅作迁移源保留）
 │   │   ├── mapper/MysqlMapper.xml    # MyBatis SQL
-│   │   ├── sql/V2__user_robot.sql    # users + ding_robot 建表
+│   │   ├── sql/V2..V6__*.sql         # 迁移脚本（用户/机器人、群聊、已读回执、菜单配置）
 │   │   └── static/                   # 前端页面 + CSS + JS
 │   │       ├── login.html            # 登录/注册（暗色玻璃 + 流动渐变动画）
-│   │       ├── api.html              # 管理后台（6 大模块，含 SQL 查询）
+│   │       ├── api.html              # 管理后台（桌面版单页）
+│   │       ├── h5.html               # 移动端单页（底部 tab + 模块卡片）
 │   │       └── Assets/
-│   │           ├── css/admin.css     # 暗色玻璃主题
+│   │           ├── css/admin.css     # 主题样式（多主题变量 + 群聊/笔记/菜单管理样式）
 │   │           └── js/
-│   │               ├── index.js      # 用户/机器人/留言板逻辑 + 管理员菜单门控
+│   │               ├── index.js      # 桌面版主逻辑（菜单门控 + 各模块懒加载）
+│   │               ├── h5.js         # H5 主逻辑
+│   │               ├── group-chat.js # 群聊（双端共用：轮询/缓存/已读回执）
+│   │               ├── menu-manage.js# 菜单管理（双端共用，仅管理员）
+│   │               ├── note.js       # 记忆笔记（桌面版）
 │   │               ├── javaapi.js    # Java API 学习平台逻辑
 │   │               └── sqltool.js    # SQL 查询工具逻辑（仅管理员加载）
 │   └── pom.xml
 ├── wxyd.sql                          # 基础数据库建表脚本
-└── pom.xml                           # 父 POM
+└── pom.xml                           # 父 POM（Spring Boot 2.7.18）
 ```
 
 ## 🔌 API 接口
@@ -179,6 +194,58 @@ Context-path：`/api`，所有路径前缀 `/api/`。除登录/注册外均需 S
 | POST | `javaapi/classes/{name}/test` | 编译执行测试代码 |
 | POST | `javaapi/classes/reload` | 重新加载 API 数据 |
 
+### 群聊
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `group/my` | 我加入的群列表 |
+| POST | `group/create` | 创建群聊（每人最多 5 个） |
+| GET | `group/search?keyword=` | 群名模糊搜索（含是否已加入/已申请标记） |
+| POST | `group/apply` | 申请入群 |
+| GET | `group/applies` | 我作为群主的待审批列表 |
+| POST | `group/handle` | 审批入群申请（通过/拒绝） |
+| POST | `group/invite` | 直接拉用户入群（仅群主） |
+| GET | `group/users?groupId=&keyword=` | 邀请场景：按用户名/昵称模糊搜索用户（仅群主） |
+| POST | `group/kick` | 踢出成员（仅群主） |
+| GET | `group/members?groupId=` | 成员列表 |
+| POST | `group/img` | 上传聊天图片（≤5MB，jpg/png/gif/webp），返回相对 URL |
+| POST | `group/send` | 发送消息（text/emoji/image），返回消息登记 id（msgId） |
+| GET | `group/pull` | 拉取我的中转消息（拉走即删，同时记为已读） |
+| GET | `group/reads?groupId=` | 我发出消息的已读计数（仅发送者） |
+| GET | `group/readers?msgId=` | 某条消息的已读人明细（仅该消息发送者） |
+
+### 记忆笔记（用户级）
+
+md 文件存于 `{wxyd.share.dir}/{用户id}/{标题}.md`，元数据内嵌 YAML frontmatter（name/category/visibility，缺省 public）。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `note/list` | 我的笔记列表（含预览，按更新时间倒序） |
+| GET | `note/search?keyword=` | 按标题模糊搜索公共笔记 |
+| GET | `note/get?ownerId=&name=` | 读单篇（自己的任意笔记 / 他人的公共笔记） |
+| POST | `note/save` | 新增/更新/改名自己的笔记（正文 ≤500KB） |
+| POST | `note/delete` | 删除自己的笔记 |
+| POST | `note/migrateOld` | 旧只读笔记迁移至 admin 目录（仅超管，幂等） |
+
+### 菜单管理（仅管理员）
+
+四态模型：`visible=1 且无名单` 全部可见；`visible=0 且无名单` 全部隐藏；`visible=1 且有名单` 白名单可见；`visible=0 且有名单` 黑名单不可见。管理员始终可见全部；首页/我的固定可见。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `menu/all` | 全部菜单及配置 |
+| GET | `menu/visible` | 当前用户可见的菜单 key 列表 |
+| POST | `menu/save` | 保存某菜单配置 `{menuKey, visible, userIds}` |
+
+### 文件共享
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `share/list` | 共享文件列表（存于 `wxyd.share.dir`，默认 /apps/shareFile/） |
+| POST | `share/upload` / `share/uploadChunk` / `share/merge` | 上传（管理员，支持分片续传） |
+| GET | `share/download?name=` | 下载 |
+| POST | `share/delete` | 删除（管理员） |
+
 ### 用户会话信息
 
 | 方法 | 路径 | 说明 |
@@ -208,7 +275,11 @@ Context-path：`/api`，所有路径前缀 `/api/`。除登录/注册外均需 S
 | `users` | 用户（id, username, password SM4, display_name, role 0=管理员/1=普通, status 0=正常/1=待审/2=拒绝） |
 | `ding_robot` | 钉钉机器人（user_id, name, access_token SM4, secret SM4） |
 | `message` | 留言（user_id, ip, info, time） |
-| `note` / `operinfo` / `action` / `requestlog` / `doc` / `documentFile` | 遗留业务表 |
+| `group_chat` / `group_member` / `group_join_apply` | 群聊 / 群成员 / 入群申请（V4） |
+| `group_msg_transit` | 群聊中转消息（拉取即删，expire_time 7 天兜底；V4，msg_id 见 V5） |
+| `group_msg` / `group_msg_read` | 消息登记（含应达人数）/ 已读记录（V5） |
+| `menu_config` | 菜单可见性配置（menu_key 唯一，四态模型；V6） |
+| `note` / `operinfo` / `action` / `requestlog` / `doc` / `documentFile` | 遗留业务表（用户笔记已改为文件存储，见上） |
 
 ## 🔒 安全
 

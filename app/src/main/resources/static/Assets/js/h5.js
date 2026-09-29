@@ -185,7 +185,7 @@ function goPage(name) {
 
 var MODULE_ITEMS = [
     { name: 'user', ico: '👤', label: '用户管理', admin: true },
-    { name: 'group', ico: '👥', label: '群聊' },
+    { name: 'robot', ico: '🤖', label: '钉钉机器人' },
     { name: 'notes', ico: '📝', label: '记忆笔记' },
     { name: 'share', ico: '📁', label: '文件共享' },
     { name: 'shell', ico: '🐚', label: 'Shell脚本' },

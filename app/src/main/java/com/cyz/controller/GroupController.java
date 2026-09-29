@@ -82,6 +82,19 @@ public class GroupController implements CommController {
         return groupService.kick(userId(session), longVal(body.get("groupId")), longVal(body.get("userId")));
     }
 
+    @GetMapping("users")
+    public Result users(@RequestParam("groupId") Long groupId,
+                        @RequestParam(value = "keyword", required = false) String keyword,
+                        HttpSession session) {
+        return groupService.users(userId(session), groupId, keyword);
+    }
+
+    @PostMapping("invite")
+    public Result invite(@RequestBody(required = false) Result req, HttpSession session) {
+        Map<String, Object> body = body(req);
+        return groupService.invite(userId(session), longVal(body.get("groupId")), longVal(body.get("userId")));
+    }
+
     @GetMapping("members")
     public Result members(@RequestParam("groupId") Long groupId, HttpSession session) {
         return groupService.members(userId(session), groupId);

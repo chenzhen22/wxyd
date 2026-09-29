@@ -154,6 +154,38 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
+    public Result users(Long ownerId, Long groupId, String keyword) {
+        Result result = Result.getInstance();
+        Map<String, Object> group = queryGroup(groupId);
+        if (group == null || !ownerId.equals(((Number) group.get("ownerId")).longValue())) {
+            return result.setErrorEnum(ErrorEnum.ERROR000014);
+        }
+        if (keyword == null || keyword.trim().isEmpty()) {
+            result.setBody(new HashMap<>());
+            return result;
+        }
+        result.setBody(mysqlMapper.searchUsersForInvite(keyword.trim(), groupId));
+        return result;
+    }
+
+    @Override
+    public Result invite(Long ownerId, Long groupId, Long targetUserId) {
+        Result result = Result.getInstance();
+        Map<String, Object> group = queryGroup(groupId);
+        if (group == null || targetUserId == null) {
+            return result.setErrorEnum(ErrorEnum.ERROR000015);
+        }
+        if (!ownerId.equals(((Number) group.get("ownerId")).longValue())) {
+            return result.setErrorEnum(ErrorEnum.ERROR000014);
+        }
+        if (targetUserId.equals(ownerId) || mysqlMapper.countMember(groupId, targetUserId) > 0) {
+            return result.setErrorEnum(ErrorEnum.ERROR000012);
+        }
+        mysqlMapper.insertGroupMember(groupId, targetUserId, "member");
+        return result;
+    }
+
+    @Override
     public Result members(Long userId, Long groupId) {
         Result result = Result.getInstance();
         if (groupId == null || mysqlMapper.countMember(groupId, userId) == 0) {

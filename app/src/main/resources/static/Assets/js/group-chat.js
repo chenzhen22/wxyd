@@ -122,6 +122,14 @@
 
     var EMOJIS = ("😀 😃 😄 😁 😆 😅 🤣 😂 🙂 😉 😊 😍 🥰 😘 😜 🤪 🤗 🤔 🤨 😐 😑 😶 🙄 😏 😣 😥 😮 😯 😴 😌 😔 😕 🙃 😲 ☹️ 🙁 😖 😞 😟 😤 😢 😭 😦 😧 😨 😩 🤯 😬 😰 😱 🥵 😳 🤢 🤮 🤫 🥺 😎 🤓 🧐 👍 👎 👌 ✌️ 🤞 🤟 🤘 👏 🙌 🤝 💪 🙏 ❤️ 🧡 💛 💚 💙 💜 💔 💯 💥 🔥 ✨ 🎉 🎁 🌹 🌞 🌙 ⚡ ☔ 🍀 🚀 🎵 🍺 ☕ 🐶 🐱 🦊").split(" ");
 
+    function emojiHtml() {
+        var h = '';
+        for (var i = 0; i < EMOJIS.length; i++) {
+            h += '<span class="gc-emoji-item" data-e="' + EMOJIS[i] + '">' + EMOJIS[i] + '</span>';
+        }
+        return h;
+    }
+
     /* ---------------- 挂载 ---------------- */
 
     function mount(container) {
@@ -162,7 +170,7 @@
             '    <button class="gc-btn gc-btn-sm" data-gc="members">成员</button>' +
             '  </div>' +
             '  <div class="gc-msgs" data-gc-ref="msgList"></div>' +
-            '  <div class="gc-emoji-panel" data-gc-ref="emojiPanel" style="display:none"></div>' +
+            '  <div class="gc-emoji-panel" data-gc-ref="emojiPanel" style="display:none">' + emojiHtml() + '</div>' +
             '  <div class="gc-inputbar">' +
             '    <button class="gc-icon-btn" data-gc="emoji" title="表情">😊</button>' +
             '    <button class="gc-icon-btn" data-gc="img" title="图片">🖼</button>' +
@@ -194,6 +202,13 @@
             '<div class="gc-mask" data-gc-ref="membersMask" style="display:none">' +
             '  <div class="gc-modal gc-modal-lg">' +
             '    <div class="gc-modal-title">群成员</div>' +
+            '    <div data-gc-ref="inviteWrap" style="display:none">' +
+            '      <div style="display:flex;gap:8px;margin-bottom:8px">' +
+            '        <input class="gc-input" data-gc-ref="inviteInput" placeholder="搜索用户名/昵称…" style="flex:1" maxlength="50">' +
+            '        <button class="gc-btn gc-btn-primary" data-gc="inviteSearch">搜索</button>' +
+            '      </div>' +
+            '      <div data-gc-ref="inviteResult" class="gc-modal-body" style="max-height:170px;margin-bottom:10px"></div>' +
+            '    </div>' +
             '    <div data-gc-ref="membersList" class="gc-modal-body"><div class="gc-empty">加载中…</div></div>' +
             '    <div class="gc-modal-actions"><button class="gc-btn" data-gc="membersClose">关闭</button></div>' +
             '  </div>' +
@@ -220,6 +235,8 @@
                 case 'members': openMembers($c); break;
                 case 'membersClose': $c.find('[data-gc-ref="membersMask"]').hide(); break;
                 case 'kick': doKick($c, $t.data('id')); break;
+                case 'inviteSearch': doInviteSearch($c); break;
+                case 'invite': doInvite($c, $t.data('id')); break;
                 case 'emoji': $c.find('[data-gc-ref="emojiPanel"]').toggle(); break;
                 case 'img': $c.find('[data-gc-ref="imgInput"]').click(); break;
                 case 'send': sendText($c); break;
@@ -236,6 +253,10 @@
         // 回车发送
         $c.on('keydown', '[data-gc-ref="textInput"]', function (e) {
             if (e.key === 'Enter') { e.preventDefault(); sendText($c); }
+        });
+        // 邀请搜索回车
+        $c.on('keydown', '[data-gc-ref="inviteInput"]', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); doInviteSearch($c); }
         });
         // 图片选择 → 上传 → 发送
         $c.on('change', '[data-gc-ref="imgInput"]', function () {
@@ -364,6 +385,10 @@
     function openMembers($c) {
         if (!state.chat) return;
         $c.find('[data-gc-ref="membersMask"]').show();
+        // 邀请区仅群主可见
+        $c.find('[data-gc-ref="inviteWrap"]').toggle(state.chat.amIOwner);
+        $c.find('[data-gc-ref="inviteInput"]').val('');
+        $c.find('[data-gc-ref="inviteResult"]').empty();
         gcGet('group/members?groupId=' + state.chat.groupId, function (list) {
             state.members = list || [];
             var html = '';
@@ -392,6 +417,42 @@
                 openMembers($c);
             }, function (msg) { gcMsg(msg); });
         });
+    }
+
+    /** 邀请：模糊搜索用户（仅群主） */
+    function doInviteSearch($c) {
+        if (!state.chat) return;
+        var kw = $c.find('[data-gc-ref="inviteInput"]').val().trim();
+        if (!kw) { gcMsg('请输入用户名或昵称关键字'); return; }
+        gcGet('group/users?groupId=' + state.chat.groupId + '&keyword=' + encodeURIComponent(kw), function (list) {
+            var html = '';
+            if (!list || !list.length) html = '<div class="gc-empty">未找到相关用户</div>';
+            (list || []).forEach(function (u) {
+                var btn = Number(u.joined) > 0
+                    ? '<span class="gc-tag gc-tag-wait">已加入</span>'
+                    : '<button class="gc-btn gc-btn-sm gc-btn-primary" data-gc="invite" data-id="' + u.id + '">邀请</button>';
+                html += '<div class="gc-apply-item">' +
+                    '<div class="gc-group-meta">' +
+                    '<div class="gc-group-name">' + esc(u.name) + '</div>' +
+                    '<div class="gc-group-sub">' + esc(u.username || '') + '</div>' +
+                    '</div><div>' + btn + '</div></div>';
+            });
+            $c.find('[data-gc-ref="inviteResult"]').html(html);
+        }, function (msg) { gcMsg(msg); });
+    }
+
+    function doInvite($c, targetUserId) {
+        if (!state.chat) return;
+        var kw = $c.find('[data-gc-ref="inviteInput"]').val().trim();
+        gcPost('group/invite', { groupId: state.chat.groupId, userId: Number(targetUserId) }, function () {
+            gcMsg('已邀请入群');
+            // 刷新成员列表与搜索结果（已加入标记）
+            openMembers($c);
+            if (kw) {
+                $c.find('[data-gc-ref="inviteInput"]').val(kw);
+                doInviteSearch($c);
+            }
+        }, function (msg) { gcMsg(msg); });
     }
 
     /* ---------------- 聊天 ---------------- */

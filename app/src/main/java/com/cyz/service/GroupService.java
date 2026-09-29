@@ -25,6 +25,12 @@ public interface GroupService {
     /** 踢出成员（仅群主） */
     Result kick(Long ownerId, Long groupId, Long targetUserId);
 
+    /** 邀请场景：按用户名/昵称模糊搜索用户（仅群主） */
+    Result users(Long ownerId, Long groupId, String keyword);
+
+    /** 直接拉用户入群（仅群主） */
+    Result invite(Long ownerId, Long groupId, Long targetUserId);
+
     /** 群成员列表（须为群成员） */
     Result members(Long userId, Long groupId);
 

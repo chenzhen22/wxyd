@@ -89,6 +89,9 @@ public interface MysqlMapper {
 
 	int deleteGroupMember(@Param("groupId") Long groupId, @Param("userId") Long userId);
 
+	/** 邀请场景：按用户名/昵称模糊搜索已通过用户，并标记是否已在指定群中 */
+	List<Map<String, Object>> searchUsersForInvite(@Param("keyword") String keyword, @Param("groupId") Long groupId);
+
 	// ===== group_join_apply =====
 	int insertApply(@Param("groupId") Long groupId, @Param("userId") Long userId, @Param("reason") String reason);
 

@@ -192,6 +192,16 @@
 		delete from `group_member` where `group_id`=#{groupId} and `user_id`=#{userId}
 	</delete>
 
+	<select id="searchUsersForInvite" resultType="java.util.HashMap">
+		select u.`id`, u.`username`,
+		       COALESCE(NULLIF(u.`display_name`,''), u.`username`) as name,
+		       (select count(1) from `group_member` m where m.`group_id`=#{groupId} and m.`user_id`=u.`id`) as joined
+		from `users` u
+		where u.`status`=0
+		  and (u.`username` like concat('%',#{keyword},'%') or u.`display_name` like concat('%',#{keyword},'%'))
+		order by u.`id` limit 20
+	</select>
+
 	<!-- ===== group_join_apply ===== -->
 	<insert id="insertApply">
 		insert into `group_join_apply` (`group_id`,`user_id`,`reason`) values (#{groupId},#{userId},#{reason})

@@ -104,11 +104,25 @@ public interface MysqlMapper {
 	int updateApplyStatus(@Param("id") Long id, @Param("status") Integer status);
 
 	// ===== group_msg_transit =====
-	int insertTransit(@Param("groupId") Long groupId, @Param("fromUserId") Long fromUserId,
+	/** 插入消息登记（param 含 groupId/fromUserId/readTotal/expireTime，生成 id 回填 param 的 "msgId"） */
+	int insertGroupMsg(Map<String, Object> param);
+
+	int insertTransit(@Param("groupId") Long groupId, @Param("msgId") Long msgId, @Param("fromUserId") Long fromUserId,
 					  @Param("toUserId") Long toUserId, @Param("msgType") String msgType,
 					  @Param("content") String content, @Param("expireTime") String expireTime);
 
 	List<Map<String, Object>> pullTransitForUpdate(Long userId);
+
+	/** 拉取时批量写入已读记录（INSERT IGNORE 防重） */
+	int insertMsgReads(@Param("msgIds") List<Long> msgIds, @Param("userId") Long userId);
+
+	/** 我在某群发出消息的已读计数（仅发送者可查） */
+	List<Map<String, Object>> selectReadInfo(@Param("groupId") Long groupId, @Param("userId") Long userId);
+
+	/** 某条消息的已读人明细（SQL 内校验查询者为发送者） */
+	List<Map<String, Object>> selectReaders(@Param("msgId") Long msgId, @Param("userId") Long userId);
+
+	int deleteExpiredGroupMsg();
 
 	int deleteTransitByIds(@Param("ids") List<Long> ids);
 

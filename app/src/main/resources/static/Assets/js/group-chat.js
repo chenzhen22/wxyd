@@ -18,7 +18,9 @@
         chat: null,      // {groupId, name, amIOwner}
         members: [],
         timer: null,
-        seq: 0           // 本地乐观消息序号
+        seq: 0,          // 本地乐观消息序号
+        reads: {},       // groupId -> { msgId: {readCount, total} }（自己消息的已读计数）
+        readsSig: {}     // groupId -> 上次已读数据签名（无变化不重绘）
     };
 
     /* ---------------- 工具 ---------------- */
@@ -213,6 +215,14 @@
             '    <div class="gc-modal-actions"><button class="gc-btn" data-gc="membersClose">关闭</button></div>' +
             '  </div>' +
             '</div>' +
+            /* 已读明细弹窗 */
+            '<div class="gc-mask" data-gc-ref="readersMask" style="display:none">' +
+            '  <div class="gc-modal gc-modal-lg">' +
+            '    <div class="gc-modal-title">已读明细</div>' +
+            '    <div data-gc-ref="readersList" class="gc-modal-body"><div class="gc-empty">加载中…</div></div>' +
+            '    <div class="gc-modal-actions"><button class="gc-btn" data-gc="readersClose">关闭</button></div>' +
+            '  </div>' +
+            '</div>' +
             /* 图片全屏预览 */
             '<div class="gc-imgview" data-gc-ref="imgViewer" style="display:none"><img alt=""></div>';
     }
@@ -237,6 +247,8 @@
                 case 'kick': doKick($c, $t.data('id')); break;
                 case 'inviteSearch': doInviteSearch($c); break;
                 case 'invite': doInvite($c, $t.data('id')); break;
+                case 'reads': openReaders($c, $t.data('msgid')); break;
+                case 'readersClose': $c.find('[data-gc-ref="readersMask"]').hide(); break;
                 case 'emoji': $c.find('[data-gc-ref="emojiPanel"]').toggle(); break;
                 case 'img': $c.find('[data-gc-ref="imgInput"]').click(); break;
                 case 'send': sendText($c); break;
@@ -469,6 +481,7 @@
         $c.find('[data-gc-ref="chatView"]').show();
         $c.find('[data-gc-ref="emojiPanel"]').hide();
         renderMsgs($c);
+        loadReads($c);
         startPoll($c);
     }
 
@@ -493,26 +506,89 @@
     /** 拉取我的中转消息（服务端拉走即删），按群写入本地缓存 */
     function pullOnce($c) {
         gcGet('group/pull', function (list) {
-            if (!list || !list.length) return;
             var touched = {};
-            list.forEach(function (m) {
-                appendMsg(m.groupId, {
-                    type: m.msgType,
-                    content: m.content,
-                    from: m.fromName || m.fromUserId,
-                    time: m.time,
-                    mine: false
+            if (list && list.length) {
+                list.forEach(function (m) {
+                    appendMsg(m.groupId, {
+                        type: m.msgType,
+                        content: m.content,
+                        from: m.fromName || m.fromUserId,
+                        time: m.time,
+                        mine: false
+                    });
+                    touched[m.groupId] = true;
                 });
-                touched[m.groupId] = true;
-            });
-            // 只在当前打开的群有新消息时刷新视图
-            if (state.chat && touched[state.chat.groupId]) renderMsgs($c);
+                // 只在当前打开的群有新消息时刷新视图
+                if (state.chat && touched[state.chat.groupId]) renderMsgs($c);
+            }
+            // 同步自己消息的已读计数
+            loadReads($c);
         }, function () { /* 静默：下一轮重试 */ });
+    }
+
+    /** 拉取自己在当前群发出消息的已读计数（仅发送者可见，接口侧也做了归属校验） */
+    function loadReads($c) {
+        if (!state.chat) return;
+        gcGet('group/reads?groupId=' + state.chat.groupId, function (list) {
+            if (!state.chat) return;
+            var map = {};
+            (list || []).forEach(function (r) {
+                map[Number(r.msgId)] = { readCount: Number(r.readCount) || 0, total: Number(r.total) || 0 };
+            });
+            var gid = state.chat.groupId;
+            var sig = JSON.stringify(map);
+            if (state.reads[gid] !== undefined && state.readsSig[gid] === sig) return; // 无变化不重绘
+            state.readsSig[gid] = sig;
+            state.reads[gid] = map;
+            renderMsgs($c);
+        }, function () { /* 静默 */ });
+    }
+
+    /** 已读明细弹窗 */
+    function openReaders($c, msgId) {
+        $c.find('[data-gc-ref="readersMask"]').show();
+        $c.find('[data-gc-ref="readersList"]').html('<div class="gc-empty">加载中…</div>');
+        gcGet('group/readers?msgId=' + msgId, function (list) {
+            var html = '';
+            if (!list || !list.length) html = '<div class="gc-empty">还没有人读过</div>';
+            (list || []).forEach(function (r) {
+                html += '<div class="gc-apply-item">' +
+                    '<div class="gc-group-meta">' +
+                    '<div class="gc-group-name">' + esc(r.name || r.userId) + '</div>' +
+                    '<div class="gc-group-sub">读于 ' + esc(r.readTime || '') + '</div>' +
+                    '</div></div>';
+            });
+            $c.find('[data-gc-ref="readersList"]').html(html);
+        }, function () {
+            $c.find('[data-gc-ref="readersList"]').html('<div class="gc-empty">加载失败</div>');
+        });
+    }
+
+    /** 卡死自愈：超过 60 秒仍是“发送中”的本地消息按已发送处理（旧版本遗留或缓存写入失败兜底） */
+    function healStuckPending(list) {
+        var changed = false;
+        var now = Date.now();
+        list.forEach(function (m) {
+            if (m.mine && m.pending && m.time) {
+                var t = new Date(String(m.time).replace(/-/g, '/')).getTime();
+                if (!isNaN(t) && now - t > 60000) { m.pending = false; changed = true; }
+            }
+        });
+        if (changed) saveCache(state.chat.groupId, list);
+    }
+
+    /** 自己消息的状态：有已读数据 → 已读 N/M（可点击查看明细）；否则 → 已发送 */
+    function readBadgeHtml(m) {
+        if (!m.msgId) return '<span class="gc-msg-status">已发送</span>';
+        var info = (state.reads[state.chat.groupId] || {})[Number(m.msgId)];
+        if (!info) return '<span class="gc-msg-status">已发送</span>';
+        return '<span class="gc-msg-status gc-read-badge" data-gc="reads" data-msgid="' + m.msgId + '">已读 ' + info.readCount + '/' + info.total + '</span>';
     }
 
     function renderMsgs($c) {
         if (!state.chat) return;
         var list = loadCache(state.chat.groupId);
+        healStuckPending(list);
         var html = '';
         if (!list.length) {
             html = '<div class="gc-empty" style="margin-top:60px">暂无消息，发送第一条消息吧</div>';
@@ -528,6 +604,7 @@
             var status = '';
             if (m.pending) status = '<span class="gc-msg-status">发送中…</span>';
             else if (m.failed) status = '<span class="gc-msg-status gc-msg-fail" data-gc="retry" data-lid="' + m.lid + '">发送失败，点击重试</span>';
+            else if (m.mine) status = readBadgeHtml(m);
             html += '<div class="' + cls + '">' +
                 '<div class="gc-msg-meta">' + esc(m.mine ? '我' : (m.from || '')) + ' · ' + esc(m.time || '') + '</div>' +
                 body + status +
@@ -565,7 +642,7 @@
             });
     }
 
-    /** 乐观发送：先渲染，成功后确认，失败可重试 */
+    /** 乐观发送：先渲染，成功后回写 msgId（→ 已发送/已读），失败可重试 */
     function deliver($c, payload) {
         var groupId = state.chat.groupId;
         var lid = ++state.seq;
@@ -583,8 +660,8 @@
             groupId: groupId,
             type: payload.type,
             content: payload.content
-        }, function () {
-            updateMsg(groupId, lid, { pending: false });
+        }, function (msgId) {
+            updateMsg(groupId, lid, { pending: false, msgId: msgId != null ? Number(msgId) : null });
             renderMsgs($c);
         }, function (msg) {
             updateMsg(groupId, lid, { pending: false, failed: true, errMsg: msg });
@@ -603,8 +680,8 @@
         if (!msg) return;
         updateMsg(groupId, msg.lid, { pending: true, failed: false });
         renderMsgs($c);
-        gcPost('group/send', { groupId: groupId, type: msg.type, content: msg.content }, function () {
-            updateMsg(groupId, msg.lid, { pending: false });
+        gcPost('group/send', { groupId: groupId, type: msg.type, content: msg.content }, function (msgId) {
+            updateMsg(groupId, msg.lid, { pending: false, msgId: msgId != null ? Number(msgId) : null });
             renderMsgs($c);
         }, function (m) {
             updateMsg(groupId, msg.lid, { pending: false, failed: true, errMsg: m });

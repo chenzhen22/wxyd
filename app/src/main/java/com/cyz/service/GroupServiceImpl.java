@@ -209,11 +209,21 @@ public class GroupServiceImpl implements GroupService {
         }
         String expireTime = LocalDateTime.now().plusDays(TRANSIT_RETAIN_DAYS).format(DATETIME);
         List<Long> toUserIds = mysqlMapper.listMemberIds(groupId, userId);
+        // 消息登记：用于已读跟踪（read_total = 发送时应达人数）
+        Map<String, Object> msgParam = new HashMap<>(8);
+        msgParam.put("groupId", groupId);
+        msgParam.put("fromUserId", userId);
+        msgParam.put("readTotal", toUserIds.size());
+        msgParam.put("expireTime", expireTime);
+        mysqlMapper.insertGroupMsg(msgParam);
+        long msgId = msgParam.get("msgId") instanceof Number ? ((Number) msgParam.get("msgId")).longValue() : 0L;
         for (Long toUserId : toUserIds) {
-            mysqlMapper.insertTransit(groupId, userId, toUserId, msgType, content, expireTime);
+            mysqlMapper.insertTransit(groupId, msgId, userId, toUserId, msgType, content, expireTime);
         }
-        // 顺带清理过期中转消息
+        // 顺带清理过期中转消息与过期消息登记
         mysqlMapper.deleteExpiredTransit();
+        mysqlMapper.deleteExpiredGroupMsg();
+        result.setBody(msgId);
         return result;
     }
 
@@ -228,9 +238,36 @@ public class GroupServiceImpl implements GroupService {
             List<Long> ids = list.stream()
                     .map(m -> ((Number) m.get("id")).longValue())
                     .collect(Collectors.toList());
+            // 写入已读记录（去重），供发送者查询
+            List<Long> msgIds = list.stream()
+                    .map(m -> ((Number) m.get("msgId")).longValue())
+                    .distinct()
+                    .collect(Collectors.toList());
+            mysqlMapper.insertMsgReads(msgIds, userId);
             mysqlMapper.deleteTransitByIds(ids);
         }
         result.setBody(list);
+        return result;
+    }
+
+    @Override
+    public Result readInfo(Long userId, Long groupId) {
+        Result result = Result.getInstance();
+        if (groupId == null) {
+            return result.setErrorEnum(ErrorEnum.ERROR000015);
+        }
+        result.setBody(mysqlMapper.selectReadInfo(groupId, userId));
+        return result;
+    }
+
+    @Override
+    public Result readers(Long userId, Long msgId) {
+        Result result = Result.getInstance();
+        if (msgId == null) {
+            return result.setErrorEnum(ErrorEnum.ERROR000015);
+        }
+        // SQL 内校验：查询者必须是消息发送者，否则返回空
+        result.setBody(mysqlMapper.selectReaders(msgId, userId));
         return result;
     }
 

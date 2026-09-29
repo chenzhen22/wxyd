@@ -34,9 +34,15 @@ public interface GroupService {
     /** 群成员列表（须为群成员） */
     Result members(Long userId, Long groupId);
 
-    /** 发送群消息（为每个其他成员写一行中转消息） */
+    /** 发送群消息（为每个其他成员写一行中转消息），返回消息登记 id */
     Result send(Long userId, Long groupId, String msgType, String content);
 
-    /** 拉取并删除我的中转消息（送达即删） */
+    /** 拉取并删除我的中转消息（送达即删，同时记为已读） */
     Result pull(Long userId);
+
+    /** 我在某群发出消息的已读计数（仅发送者） */
+    Result readInfo(Long userId, Long groupId);
+
+    /** 某条消息的已读人明细（仅该消息的发送者） */
+    Result readers(Long userId, Long msgId);
 }

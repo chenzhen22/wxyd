@@ -2278,3 +2278,7 @@ select option { background: var(--select-bg); color: var(--select-fg); }
     min-height: 380px; max-height: 60vh; overflow-y: auto; padding: 14px;
     border-radius: 10px; border: 1px solid var(--border-2); background: var(--glass-1);
 }
+
+/* 群聊已读徽标（仅自己消息显示，可点击查看明细） */
+.gc-read-badge { color: var(--accent); cursor: pointer; }
+.gc-read-badge:hover { text-decoration: underline; }

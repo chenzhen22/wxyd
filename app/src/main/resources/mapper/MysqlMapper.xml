@@ -233,14 +233,19 @@
 	</update>
 
 	<!-- ===== group_msg_transit ===== -->
+	<insert id="insertGroupMsg" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="msgId">
+		insert into `group_msg` (`group_id`,`from_user_id`,`read_total`,`expire_time`)
+		values (#{groupId},#{fromUserId},#{readTotal},#{expireTime})
+	</insert>
+
 	<insert id="insertTransit">
-		insert into `group_msg_transit` (`group_id`,`from_user_id`,`to_user_id`,`msg_type`,`content`,`expire_time`)
-		values (#{groupId},#{fromUserId},#{toUserId},#{msgType},#{content},#{expireTime})
+		insert into `group_msg_transit` (`group_id`,`msg_id`,`from_user_id`,`to_user_id`,`msg_type`,`content`,`expire_time`)
+		values (#{groupId},#{msgId},#{fromUserId},#{toUserId},#{msgType},#{content},#{expireTime})
 	</insert>
 
 	<!-- 加 for update 配合事务：拉取后立即删除，避免双开页面重复收到 -->
 	<select id="pullTransitForUpdate" parameterType="Long" resultType="java.util.HashMap">
-		select t.`id`, t.`group_id` as groupId, t.`from_user_id` as fromUserId,
+		select t.`id`, t.`msg_id` as msgId, t.`group_id` as groupId, t.`from_user_id` as fromUserId,
 		       COALESCE(NULLIF(u.`display_name`,''), u.`username`) as fromName,
 		       t.`msg_type` as msgType, t.`content`,
 		       date_format(t.`send_time`,'%Y-%m-%d %H:%i:%s') as "time"
@@ -250,6 +255,36 @@
 		order by t.`id`
 		for update
 	</select>
+
+	<insert id="insertMsgReads">
+		insert ignore into `group_msg_read` (`msg_id`,`user_id`)
+		values
+		<foreach collection="msgIds" item="mid" separator=",">(#{mid},#{userId})</foreach>
+	</insert>
+
+	<!-- 仅返回查询者自己发出消息的已读计数 -->
+	<select id="selectReadInfo" resultType="java.util.HashMap">
+		select m.`id` as msgId, m.`read_total` as total,
+		       (select count(1) from `group_msg_read` r where r.`msg_id`=m.`id`) as readCount
+		from `group_msg` m
+		where m.`group_id`=#{groupId} and m.`from_user_id`=#{userId} and m.`expire_time` &gt; now()
+		order by m.`id` desc limit 200
+	</select>
+
+	<!-- SQL 内校验查询者必须是该消息的发送者 -->
+	<select id="selectReaders" resultType="java.util.HashMap">
+		select r.`user_id` as userId, COALESCE(NULLIF(u.`display_name`,''), u.`username`) as name,
+		       date_format(r.`read_time`,'%Y-%m-%d %H:%i') as "readTime"
+		from `group_msg_read` r
+		join `group_msg` m on m.`id`=r.`msg_id` and m.`from_user_id`=#{userId}
+		left join `users` u on r.`user_id`=u.`id`
+		where r.`msg_id`=#{msgId}
+		order by r.`read_time`
+	</select>
+
+	<delete id="deleteExpiredGroupMsg">
+		delete from `group_msg` where `expire_time` &lt; now()
+	</delete>
 
 	<delete id="deleteTransitByIds">
 		delete from `group_msg_transit` where `id` in

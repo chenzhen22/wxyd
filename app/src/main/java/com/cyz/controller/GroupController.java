@@ -111,6 +111,18 @@ public class GroupController implements CommController {
         return groupService.pull(userId(session));
     }
 
+    /** 我发出消息的已读计数（仅发送者） */
+    @GetMapping("reads")
+    public Result reads(@RequestParam("groupId") Long groupId, HttpSession session) {
+        return groupService.readInfo(userId(session), groupId);
+    }
+
+    /** 某条消息的已读人明细（仅该消息的发送者） */
+    @GetMapping("readers")
+    public Result readers(@RequestParam("msgId") Long msgId, HttpSession session) {
+        return groupService.readers(userId(session), msgId);
+    }
+
     /** 上传群聊图片，返回可访问的相对 URL（group/img/get?name=...） */
     @PostMapping("img")
     public Result uploadImg(@RequestParam("image") MultipartFile image) {

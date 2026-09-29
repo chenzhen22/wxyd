@@ -286,6 +286,16 @@
 		delete from `group_msg` where `expire_time` &lt; now()
 	</delete>
 
+	<!-- ===== menu_config ===== -->
+	<select id="listMenuConfigs" resultType="java.util.HashMap">
+		select `menu_key` as menuKey, `visible`, `user_ids` as userIds from `menu_config`
+	</select>
+
+	<insert id="upsertMenuConfig">
+		insert into `menu_config` (`menu_key`,`visible`,`user_ids`) values (#{menuKey},#{visible},#{userIds})
+		on duplicate key update `visible`=#{visible}, `user_ids`=#{userIds}
+	</insert>
+
 	<delete id="deleteTransitByIds">
 		delete from `group_msg_transit` where `id` in
 		<foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>

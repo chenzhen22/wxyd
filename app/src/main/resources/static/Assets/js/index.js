@@ -102,6 +102,10 @@ $(function () {
         if ($(this).data("target") === "groupChat" && window.GroupChat) {
             GroupChat.mount($("#groupChatBody")[0]);
         }
+        // 菜单管理模块懒加载（仅管理员）
+        if ($(this).data("target") === "menuManage" && window.MenuManage) {
+            MenuManage.mount($("#menuManageBody")[0]);
+        }
     });
 
     $("#welcome").click(function () {
@@ -300,9 +304,27 @@ $(function () {
         let info = (res && res.body) || {};
         if (info.isAdmin) {
             $("#menuSqlTool").show();
+            $("#menuMenuManage").show();
             if (window.initSqlTool) window.initSqlTool();
         }
+        applyMenuVisibility(info.isAdmin);
     }, "json");
+
+    // ===================== 菜单可见性过滤（菜单管理配置）=====================
+    // 服务端返回当前用户可见的菜单 key；管理员返回全部。首页/我的/菜单管理入口不参与过滤。
+    function applyMenuVisibility(isAdmin) {
+        $.get("menu/visible", function (res) {
+            let keys = (res && res.body) || [];
+            $(".menu-item").each(function () {
+                let t = $(this).data("target");
+                if (t === "welcome" || t === "menuManage") return;
+                let visible = keys.indexOf(t) !== -1;
+                // SQL 查询入口额外要求管理员（保持原有 admin-only 语义）
+                if (t === "sqlTool") $(this).toggle(visible && isAdmin);
+                else $(this).toggle(visible);
+            });
+        }, "json").fail(function () { /* 拉取失败保持现状（默认全可见） */ });
+    }
 });
 
 // 退出登录：销毁会话并跳转登录页

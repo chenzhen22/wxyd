@@ -22,6 +22,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/share/**",
                         "/sql/**",
                         "/group/**",
+                        "/menu/**",
                         "/approveUser", "/rejectUser", "/deleteUser",
                         "/queryMessage", "/addMessage", "/delMessage"
                 );

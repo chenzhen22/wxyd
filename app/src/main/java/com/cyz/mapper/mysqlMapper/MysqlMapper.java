@@ -124,6 +124,11 @@ public interface MysqlMapper {
 
 	int deleteExpiredGroupMsg();
 
+	// ===== menu_config =====
+	List<Map<String, Object>> listMenuConfigs();
+
+	int upsertMenuConfig(@Param("menuKey") String menuKey, @Param("visible") Integer visible, @Param("userIds") String userIds);
+
 	int deleteTransitByIds(@Param("ids") List<Long> ids);
 
 	int deleteTransitByUser(@Param("groupId") Long groupId, @Param("toUserId") Long toUserId);

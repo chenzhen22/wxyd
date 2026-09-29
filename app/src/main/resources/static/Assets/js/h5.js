@@ -7,7 +7,22 @@
 window.H5Modules = {};
 window.registerH5Module = function (name, fn) { window.H5Modules[name] = fn; };
 
-var H5State = { userId: null, username: '', isAdmin: false, theme: 'dark' };
+var H5State = { userId: null, username: '', isAdmin: false, theme: 'dark', visibleKeys: null };
+
+/* ---------------- 菜单可见性（菜单管理配置） ---------------- */
+/* H5 模块名 → 服务端菜单 key；home/profile 固定可见 */
+var MENU_KEY_MAP = {
+    user: 'userManage', robot: 'robotManage', notes: 'note', share: 'shareFile',
+    shell: 'shellScript', javaapi: 'javaApi', sql: 'sqlTool', dubbo: 'dubboCall',
+    archive: 'archiveTool', message: 'messageBoard', group: 'groupChat', menuManage: 'menuManage'
+};
+
+function menuVisible(name) {
+    if (name === 'home' || name === 'profile') return true;
+    if (!H5State.visibleKeys) return true; // 未拉取到配置时默认可见
+    var key = MENU_KEY_MAP[name] || name;
+    return H5State.visibleKeys.indexOf(key) !== -1;
+}
 
 /* ---------------- 通用工具 ---------------- */
 
@@ -152,7 +167,15 @@ function bootstrap() {
             H5State.username = res.body.username || '';
             H5State.isAdmin = !!res.body.isAdmin;
             hideLogin();
-            goPage('home');
+            /* 先拉取菜单可见性配置再进首页（菜单管理功能） */
+            api({ url: 'menu/visible', type: 'GET' }).always(function (mv) {
+                H5State.visibleKeys = (mv && mv.errorCode === '000000' && mv.body) || null;
+                /* 底部 tab 按配置显隐 */
+                ['message', 'group'].forEach(function (t) {
+                    $('#h5Tabbar .h5-tab[data-target="' + t + '"]').toggle(menuVisible(t));
+                });
+                goPage('home');
+            });
             api({ url: 'user/theme', type: 'GET' }).done(function (r) {
                 if (r.errorCode === '000000' && r.body) applyTheme(r.body);
             });
@@ -171,6 +194,8 @@ function doLogout() {
 
 function goPage(name) {
     if (!H5State.username && name !== 'home') { showLogin(); return; }
+    /* 菜单管理配置：被隐藏的模块回到首页 */
+    if (!menuVisible(name)) { name = 'home'; }
     $('.h5-page').removeClass('active');
     $('#page-' + name).addClass('active');
     $('#h5Tabbar .h5-tab').removeClass('active');
@@ -193,11 +218,14 @@ var MODULE_ITEMS = [
     { name: 'javaapi', ico: '☕', label: 'Java API' },
     { name: 'sql', ico: '🗄️', label: 'SQL查询', admin: true },
     { name: 'dubbo', ico: '🔌', label: 'Dubbo调用' },
-    { name: 'archive', ico: '📦', label: '归档下载' }
+    { name: 'archive', ico: '📦', label: '归档下载' },
+    { name: 'menuManage', ico: '🧩', label: '菜单管理', admin: true }
 ];
 
 function renderHome() {
-    var items = MODULE_ITEMS.filter(function (m) { return !m.admin || H5State.isAdmin; });
+    var items = MODULE_ITEMS.filter(function (m) {
+        return (!m.admin || H5State.isAdmin) && menuVisible(m.name);
+    });
     var html = '<div class="h5-section-title">你好，' + esc(H5State.username) + ' 👋</div>' +
         '<div class="h5-alert h5-alert-info">点击下方模块卡片进入对应功能</div>' +
         '<div class="h5-grid">';

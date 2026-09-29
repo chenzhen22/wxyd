@@ -7,7 +7,7 @@
     <title>小泽助手</title>
     <!-- 引入jQuery -->
     <script src="Assets/js/jquery-3.7.1.min.js" type="text/javascript"></script>
-    <script src="Assets/js/index.js?v=4" type="text/javascript"></script>
+    <script src="Assets/js/index.js?v=5" type="text/javascript"></script>
     <link href="Assets/css/admin.css?v=20260929" rel="stylesheet" type="text/css">
     <!-- 进入页面前先套用已保存主题，避免闪烁 -->
     <script>
@@ -120,6 +120,7 @@
             <li class="menu-item" data-target="sqlTool" id="menuSqlTool" style="display:none;"><i>🗄️</i>SQL 查询</li>
             <li class="menu-item" data-target="dubboCall"><i>🔌</i>Dubbo调用</li>
             <li class="menu-item" data-target="archiveTool"><i>📦</i>归档下载</li>
+            <li class="menu-item" data-target="menuManage" id="menuMenuManage" style="display:none;"><i>🧩</i>菜单管理</li>
         </ul>
     </aside>
 
@@ -466,6 +467,11 @@
             </div>
         </div>
 
+        <div class="module-box" id="menuManage">
+            <div class="page-title">菜单管理 <span class="admin-badge">仅管理员可见</span></div>
+            <div id="menuManageBody"><!-- 由 Assets/js/menu-manage.js 渲染 --></div>
+        </div>
+
         <div class="module-box" id="sqlTool">
             <div class="page-title">SQL 查询 <span class="admin-badge">仅管理员</span></div>
 
@@ -520,6 +526,7 @@
 
     </main>
 </div>
+<script src="Assets/js/menu-manage.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/group-chat.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/javaapi.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/shellscript.js?v=2" type="text/javascript"></script>

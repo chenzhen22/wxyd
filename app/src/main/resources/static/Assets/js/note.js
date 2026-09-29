@@ -1,11 +1,15 @@
 /**
- * 记忆笔记前端逻辑
- * 排版参考文档站点（左侧目录导航 + 居中文章 + 右侧“本页目录”），适配主题变量 + jQuery 1.8.3
- * 笔记为整篇 markdown 正文，纯只读展示；支持 #/##/### 标题、> 引用（提示框）、--- 分割线、列表、代码与加粗
+ * 记忆笔记前端逻辑（用户级 · 可编辑）
+ * 双 tab：我的笔记（可新增/编辑/删除）/ 公共搜索（按标题搜公共笔记，只读）。
+ * 编辑器为纯 textarea + renderMarkdown 实时预览；详情排版沿用左侧目录 + 居中文章 + 右侧 TOC。
+ * 后端：note/list、note/search、note/get、note/save、note/delete（Result 包裹）。
  */
 var Note = (function () {
-    var allNotes = [];
-    var currentNote = null;
+    var allNotes = [];      // 我的笔记
+    var mode = 'mine';      // mine | public
+    var myId = null;
+    var editing = null;     // {oldName, isNew}
+    var currentDetail = null;
     var loaded = false;
 
     function escHtml(str) {
@@ -100,93 +104,118 @@ var Note = (function () {
         return { html: html, toc: toc };
     }
 
-    function loadNoteList() {
-        $.ajax({
-            url: 'note', type: 'GET',
-            success: function (data) {
-                allNotes = data || [];
-                renderNoteList(allNotes, '');
-            },
-            error: function () {
-                $('#noteList').html('<div style="padding:20px;text-align:center;color:var(--text-9)">加载失败</div>');
-            }
+    /* ---------------- 视图切换 ---------------- */
+
+    function showView(view) {
+        $('.note-welcome').toggle(view === 'welcome');
+        $('#noteContent').toggle(view === 'content');
+        $('#noteEditor').toggle(view === 'editor');
+        if (view !== 'content') $('#noteToc').hide();
+    }
+
+    function switchTab(m) {
+        mode = m;
+        $('#noteTabMine').toggleClass('active', m === 'mine');
+        $('#noteTabPublic').toggleClass('active', m === 'public');
+        $('#btnNewNote').toggle(m === 'mine');
+        $('#noteSearch').val('');
+        if (m === 'mine') {
+            loadMyNotes();
+        } else {
+            $('#noteList').html('<div class="note-hint">输入关键字，按标题搜索公共笔记</div>');
+            showView('welcome');
+            $('#noteBreadcrumb').text('记忆笔记 / 公共搜索');
+        }
+    }
+
+    /* ---------------- 我的笔记 ---------------- */
+
+    function loadMyNotes() {
+        $.getJSON('note/list', function (res) {
+            allNotes = (res && res.body) || [];
+            renderMyList($('#noteSearch').val());
+        }).fail(function () {
+            $('#noteList').html('<div class="note-hint">加载失败</div>');
         });
     }
 
-    function renderNoteList(notes, keyword) {
-        var filtered = notes.filter(function (t) {
+    function renderMyList(keyword) {
+        var filtered = allNotes.filter(function (t) {
             if (!keyword) return true;
             var kw = keyword.toLowerCase();
             return (t.name && t.name.toLowerCase().indexOf(kw) !== -1)
-                || (t.category && t.category.toLowerCase().indexOf(kw) !== -1)
-                || (t.content && t.content.toLowerCase().indexOf(kw) !== -1);
+                || (t.category && t.category.toLowerCase().indexOf(kw) !== -1);
         });
-
         if (filtered.length === 0) {
-            $('#noteList').html('<div style="padding:20px;text-align:center;color:var(--text-9)">未找到匹配的笔记</div>');
+            $('#noteList').html('<div class="note-hint">' + (keyword ? '未找到匹配的笔记' : '暂无笔记，点击「＋ 新增笔记」创建') + '</div>');
             return;
         }
-
         var groups = {};
         filtered.forEach(function (t) {
             var cat = t.category || '未分类';
             if (!groups[cat]) groups[cat] = [];
             groups[cat].push(t);
         });
-
         var sortedCats = Object.keys(groups).sort();
         var html = '';
         sortedCats.forEach(function (cat) {
             html += '<div class="note-cat">' + escHtml(cat) + '</div>';
             groups[cat].sort(function (a, b) { return a.name.localeCompare(b.name); });
             groups[cat].forEach(function (t) {
-                var activeClass = (currentNote && currentNote.name === t.name) ? ' active' : '';
-                html += '<div class="note-item' + activeClass + '" data-name="' + escHtml(t.name) + '">' + escHtml(t.name) + '</div>';
+                var vis = t.visibility === 'private'
+                    ? '<span class="note-vis-badge private">私有</span>'
+                    : '<span class="note-vis-badge public">公开</span>';
+                html += '<div class="note-item" data-name="' + escHtml(t.name) + '">' +
+                    '<span class="note-item-name">' + escHtml(t.name) + '</span>' + vis +
+                    '<span class="note-item-ops">' +
+                    '<button class="note-op" data-op="edit" data-name="' + escHtml(t.name) + '">编辑</button>' +
+                    '<button class="note-op del" data-op="del" data-name="' + escHtml(t.name) + '">删除</button>' +
+                    '</span></div>';
             });
         });
         $('#noteList').html(html);
-
-        $('#noteList .note-item').on('click', function () {
-            var name = $(this).data('name');
-            loadNoteDetail(name);
-        });
     }
 
-    function loadNoteDetail(name) {
-        $('#noteList .note-item').removeClass('active');
-        $('#noteList .note-item[data-name="' + name + '"]').addClass('active');
-        $('#noteToc').hide();
-        $('.note-welcome').hide();
-        $('.note-content').hide();
+    /* ---------------- 详情 ---------------- */
+
+    function openDetail(ownerId, name, mine) {
         loading(true);
-        $("#loadingMsg").text("正在加载笔记详情…");
-
-        $.ajax({
-            url: 'note/' + encodeURIComponent(name), type: 'GET',
-            success: function (data) {
-                loading(false);
-                currentNote = data;
-                renderNoteDetail(data);
-                $('.note-content').show();
-            },
-            error: function () {
-                loading(false);
-                $('.note-welcome').show();
-                $('#noteBreadcrumb').text('记忆笔记');
+        $.getJSON('note/get?ownerId=' + ownerId + '&name=' + encodeURIComponent(name), function (res) {
+            loading(false);
+            if (!res || res.errorCode !== '000000') {
+                alterModal((res && res.errorMsg) || '笔记不存在');
+                return;
             }
-        });
+            currentDetail = res.body;
+            renderNoteDetail(res.body, mine);
+            showView('content');
+        }).fail(function () { loading(false); alterModal('加载失败'); });
     }
 
-    function renderNoteDetail(note) {
+    function renderNoteDetail(note, mine) {
         var res = renderMarkdown(note.content || '');
         $('#noteTitle').text(note.name);
-        $('#noteCategory').text(note.category || '');
+        $('#noteCategory').text((note.ownerName ? escHtml(note.ownerName) + ' · ' : '') + (note.category || ''));
+        $('#noteCategory').html(escHtml(note.ownerName || '') + (note.category ? ' · ' + escHtml(note.category) : ''));
+        var visBadge = $('#noteVisBadge');
+        if (mine) {
+            visBadge.text(note.visibility === 'private' ? '私有' : '公开')
+                .attr('class', 'note-vis-badge ' + (note.visibility === 'private' ? 'private' : 'public'));
+            visBadge.show();
+            $('#noteEditWrap').show();
+        } else {
+            visBadge.hide();
+            $('#noteEditWrap').hide();
+        }
         $('#noteBody').html(res.html);
-
-        var cat = note.category || '未分类';
-        $('#noteBreadcrumb').html('记忆笔记<span class="sep">/</span>' + escHtml(cat));
-
+        $('#noteBreadcrumb').html(mode === 'public'
+            ? '记忆笔记<span class="sep">/</span>公共搜索<span class="sep">/</span>' + escHtml(note.ownerName || '')
+            : '记忆笔记<span class="sep">/</span>' + escHtml(note.category || '未分类'));
         renderToc(res.toc);
+        // 编辑按钮：进入编辑器
+        $('#btnEditNote').off('click').on('click', function () {
+            openEditor(currentDetail);
+        });
     }
 
     function renderToc(toc) {
@@ -208,15 +237,164 @@ var Note = (function () {
         });
     }
 
+    /* ---------------- 编辑器 ---------------- */
+
+    function openEditor(note) {
+        editing = note
+            ? { oldName: note.name, isNew: false }
+            : { oldName: '', isNew: true };
+        $('#noteEditTitle').val(note ? note.name : '');
+        $('#noteEditCategory').val(note ? (note.category || '') : '');
+        $('#noteEditVis').val(note && note.visibility === 'private' ? 'private' : 'public');
+        $('#noteEditBody').val(note ? (note.content || '') : '');
+        $('#noteEditPreview').hide();
+        $('#btnNotePreview').text('预览');
+        showView('editor');
+        $('#noteBreadcrumb').text(editing.isNew ? '记忆笔记 / 新增' : '记忆笔记 / 编辑');
+        $('#noteToc').hide();
+    }
+
+    function saveNote() {
+        var body = {
+            name: $('#noteEditTitle').val().trim(),
+            category: $('#noteEditCategory').val().trim(),
+            visibility: $('#noteEditVis').val(),
+            content: $('#noteEditBody').val(),
+            oldName: editing.oldName
+        };
+        if (!body.name) { alterModal('请输入标题'); return; }
+        loading(true);
+        $.ajax({
+            url: 'note/save', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ body: body }),
+            success: function (res) {
+                loading(false);
+                if (res.errorCode === '000000') {
+                    alterModal('保存成功');
+                    loadMyNotes();
+                    openDetail(myId, res.body, true);
+                } else {
+                    alterModal(res.errorMsg || '保存失败');
+                }
+            },
+            error: function () { loading(false); alterModal('保存失败'); }
+        });
+    }
+
+    function deleteNote(name) {
+        confirmModal('确定删除笔记「' + escHtml(name) + '」？不可恢复。', function () {
+            loading(true);
+            $.ajax({
+                url: 'note/delete', type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({ body: { name: name } }),
+                success: function (res) {
+                    loading(false);
+                    if (res.errorCode === '000000') {
+                        alterModal('已删除');
+                        loadMyNotes();
+                        showView('welcome');
+                        $('#noteBreadcrumb').text('记忆笔记');
+                    } else {
+                        alterModal(res.errorMsg || '删除失败');
+                    }
+                },
+                error: function () { loading(false); alterModal('删除失败'); }
+            });
+        });
+    }
+
+    /* ---------------- 初始化 ---------------- */
+
     function init() {
         if (loaded) return;
         loaded = true;
-        loadNoteList();
 
-        $('#noteSearch').on('input', function () {
-            var keyword = $(this).val().trim().toLowerCase();
-            renderNoteList(allNotes, keyword);
+        $.getJSON('user/info', function (res) {
+            myId = res && res.body && res.body.id;
+            if (myId) $('#noteUserBadge').show();
         });
+
+        $('#noteTabMine').on('click', function () { switchTab('mine'); });
+        $('#noteTabPublic').on('click', function () { switchTab('public'); });
+        $('#btnNewNote').on('click', function () { openEditor(null); });
+
+        // 搜索框：我的 tab 本地过滤；公共 tab 服务端按标题搜索
+        var searchTimer = null;
+        $('#noteSearch').on('input', function () {
+            var kw = $(this).val().trim();
+            if (mode === 'mine') {
+                renderMyList(kw);
+            } else {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function () {
+                    if (!kw) { $('#noteList').html('<div class="note-hint">输入关键字，按标题搜索公共笔记</div>'); return; }
+                    loading(true);
+                    $.getJSON('note/search?keyword=' + encodeURIComponent(kw), function (res) {
+                        loading(false);
+                        var list = (res && res.body) || [];
+                        if (!list.length) {
+                            $('#noteList').html('<div class="note-hint">未找到相关公共笔记</div>');
+                            return;
+                        }
+                        var html = '';
+                        list.forEach(function (t) {
+                            html += '<div class="note-item" data-owner="' + t.ownerId + '" data-name="' + escHtml(t.name) + '">' +
+                                '<span class="note-item-name">' + escHtml(t.name) + '</span>' +
+                                '<span class="note-item-owner">' + escHtml(t.ownerName || '') + '</span></div>';
+                        });
+                        $('#noteList').html(html);
+                    }).fail(function () { loading(false); $('#noteList').html('<div class="note-hint">搜索失败</div>'); });
+                }, 300);
+            }
+        });
+
+        // 列表点击（动态内容，统一委托）
+        $('#noteList').on('click', '.note-item', function (e) {
+            if ($(e.target).hasClass('note-op')) return;
+            var $t = $(this);
+            var ownerId = $t.data('owner');
+            openDetail(ownerId != null ? ownerId : myId, $t.data('name'), mode === 'mine');
+        });
+        $('#noteList').on('click', '.note-op', function () {
+            var op = $(this).data('op');
+            var name = $(this).data('name');
+            if (op === 'edit') {
+                var note = allNotes.find(function (t) { return t.name === name; });
+                // 列表无正文，拉全量再编辑
+                $.getJSON('note/get?ownerId=' + myId + '&name=' + encodeURIComponent(name), function (res) {
+                    if (res && res.errorCode === '000000') openEditor(res.body);
+                    else alterModal('加载失败');
+                });
+            } else if (op === 'del') {
+                deleteNote(name);
+            }
+        });
+
+        $('#btnNoteSave').on('click', saveNote);
+        $('#btnNoteCancel').on('click', function () {
+            if (editing && !editing.isNew && currentDetail) {
+                renderNoteDetail(currentDetail, true);
+                showView('content');
+            } else {
+                showView('welcome');
+                $('#noteBreadcrumb').text('记忆笔记');
+            }
+        });
+        $('#btnNotePreview').on('click', function () {
+            var $p = $('#noteEditPreview');
+            if ($p.is(':visible')) {
+                $p.hide();
+                $('#noteEditBody').show();
+                $(this).text('预览');
+            } else {
+                $p.html(renderMarkdown($('#noteEditBody').val()).html);
+                $p.show();
+                $('#noteEditBody').hide();
+                $(this).text('编辑');
+            }
+        });
+
+        switchTab('mine');
     }
 
     return { init: init };

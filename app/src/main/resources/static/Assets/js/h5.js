@@ -7,7 +7,7 @@
 window.H5Modules = {};
 window.registerH5Module = function (name, fn) { window.H5Modules[name] = fn; };
 
-var H5State = { username: '', isAdmin: false, theme: 'dark' };
+var H5State = { userId: null, username: '', isAdmin: false, theme: 'dark' };
 
 /* ---------------- 通用工具 ---------------- */
 
@@ -148,6 +148,7 @@ function doLogin() {
 function bootstrap() {
     api({ url: 'user/info', type: 'GET' }).done(function (res) {
         if (res.errorCode === '000000' && res.body) {
+            H5State.userId = res.body.id || null;
             H5State.username = res.body.username || '';
             H5State.isAdmin = !!res.body.isAdmin;
             hideLogin();
@@ -499,7 +500,7 @@ function openShellTopic(name) {
     }).fail(function () { loading(false); toast('加载失败'); });
 }
 
-/* ---------------- 记忆笔记 ---------------- */
+/* ---------------- 记忆笔记（用户级 · 可编辑） ---------------- */
 
 /** 极简 Markdown 渲染（标题/列表/代码块/行内样式） */
 function mdToHtml(md) {
@@ -544,52 +545,162 @@ function mdToHtml(md) {
     return out.join('');
 }
 
+var noteMode = 'mine';
+var noteSearchTimer = null;
+
 function renderNotes($page) {
-    $page.html('<div class="h5-section-title">记忆笔记</div>' +
+    $page.html(
+        '<div class="h5-section-title">记忆笔记' +
+        '<div><span class="h5-btn-ghost h5-btn-sm" id="noteTabMine">我的笔记</span>' +
+        '<span class="h5-btn-ghost h5-btn-sm" id="noteTabPublic">公共搜索</span></div></div>' +
+        '<div class="h5-card" id="noteSearchCard" style="display:none">' +
+        '<div class="h5-field" style="margin:0"><input class="h5-input" id="noteSearchInput" placeholder="按标题搜索公共笔记…" maxlength="50"></div></div>' +
         '<div id="noteListWrap"><div id="noteList"><div class="h5-empty">加载中…</div></div></div>' +
         '<div id="noteDetailWrap" style="display:none"></div>');
-    api({ url: 'note', type: 'GET' }).done(function (list) {
-        var html = '';
-        (list || []).forEach(function (n) {
-            html += '<div class="h5-card" data-name="' + esc(n.name) + '" style="cursor:pointer">' +
-                '<div class="h5-card-title">' + esc(n.name) + '</div>' +
-                (n.category ? '<div class="h5-card-sub">' + esc(n.category) + '</div>' : '') + '</div>';
-        });
-        $('#noteList').html(html || '<div class="h5-empty">暂无笔记</div>');
-    }).fail(function () { $('#noteList').html('<div class="h5-empty">加载失败</div>'); });
-
-    $page.off('click', '.h5-card[data-name]').on('click', '.h5-card[data-name]', function () {
-        openNote($(this).data('name'));
+    $('#noteTabMine').on('click', function () { switchNoteTab('mine'); });
+    $('#noteTabPublic').on('click', function () { switchNoteTab('public'); });
+    $('#noteSearchInput').on('input', function () {
+        clearTimeout(noteSearchTimer);
+        noteSearchTimer = setTimeout(loadPublicNotesH5, 300);
+    });
+    switchNoteTab('mine');
+    /* 列表点击：我的 tab → myId；公共 tab → ownerId */
+    $page.off('click', '.note-item-h5').on('click', '.note-item-h5', function () {
+        var ownerId = $(this).data('owner');
+        openNoteH5(ownerId != null ? ownerId : H5State.userId, $(this).data('name'), noteMode === 'mine');
     });
 }
 
-function openNote(name) {
+function switchNoteTab(mode) {
+    noteMode = mode;
+    $('#noteTabMine').css({ background: mode === 'mine' ? 'var(--accent)' : 'transparent', color: mode === 'mine' ? '#fff' : 'var(--text-2)' });
+    $('#noteTabPublic').css({ background: mode === 'public' ? 'var(--accent)' : 'transparent', color: mode === 'public' ? '#fff' : 'var(--text-2)' });
+    $('#noteSearchCard').toggle(mode === 'public');
+    $('#noteDetailWrap').hide();
+    $('#noteListWrap').show();
+    if (mode === 'mine') {
+        setFab(true, function () { openNoteEditorH5(null); });
+        loadMyNotesH5();
+    } else {
+        setFab(false);
+        $('#noteList').html('<div class="h5-empty">输入关键字，按标题搜索公共笔记</div>');
+    }
+}
+
+function noteVisBadge(v) {
+    return v === 'private'
+        ? '<span class="h5-badge" style="background:rgba(255,193,7,.15);color:#e0a800">私有</span>'
+        : '<span class="h5-badge" style="background:rgba(67,233,123,.15);color:#43e97b">公开</span>';
+}
+
+function loadMyNotesH5() {
     loading(true);
-    api({ url: 'note/' + encodeURIComponent(name), type: 'GET' }).done(function (n) {
+    api({ url: 'note/list', type: 'GET' }).done(function (res) {
         loading(false);
+        var list = (res.errorCode === '000000' && res.body) || [];
+        var html = '';
+        if (!list.length) html = '<div class="h5-empty">暂无笔记，点击右下角 ＋ 新增</div>';
+        list.forEach(function (t) {
+            html += '<div class="h5-card note-item-h5" data-name="' + esc(t.name) + '" style="cursor:pointer">' +
+                '<div class="h5-card-row"><div style="flex:1;min-width:0">' +
+                '<div class="h5-card-title">' + esc(t.name) + '</div>' +
+                '<div class="h5-card-sub">' + esc(t.category || '未分类') + ' · ' + esc(t.updateTime || '') + '</div></div>' +
+                noteVisBadge(t.visibility) + '</div></div>';
+        });
+        $('#noteList').html(html);
+    }).fail(function () { loading(false); $('#noteList').html('<div class="h5-empty">加载失败</div>'); });
+}
+
+function loadPublicNotesH5() {
+    var kw = $('#noteSearchInput').val().trim();
+    if (!kw) { $('#noteList').html('<div class="h5-empty">输入关键字，按标题搜索公共笔记</div>'); return; }
+    loading(true);
+    api({ url: 'note/search?keyword=' + encodeURIComponent(kw), type: 'GET' }).done(function (res) {
+        loading(false);
+        var list = (res.errorCode === '000000' && res.body) || [];
+        if (!list.length) { $('#noteList').html('<div class="h5-empty">未找到相关公共笔记</div>'); return; }
+        var html = '';
+        list.forEach(function (t) {
+            html += '<div class="h5-card note-item-h5" data-owner="' + t.ownerId + '" data-name="' + esc(t.name) + '" style="cursor:pointer">' +
+                '<div class="h5-card-row"><div style="flex:1;min-width:0">' +
+                '<div class="h5-card-title">' + esc(t.name) + '</div>' +
+                '<div class="h5-card-sub">' + esc(t.ownerName || '') + (t.category ? ' · ' + esc(t.category) : '') + '</div></div></div></div>';
+        });
+        $('#noteList').html(html);
+    }).fail(function () { loading(false); $('#noteList').html('<div class="h5-empty">搜索失败</div>'); });
+}
+
+function openNoteH5(ownerId, name, mine) {
+    loading(true);
+    api({ url: 'note/get?ownerId=' + ownerId + '&name=' + encodeURIComponent(name), type: 'GET' }).done(function (res) {
+        loading(false);
+        if (res.errorCode !== '000000' || !res.body) { toast(res.errorMsg || '笔记不存在'); return; }
+        var n = res.body;
         var html = '<div class="h5-section-title"><span class="h5-btn-ghost h5-btn-sm" id="noteBack">← 返回列表</span>' +
-            '<span class="h5-btn-ghost h5-btn-sm" id="noteTocBtn">目录</span></div>' +
-            '<div class="h5-card"><div class="h5-card-title" style="font-size:17px">' + esc(n.name) + '</div>' +
-            (n.category ? '<div class="h5-card-tags"><span class="h5-badge h5-badge-role">' + esc(n.category) + '</span></div>' : '') +
+            (mine ? '<span class="h5-btn-ghost h5-btn-sm" id="noteEditBtn">编辑</span>' : '') +
+            (mine ? '<span class="h5-btn-ghost h5-btn-sm" id="noteDelBtn" style="color:#f5576c">删除</span>' : '') + '</div>' +
+            '<div class="h5-card"><div class="h5-card-row"><div style="flex:1;min-width:0">' +
+            '<div class="h5-card-title" style="font-size:17px">' + esc(n.name) + '</div>' +
+            '<div class="h5-card-sub">' + esc(n.ownerName || '') + (n.category ? ' · ' + esc(n.category) : '') + ' · ' + esc(n.updateTime || '') + '</div></div>' +
+            (mine ? noteVisBadge(n.visibility) : '') + '</div>' +
             '<div class="h5-md" style="margin-top:6px">' + mdToHtml(n.content) + '</div></div>';
         $('#noteListWrap').hide();
         $('#noteDetailWrap').show().html(html);
         $('#noteBack').one('click', function () { $('#noteDetailWrap').hide(); $('#noteListWrap').show(); });
-        $('#noteTocBtn').on('click', function () {
-            var items = [];
-            $('#noteDetailWrap .h5-md h3, #noteDetailWrap .h5-md h4').each(function (i) {
-                items.push('<div class="h5-theme-opt" data-idx="' + i + '">' + esc($(this).text()) + '</div>');
+        if (mine) {
+            $('#noteEditBtn').one('click', function () { openNoteEditorH5(n); });
+            $('#noteDelBtn').one('click', function () {
+                confirm('确定删除笔记「' + n.name + '」？不可恢复。', function () {
+                    postJSON('note/delete', { name: n.name }).done(function (r) {
+                        if (r.errorCode === '000000') { toast('已删除'); closeDetailH5(); loadMyNotesH5(); }
+                        else toast(r.errorMsg || '删除失败');
+                    });
+                });
             });
-            openSheet('<div class="h5-sheet-head"><h3>本页目录</h3></div><div class="h5-theme-list" style="grid-template-columns:1fr">' +
-                (items.join('') || '<div class="h5-empty">无目录</div>') + '</div>');
-            $('#h5Sheet .h5-theme-opt').one('click', function () {
-                var idx = Number($(this).data('idx'));
-                closeSheet();
-                var el = $('#noteDetailWrap .h5-md').children('h3,h4').get(idx);
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-            });
-        });
+        }
     }).fail(function () { loading(false); toast('加载失败'); });
+}
+
+function closeDetailH5() { $('#noteDetailWrap').hide(); $('#noteListWrap').show(); }
+
+/** 新增/编辑笔记（底部抽屉表单） */
+function openNoteEditorH5(note) {
+    var isEdit = !!note;
+    openSheet('<div class="h5-sheet-head"><h3>' + (isEdit ? '编辑笔记' : '新增笔记') + '</h3></div>' +
+        '<div class="h5-field"><label>标题</label><input class="h5-input" id="ntTitle" maxlength="50" value="' + esc(note && note.name || '') + '"></div>' +
+        '<div class="h5-field"><label>分类</label><input class="h5-input" id="ntCategory" maxlength="20" value="' + esc(note && note.category || '') + '"></div>' +
+        '<div class="h5-field"><label>可见性</label><select class="h5-select" id="ntVis">' +
+        '<option value="public"' + (isEdit && note.visibility === 'private' ? '' : ' selected') + '>公共</option>' +
+        '<option value="private"' + (isEdit && note.visibility === 'private' ? ' selected' : '') + '>私有</option></select></div>' +
+        '<div class="h5-field"><label>正文（markdown）</label><textarea class="h5-textarea" id="ntBody" style="min-height:200px;font-family:ui-monospace,monospace">' + esc(note && note.content || '') + '</textarea></div>' +
+        '<button class="h5-btn h5-btn-block" id="ntPreviewBtn">预览</button>' +
+        '<div class="h5-md" id="ntPreview" style="display:none;margin:10px 0"></div>' +
+        '<button class="h5-btn-primary h5-btn-block" id="ntSave">保存</button>');
+    $('#ntPreviewBtn').on('click', function () {
+        var $p = $('#ntPreview');
+        if ($p.is(':visible')) { $p.hide(); $('#ntBody').show(); $(this).text('预览'); }
+        else { $p.html(mdToHtml($('#ntBody').val())).show(); $('#ntBody').hide(); $(this).text('编辑'); }
+    });
+    $('#ntSave').on('click', function () {
+        var body = {
+            name: $('#ntTitle').val().trim(),
+            category: $('#ntCategory').val().trim(),
+            visibility: $('#ntVis').val(),
+            content: $('#ntBody').val(),
+            oldName: isEdit ? note.name : ''
+        };
+        if (!body.name) { toast('请输入标题'); return; }
+        loading(true);
+        postJSON('note/save', body).done(function (res) {
+            loading(false);
+            if (res.errorCode === '000000') {
+                closeSheet();
+                if (noteMode === 'mine') { loadMyNotesH5(); openNoteH5(H5State.userId, res.body, true); }
+                else loadPublicNotesH5();
+                toast('保存成功');
+            } else toast(res.errorMsg || '保存失败');
+        }).fail(function () { loading(false); toast('保存失败'); });
+    });
 }
 
 /* ---------------- 文件共享 ---------------- */

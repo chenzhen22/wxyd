@@ -382,9 +382,14 @@
         </div>
 
         <div class="module-box" id="note">
-            <div class="page-title">记忆笔记</div>
+            <div class="page-title">记忆笔记 <span class="admin-badge" id="noteUserBadge" style="display:none;">用户级 · 可编辑</span></div>
             <div class="note-wrap">
                 <div class="note-sidebar">
+                    <div class="note-tabs">
+                        <button class="note-tab active" id="noteTabMine">我的笔记</button>
+                        <button class="note-tab" id="noteTabPublic">公共搜索</button>
+                    </div>
+                    <button class="btn-main" id="btnNewNote" style="width:100%;margin-bottom:8px;">＋ 新增笔记</button>
                     <input type="text" id="noteSearch" class="note-search" placeholder="🔍 搜索笔记..." autocomplete="off">
                     <div class="note-list" id="noteList"></div>
                 </div>
@@ -392,13 +397,30 @@
                     <div class="note-breadcrumb" id="noteBreadcrumb">记忆笔记</div>
                     <div class="note-welcome">
                         <h2>📝 记忆笔记</h2>
-                        <p>请从左侧选择一篇笔记开始阅读</p>
+                        <p>请从左侧选择一篇笔记开始阅读，或新增你自己的笔记</p>
                     </div>
                     <article class="note-content" id="noteContent" style="display:none">
                         <h1 id="noteTitle"></h1>
-                        <div class="note-meta"><span id="noteCategory" class="category-badge"></span></div>
+                        <div class="note-meta"><span id="noteCategory" class="category-badge"></span><span id="noteVisBadge" class="note-vis-badge"></span><span id="noteEditWrap" style="display:none;"><button class="btn-main" id="btnEditNote" style="padding:3px 12px;font-size:12px;">编辑</button></span></div>
                         <div id="noteBody"></div>
                     </article>
+                    <div class="note-editor" id="noteEditor" style="display:none;">
+                        <div class="note-editor-row">
+                            <input type="text" id="noteEditTitle" class="note-editor-input" placeholder="标题" maxlength="50">
+                            <input type="text" id="noteEditCategory" class="note-editor-input" placeholder="分类" maxlength="20">
+                            <select id="noteEditVis" class="note-editor-input" style="width:auto;">
+                                <option value="public">公共</option>
+                                <option value="private">私有</option>
+                            </select>
+                        </div>
+                        <textarea id="noteEditBody" class="note-editor-body" placeholder="正文（markdown 格式）…"></textarea>
+                        <div id="noteEditPreview" class="note-editor-preview" style="display:none;"></div>
+                        <div style="margin-top:10px;display:flex;gap:8px;">
+                            <button class="btn-main" id="btnNoteSave">保存</button>
+                            <button class="btn-main" id="btnNotePreview" style="background:var(--glass-3);color:var(--text-1);">预览</button>
+                            <button class="btn-main" id="btnNoteCancel" style="background:var(--glass-3);color:var(--text-1);">取消</button>
+                        </div>
+                    </div>
                 </main>
                 <aside class="note-toc" id="noteToc" style="display:none">
                     <div class="note-toc-title">本页目录</div>

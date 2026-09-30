@@ -12,11 +12,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -49,14 +52,28 @@ public class OAuthController implements CommController {
     @Value("${wxyd.github.redirect-uri:}")
     private String redirectUri;
 
+    /** 可选：通过代理访问 GitHub（部分环境 github.com 出网被拦截，可指向能访问 GitHub 的代理） */
+    @Value("${wxyd.github.proxy-host:}")
+    private String proxyHost;
+
+    @Value("${wxyd.github.proxy-port:0}")
+    private int proxyPort;
+
     @Value("${server.servlet.context-path:}")
     private String contextPath;
 
     private final AuthService authService;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
     public OAuthController(AuthService authService) {
         this.authService = authService;
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10000);
+        factory.setReadTimeout(15000);
+        if (proxyHost != null && !proxyHost.isEmpty() && proxyPort > 0) {
+            factory.setProxy(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort)));
+        }
+        this.restTemplate = new RestTemplate(factory);
     }
 
     private boolean enabled() {
@@ -122,8 +139,12 @@ public class OAuthController implements CommController {
             session.setAttribute("role", u.getRole());
             response.sendRedirect(safeRedirectTarget(redirect != null ? redirect : "/api/"));
         } catch (Exception e) {
-            log.error("GitHub 授权登录失败", e);
-            response.sendRedirect(safeRedirectTarget("/api/login.html?oauth=error"));
+            boolean network = e instanceof java.net.ConnectException
+                    || e instanceof java.net.SocketTimeoutException
+                    || e instanceof java.net.UnknownHostException
+                    || e instanceof java.net.SocketException;
+            log.error("GitHub 授权登录失败" + (network ? "（疑似服务器无法连接 GitHub，请检查出网/代理配置）" : ""), e);
+            response.sendRedirect(safeRedirectTarget("/api/login.html?oauth=" + (network ? "neterror" : "error")));
         }
     }
 

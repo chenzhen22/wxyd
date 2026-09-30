@@ -150,9 +150,10 @@ function hideLogin() { $('#h5LoginMask').removeClass('show'); }
 (function () {
     try {
         var p = new URLSearchParams(location.search).get('oauth');
-        if (p === 'error' || p === 'disabled') {
+        if (p === 'error' || p === 'disabled' || p === 'neterror') {
             history.replaceState(null, '', location.pathname); // 去掉参数，避免重复提示
             if (p === 'error') toast('GitHub 授权登录失败，请重试或使用密码登录');
+            else if (p === 'neterror') toast('无法连接 GitHub：服务器出网被拦截或未配置代理');
             else toast('GitHub 登录未配置，请使用密码登录');
         }
     } catch (e) {}

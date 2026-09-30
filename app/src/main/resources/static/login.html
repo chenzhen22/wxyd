@@ -134,6 +134,7 @@
 (function () {
     var p = new URLSearchParams(location.search).get("oauth");
     if (p === "error") $("#loginTip").text("GitHub 授权登录失败，请重试或使用密码登录");
+    else if (p === "neterror") $("#loginTip").text("无法连接 GitHub：服务器出网被拦截或未配置代理，请联系管理员");
     else if (p === "disabled") $("#loginTip").text("GitHub 登录未配置，请使用密码登录");
 })();
 function doLogin(){

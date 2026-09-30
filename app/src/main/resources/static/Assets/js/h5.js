@@ -470,7 +470,10 @@ function showSendSheet(robot) {
         loading(true);
         api({ url: 'robot/send', data: fd, processData: false, contentType: false }).done(function (res) {
             loading(false);
-            if (res.errorCode === '000000') { closeSheet(); toast(res.body && res.body.type === 'file' ? '文件已发送' : '文本已发送'); }
+            if (res.errorCode === '000000') {
+                if (res.body && res.body.error) { toast(res.body.error); return; } // 后端"成功"但实际未发出
+                closeSheet(); toast(res.body && res.body.type === 'file' ? '文件已发送' : '文本已发送');
+            }
             else toast(res.errorMsg || '发送失败');
         }).fail(function () { loading(false); toast('发送失败'); });
     });
@@ -866,8 +869,8 @@ var PAGE_RENDER = {
 /* ---------------- 事件委托（动态内容） ---------------- */
 
 function bindDelegates() {
-    /* 用户管理操作 */
-    $('#page-user').on('click', '#usrList .h5-btn', function () {
+    /* 用户管理操作（按钮含 h5-btn-primary/h5-btn-danger，不能只用 .h5-btn 匹配） */
+    $('#page-user').on('click', '#usrList [data-act]', function () {
         var act = $(this).data('act'), id = $(this).data('id');
         if (act === 'pause') {
             confirm('确定暂停该用户？暂停后该用户将无法登录。', function () { doUserAction(act, id); });
@@ -887,8 +890,8 @@ function bindDelegates() {
             });
         });
     });
-    /* 机器人操作 */
-    $('#page-robot').on('click', '#robotList .h5-btn', function () {
+    /* 机器人操作（发送/编辑/删除按钮同上，用 [data-act] 委托） */
+    $('#page-robot').on('click', '#robotList [data-act]', function () {
         var act = $(this).data('act'), id = $(this).data('id');
         var robot = (robotCache || []).find(function (r) { return r.id == id; });
         if (act === 'send') { if (robot) showSendSheet(robot); }

@@ -241,7 +241,7 @@
 
     if (window.registerH5Module) {
         window.registerH5Module('menuManage', function ($page) {
-            window.MenuManage.mount($page[0]);
+            renderH5($page);
             $page.off('click', '.mm-card-h5').on('click', '.mm-card-h5', function () {
                 openEditorH5($(this).data('key'));
             });

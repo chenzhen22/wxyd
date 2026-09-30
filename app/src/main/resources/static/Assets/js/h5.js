@@ -614,7 +614,7 @@ function switchNoteTab(mode) {
         loadMyNotesH5();
     } else {
         setFab(false);
-        $('#noteList').html('<div class="h5-empty">输入关键字，按标题搜索公共笔记</div>');
+        loadPublicNotesH5();
     }
 }
 
@@ -644,12 +644,11 @@ function loadMyNotesH5() {
 
 function loadPublicNotesH5() {
     var kw = $('#noteSearchInput').val().trim();
-    if (!kw) { $('#noteList').html('<div class="h5-empty">输入关键字，按标题搜索公共笔记</div>'); return; }
     loading(true);
-    api({ url: 'note/search?keyword=' + encodeURIComponent(kw), type: 'GET' }).done(function (res) {
+    api({ url: 'note/search' + (kw ? '?keyword=' + encodeURIComponent(kw) : ''), type: 'GET' }).done(function (res) {
         loading(false);
         var list = (res.errorCode === '000000' && res.body) || [];
-        if (!list.length) { $('#noteList').html('<div class="h5-empty">未找到相关公共笔记</div>'); return; }
+        if (!list.length) { $('#noteList').html('<div class="h5-empty">' + (kw ? '未找到相关公共笔记' : '暂无公共笔记') + '</div>'); return; }
         var html = '';
         list.forEach(function (t) {
             html += '<div class="h5-card note-item-h5" data-owner="' + t.ownerId + '" data-name="' + esc(t.name) + '" style="cursor:pointer">' +

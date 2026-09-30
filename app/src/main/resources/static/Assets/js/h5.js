@@ -14,7 +14,7 @@ var H5State = { userId: null, username: '', isAdmin: false, theme: 'dark', visib
 var MENU_KEY_MAP = {
     user: 'userManage', robot: 'robotManage', notes: 'note', share: 'shareFile',
     shell: 'shellScript', javaapi: 'javaApi', sql: 'sqlTool', dubbo: 'dubboCall',
-    archive: 'archiveTool', message: 'messageBoard', group: 'groupChat', menuManage: 'menuManage'
+    archive: 'archiveTool', pdfTool: 'pdfTool', message: 'messageBoard', group: 'groupChat', menuManage: 'menuManage'
 };
 
 function menuVisible(name) {
@@ -232,6 +232,7 @@ var MODULE_ITEMS = [
     { name: 'sql', ico: '🗄️', label: 'SQL查询', admin: true },
     { name: 'dubbo', ico: '🔌', label: 'Dubbo调用' },
     { name: 'archive', ico: '📦', label: '归档下载' },
+    { name: 'pdfTool', ico: '📑', label: '证据材料整理' },
     { name: 'menuManage', ico: '🧩', label: '菜单管理', admin: true }
 ];
 

@@ -108,6 +108,21 @@
             transition: background .2s, transform .2s;
         }
         .btn-github:hover { background: #32383f; transform: translateY(-1px); }
+
+        /* 登录 / 授权过程浮层 */
+        .login-overlay { position: fixed; inset: 0; z-index: 999; display: none;
+            align-items: center; justify-content: center;
+            background: rgba(10,8,24,.55);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+        .login-overlay.show { display: flex; }
+        .login-overlay .box { display: flex; flex-direction: column; align-items: center; gap: 16px;
+            padding: 34px 46px; border-radius: 18px; color: #f1f1f4; font-size: 14px; letter-spacing: 1px;
+            background: rgba(20,16,40,.78); border: 1px solid rgba(255,255,255,.22);
+            box-shadow: 0 12px 48px rgba(0,0,0,.5); }
+        .login-overlay .spin { width: 34px; height: 34px; border-radius: 50%;
+            border: 3px solid rgba(255,255,255,.18); border-top-color: #a78bfa;
+            animation: spin .8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -133,15 +148,25 @@
         <button class="btn-login" onclick="doLogin()">登 录</button>
 
         <div class="oauth-sep"><span>或</span></div>
-        <a class="btn-github" href="/api/oauth/github?redirect=/api/api.html">使用 GitHub 登录</a>
+        <a class="btn-github" href="/api/oauth/github?redirect=/api/api.html" onclick="showLoginOverlay('正在跳转 GitHub 授权…')">使用 GitHub 登录</a>
 
         <div class="tip" id="loginTip"></div>
 
         <div class="register-link">还没有账号？ <a href="register.html">注册新用户</a></div>
     </div>
 
+    <div class="login-overlay" id="loginOverlay">
+        <div class="box"><div class="spin"></div><div id="loginOverlayText">正在登录…</div></div>
+    </div>
+
 <script src="Assets/js/jquery-3.7.1.min.js" type="text/javascript"></script>
 <script>
+function showLoginOverlay(text) {
+    $("#loginOverlayText").text(text || "正在登录…");
+    $("#loginOverlay").addClass("show");
+}
+/* 从 GitHub 授权页返回（bfcache 恢复）时确保浮层关闭 */
+window.addEventListener("pageshow", function (e) { if (e.persisted) $("#loginOverlay").removeClass("show"); });
 (function () {
     var p = new URLSearchParams(location.search).get("oauth");
     if (p === "error") $("#loginTip").text("GitHub 授权登录失败，请重试或使用密码登录");
@@ -151,15 +176,17 @@
 function doLogin(){
     var u=$("#loginUser").val(),p=$("#loginPwd").val();
     if(!u||!p){$("#loginTip").text("请输入用户名和密码");return;}
+    showLoginOverlay("正在登录…");
     $(".btn-login").attr("disabled",true).text("登录中…");
     $.ajax({url:"login",type:"post",contentType:"application/json",
         data:JSON.stringify({body:{username:u,password:p}}),
         success:function(data){
             $(".btn-login").attr("disabled",false).text("登 录");
             if(data.errorCode=="000000"){location.href="api.html";}
-            else{$("#loginTip").text(data.errorMsg);}
+            else{$("#loginOverlay").removeClass("show");$("#loginTip").text(data.errorMsg);}
         },error:function(){
             $(".btn-login").attr("disabled",false).text("登 录");
+            $("#loginOverlay").removeClass("show");
             $("#loginTip").text("网络异常");
         }});
 }

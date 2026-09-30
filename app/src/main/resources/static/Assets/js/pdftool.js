@@ -32,6 +32,9 @@
         if (n.endsWith('.pdf') || f.type === 'application/pdf') return 'pdf';
         if (n.endsWith('.png') || n.endsWith('.jpg') || n.endsWith('.jpeg')
             || f.type === 'image/png' || f.type === 'image/jpeg') return 'image';
+        if (n.endsWith('.zip') || f.type === 'application/zip'
+            || f.type === 'application/x-zip-compressed') return 'archive';
+        if (n.endsWith('.7z') || f.type === 'application/x-7z-compressed') return 'archive';
         return 'unknown';
     }
 
@@ -41,10 +44,11 @@
             var f = fileList[i];
             var t = fileType(f);
             if (t === 'unknown') {
-                tip('已忽略不支持的文件：' + f.name + '（仅限 PDF/PNG/JPG）');
+                tip('已忽略不支持的文件：' + f.name + '（仅限 PDF/PNG/JPG/ZIP/7Z）');
                 continue;
             }
-            state.push({ file: f, label: parseLabel(f.name), type: t });
+            // 压缩包：不再逐文件标注，服务端解压后按内部文件名标注
+            state.push({ file: f, label: (t === 'archive' ? '' : parseLabel(f.name)), type: t });
         }
         render();
     }
@@ -70,12 +74,16 @@
         for (var i = 0; i < state.length; i++) {
             (function (idx) {
                 var it = state[idx];
-                var pages = it.type === 'image' ? '1' : 'PDF';
+                var isArc = it.type === 'archive';
+                var pages = isArc ? '压缩包·自动解压' : (it.type === 'image' ? '1' : 'PDF');
+                var labelCell = isArc
+                    ? '<td style="color:#888;font-size:12px">服务端解压<br>按文件名标注</td>'
+                    : '<td><input type="text" class="pdf-label-input" data-idx="' + idx +
+                        '" value="' + esc(it.label) + '" maxlength="24" style="width:90px;" placeholder="如 101"></td>';
                 html += '<tr>' +
                     '<td>' + (idx + 1) + '</td>' +
                     '<td style="word-break:break-all">' + esc(it.file.name) + '</td>' +
-                    '<td><input type="text" class="pdf-label-input" data-idx="' + idx +
-                        '" value="' + esc(it.label) + '" maxlength="24" style="width:90px;" placeholder="如 101"></td>' +
+                    labelCell +
                     '<td>' + pages + '</td>' +
                     '<td>' +
                     '<button class="btn-api pdf-up" data-idx="' + idx + '"' + (idx === 0 ? ' disabled' : '') + '>↑</button> ' +
@@ -120,7 +128,7 @@
                 a.click();
                 a.remove();
                 setTimeout(function () { URL.revokeObjectURL(url); }, 8000);
-                tip('已生成并开始下载（' + (blob.size / 1024).toFixed(0) + ' KB，' + state.length + ' 份）');
+                tip('已生成并开始下载（' + (blob.size / 1024).toFixed(0) + ' KB）');
                 $btn.prop('disabled', false);
             } else {
                 var reader = new FileReader();

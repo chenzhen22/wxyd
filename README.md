@@ -15,7 +15,7 @@
 | 🤖 钉钉机器人 | 每用户独立机器人 CRUD，发送文本/文件消息（文件→zip→base64，>20KB 分块 ≤18KB），文件限制 200KB |
 | ☕ Java8-API | 384 个 Java API 文档 + 在线编辑运行测试代码（javax.tools.JavaCompiler + JUnit 4，10 秒超时，安全黑名单） |
 | 🗄️ SQL 查询 | 仅超级管理员可见的在线 SQL 工具，直连 wxyd 自有 MySQL 数据源；仅允许 SELECT/SHOW/DESC/EXPLAIN/WITH 单语句，分页查询，支持 CSV/Excel 导出 |
-| 📑 证据材料整理 | 上传多个 PDF / 图片，合并为单一 A4 竖向带页码 PDF：横向内容自动旋转成竖向、矢量保真不裁剪、页脚按文件名原标注或顺序编号；失败返回 JSON 错误（仅登录可见，菜单管理可配显隐） |
+| 📑 证据材料整理 | 上传多个 PDF / 图片，或内含上述文件的 ZIP / 7z 压缩包（服务端自动解压展开），合并为单一 A4 竖向带页码 PDF：横向内容自动旋转成竖向、矢量保真不裁剪、页脚按文件名原标注或顺序编号；失败返回 JSON 错误（仅登录可见，菜单管理可配显隐） |
 | 📁 文件共享 / 🐚 Shell脚本 / 🔌 Dubbo调用 / 📦 归档下载 | 辅助工具模块 |
 | 🎨 主题 | 7 套主题（含跟随系统），持久化到用户 |
 | 📱 H5 | 独立移动端页面（h5.html），桌面版功能基本对齐，群聊入口在底部 tab；次级模块（含证据材料整理）由首页卡片网格进入 |
@@ -268,13 +268,13 @@ md 文件存于 `{wxyd.share.dir}/{用户id}/{标题}.md`，元数据内嵌 YAML
 
 ### 证据材料整理
 
-上传多个 PDF / 图片，合并为单一 A4 竖向带页码 PDF。仅登录可见，菜单管理可配显隐。后端用 PDFBox 2.0.24：PDF 页经 `LayerUtility.importPageAsForm` 矢量嵌入（不栅格化、不裁剪），图片按类型用 `LosslessFactory`(PNG)/`JPEGFactory`(其他) 嵌入；横向内容（宽 > 高）自动旋转 90° 归一为竖向；页脚居中页码（按文件名原标注或顺序编号），`HELVETICA_BOLD 9pt`、灰色 `#5A5A5A`。
+上传多个 PDF / 图片，或内含上述文件的 ZIP / 7z 压缩包（服务端用 commons-compress 自动解压展开、按内部文件名标注页码），合并为单一 A4 竖向带页码 PDF。仅登录可见，菜单管理可配显隐。后端用 PDFBox 2.0.24：PDF 页经 `LayerUtility.importPageAsForm` 矢量嵌入（不栅格化、不裁剪），图片按类型用 `LosslessFactory`(PNG)/`JPEGFactory`(其他) 嵌入；横向内容（宽 > 高）自动旋转 90° 归一为竖向；页脚居中页码（按文件名原标注或顺序编号），`HELVETICA_BOLD 9pt`、灰色 `#5A5A5A`。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `pdf/merge` | 多文件合并。`files[]` 为 `MultipartFile[]`（≤500 个、≤500MB，自动忽略不支持的类型并汇总提示）；`meta` 为 JSON：`{"mode":"auto"\|"label","labels":["101","102"...]}`。`mode=auto` 顺序编号，`mode=label` 用清洗后的 `labels`（空白回退序号，仅保留数字/字母/括号/连字符/逗号/句号/空格，≤24 字）。成功返回 `application/pdf` 流（`Content-Disposition` 含 UTF-8 文件名 `证据材料（A4竖版·带页码）.pdf`）；失败返回 `application/json` `{"errorCode":...,"errorMsg":...}`（HTTP 200，前端按 `content-type` 区分），业务错误码 `000003`、通用错误码 `999999` |
+| POST | `pdf/merge` | 多文件合并。`files[]` 为 `MultipartFile[]`（≤500 个、≤500MB；支持 PDF / PNG / JPG / ZIP / 7Z，压缩包在服务端解压展开，其余类型忽略并汇总提示）；`meta` 为 JSON：`{"mode":"auto"\|"label","labels":["101","102"...]}`。`mode=auto` 顺序编号，`mode=label` 用清洗后的 `labels`（空白回退序号，仅保留数字/字母/括号/连字符/逗号/句号/空格，≤24 字）。成功返回 `application/pdf` 流（`Content-Disposition` 含 UTF-8 文件名 `证据材料（A4竖版·带页码）.pdf`）；失败返回 `application/json` `{"errorCode":...,"errorMsg":...}`（HTTP 200，前端按 `content-type` 区分），业务错误码 `000003`、通用错误码 `999999` |
 
-> 注意：`pom.xml` 中 pdfbox 固定为 **2.0.24**（本地仓库已缓存 2.0.24，2.0.32 仅有 `.lastUpdated` 桩未下载）。`Matrix` 用 6 参数构造、`PDFormXObject.setMatrix` 直传 `AffineTransform`、`setNonStrokingColor` 用浮点版，确保 Java 8 / PDFBox 2.0.24 零告警编译。
+> 注意：`pom.xml` 中 pdfbox 固定为 **2.0.24**（本地仓库已缓存 2.0.24，2.0.32 仅有 `.lastUpdated` 桩未下载）。ZIP / 7z 解压依赖 **commons-compress 1.21 + xz 1.9**（7z 的 LZMA2 编解码由 xz 提供，二者本地仓库均已缓存）。`Matrix` 用 6 参数构造、`PDFormXObject.setMatrix` 直传 `AffineTransform`、`setNonStrokingColor` 用浮点版，确保 Java 8 / PDFBox 2.0.24 零告警编译。
 
 ### 外部网关（遗留）
 

@@ -70,10 +70,51 @@ public class OAuthController implements CommController {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(10000);
         factory.setReadTimeout(15000);
-        if (proxyHost != null && !proxyHost.isEmpty() && proxyPort > 0) {
-            factory.setProxy(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort)));
+        Proxy p = resolveProxy();
+        if (p != null) {
+            factory.setProxy(p);
+            log.info("OAuth 访问 GitHub 使用代理：{}", p.address());
         }
         this.restTemplate = new RestTemplate(factory);
+    }
+
+    /**
+     * 解析代理：优先使用显式配置 wxyd.github.proxy-*；
+     * 否则回退到环境代理（https_proxy/HTTPS_PROXY/http_proxy/HTTP_PROXY），
+     * 与 curl 等命令行工具走同一出网代理，解决“curl 通但 Java 超时”的问题。
+     */
+    private Proxy resolveProxy() {
+        if (proxyHost != null && !proxyHost.isEmpty() && proxyPort > 0) {
+            return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
+        }
+        for (String key : new String[]{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"}) {
+            String val = System.getenv(key);
+            if (val == null || val.trim().isEmpty()) continue;
+            Proxy p = parseProxy(val.trim());
+            if (p != null) return p;
+        }
+        return null;
+    }
+
+    private static Proxy parseProxy(String raw) {
+        try {
+            String s = raw;
+            int slash = s.indexOf("://");
+            if (slash >= 0) s = s.substring(slash + 3);
+            int at = s.lastIndexOf('@');
+            if (at >= 0) s = s.substring(at + 1);
+            int q = s.indexOf('/');
+            if (q >= 0) s = s.substring(0, q);
+            int colon = s.lastIndexOf(':');
+            if (colon < 0) return null;
+            String host = s.substring(0, colon);
+            int port = Integer.parseInt(s.substring(colon + 1).trim());
+            if (host.isEmpty() || port <= 0) return null;
+            return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(host, port));
+        } catch (Exception e) {
+            log.warn("解析环境代理失败：{}", raw);
+            return null;
+        }
     }
 
     private boolean enabled() {

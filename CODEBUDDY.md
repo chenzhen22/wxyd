@@ -43,6 +43,7 @@ mysql -u root -p < app/src/main/resources/sql/V2__user_robot.sql  # users + ding
 
 - Copy the template and fill in real values: `cp app/src/main/resources/env.properties.example app/src/main/resources/env.properties` (`env.properties` is gitignored, never commit it).
 - Required keys: `datasource.url/username/password`, `wxyd.sm4.key` (32 hex chars; generate via `com.cyz.util.SMUtil.generateSM4Key()`), `wxyd.admin.username/password` (seeds a super-admin on first boot when `users` is empty).
+- Optional GitHub OAuth login: fill `wxyd.github.client-id` / `wxyd.github.client-secret` / `wxyd.github.redirect-uri` (all three) to enable; redirect-uri must equal the GitHub OAuth App's Authorization callback URL. Leave empty to disable. New GitHub users are auto-provisioned (status=0 免审批) keyed by GitHub login; password login remains available. Schema: run `app/src/main/resources/sql/V7__github_login.sql`.
 - `WxydApplication` loads `env.properties` via `@PropertySource`.
 
 ### Tests

@@ -126,6 +126,8 @@ input, textarea, select, button { font-family: inherit; font-size: 14px; }
 .h5-btn-ghost { background: transparent; border: 1px solid var(--border-3); color: var(--text-3); border-radius: 10px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
 .h5-btn-block { display: block; width: 100%; text-align: center; }
 .h5-btn-sm { padding: 6px 10px; font-size: 12px; }
+.h5-btn-github { display: block; width: 100%; box-sizing: border-box; margin-top: 12px; padding: 12px; text-align: center; text-decoration: none; border-radius: 12px; font-size: 14px; font-weight: 600; color: #fff; background: #24292f; border: 1px solid rgba(255,255,255,.14); }
+.h5-btn-github:active { opacity: .85; }
 
 /* ---------- 表单 ---------- */
 .h5-field { margin-bottom: 12px; }

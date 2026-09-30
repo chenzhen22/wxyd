@@ -57,11 +57,15 @@
 	</select>
 
 	<insert id="insertUser" parameterType="com.cyz.pojo.User" useGeneratedKeys="true" keyProperty="id">
-		insert into `users` (`username`,`password`,`display_name`,`role`,`status`) values (#{username},#{password},#{displayName},#{role},#{status})
+		insert into `users` (`username`,`password`,`github_login`,`display_name`,`role`,`status`) values (#{username},#{password},#{githubLogin},#{displayName},#{role},#{status})
 	</insert>
 
 	<select id="queryUserByUsername" parameterType="String" resultType="com.cyz.pojo.User">
 		select `id`,`username`,`password`,`display_name`,`role`,`status`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` where `username`=#{username}
+	</select>
+
+	<select id="queryUserByGithubLogin" parameterType="String" resultType="com.cyz.pojo.User">
+		select `id`,`username`,`github_login`,`display_name`,`role`,`status`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` where `github_login`=#{githubLogin}
 	</select>
 
 	<select id="queryUserById" parameterType="Long" resultType="com.cyz.pojo.User">

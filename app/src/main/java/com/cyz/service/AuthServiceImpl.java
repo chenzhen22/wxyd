@@ -54,4 +54,29 @@ public class AuthServiceImpl implements AuthService {
         u.setPassword(null);
         return u;
     }
+
+    @Override
+    public User findOrCreateByGithub(String githubLogin, String name) {
+        if (githubLogin == null || githubLogin.trim().isEmpty()) {
+            throw new IllegalArgumentException("GitHub 账号信息缺失");
+        }
+        githubLogin = githubLogin.trim();
+        User u = mysqlMapper.queryUserByGithubLogin(githubLogin);
+        if (u != null) {
+            u.setPassword(null);
+            return u;
+        }
+        // 首次登录：自动建号，免审批直接可用
+        u = new User();
+        u.setUsername(githubLogin);
+        u.setGithubLogin(githubLogin);
+        u.setDisplayName(name != null && !name.isEmpty() ? name : githubLogin);
+        u.setPassword(null);
+        u.setRole(1);
+        u.setStatus(0); // 已通过
+        mysqlMapper.insertUser(u);
+        u.setPassword(null);
+        log.info("GitHub 首次登录自动建号：github={} userId={}", githubLogin, u.getId());
+        return u;
+    }
 }

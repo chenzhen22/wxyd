@@ -84,6 +84,19 @@
         .register-link { text-align: center; margin-top: 24px; font-size: 14px; color: rgba(255,255,255,.9); text-shadow: 0 1px 6px rgba(0,0,0,.7); }
         .register-link a { color: #c4b5fd; text-decoration: none; transition: color .2s; }
         .register-link a:hover { color: #f5b8e6; }
+
+        .oauth-sep { display: flex; align-items: center; text-align: center; color: rgba(255,255,255,.55); margin: 18px 0 10px; font-size: 13px; }
+        .oauth-sep::before, .oauth-sep::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,.18); }
+        .oauth-sep span { padding: 0 12px; }
+
+        .btn-github {
+            display: block; width: 100%; box-sizing: border-box; padding: 13px;
+            text-align: center; text-decoration: none; cursor: pointer;
+            border-radius: 12px; font-size: 15px; font-weight: 600; color: #fff;
+            background: #24292f; border: 1px solid rgba(255,255,255,.12);
+            transition: background .2s, transform .2s;
+        }
+        .btn-github:hover { background: #32383f; transform: translateY(-1px); }
     </style>
 </head>
 <body>
@@ -107,6 +120,10 @@
         </div>
 
         <button class="btn-login" onclick="doLogin()">登 录</button>
+
+        <div class="oauth-sep"><span>或</span></div>
+        <a class="btn-github" href="/api/oauth/github?redirect=/api/api.html">使用 GitHub 登录</a>
+
         <div class="tip" id="loginTip"></div>
 
         <div class="register-link">还没有账号？ <a href="register.html">注册新用户</a></div>
@@ -114,6 +131,11 @@
 
 <script src="Assets/js/jquery-3.7.1.min.js" type="text/javascript"></script>
 <script>
+(function () {
+    var p = new URLSearchParams(location.search).get("oauth");
+    if (p === "error") $("#loginTip").text("GitHub 授权登录失败，请重试或使用密码登录");
+    else if (p === "disabled") $("#loginTip").text("GitHub 登录未配置，请使用密码登录");
+})();
 function doLogin(){
     var u=$("#loginUser").val(),p=$("#loginPwd").val();
     if(!u||!p){$("#loginTip").text("请输入用户名和密码");return;}

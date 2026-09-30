@@ -146,6 +146,18 @@ function showLogin() {
 
 function hideLogin() { $('#h5LoginMask').removeClass('show'); }
 
+/* GitHub 授权回调后（h5.html?oauth=error|disabled）给出提示 */
+(function () {
+    try {
+        var p = new URLSearchParams(location.search).get('oauth');
+        if (p === 'error' || p === 'disabled') {
+            history.replaceState(null, '', location.pathname); // 去掉参数，避免重复提示
+            if (p === 'error') toast('GitHub 授权登录失败，请重试或使用密码登录');
+            else toast('GitHub 登录未配置，请使用密码登录');
+        }
+    } catch (e) {}
+})();
+
 function doLogin() {
     var u = $('#h5LoginUser').val().trim(), p = $('#h5LoginPwd').val();
     if (!u || !p) { $('#h5LoginErr').text('请输入用户名和密码'); return; }

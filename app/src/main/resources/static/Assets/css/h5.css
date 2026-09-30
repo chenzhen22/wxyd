@@ -230,6 +230,8 @@ input, textarea, select, button { font-family: inherit; font-size: 14px; }
 .h5-login-card .h5-login-foot a { color: var(--accent-2); }
 
 /* ---------- 代码 / 横向滚动表 ---------- */
+/* 记忆笔记正文：长单词/URL/无空格长串超出宽度时自动换行，避免撑破手机屏幕 */
+.h5-md { overflow-wrap: anywhere; word-break: break-word; }
 .h5-pre {
     background: var(--glass-1); border: 1px solid var(--border-1); border-radius: 12px;
     padding: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

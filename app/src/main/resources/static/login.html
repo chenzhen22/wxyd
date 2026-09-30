@@ -5,6 +5,17 @@
     <meta content="width=device-width,initial-scale=1.0" name="viewport">
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <title>登录 — 小泽助手</title>
+    <script>
+        /* 手机浏览器访问桌面版登录页时，自动跳转到 H5 页（?pc=1 可强制停留桌面版） */
+        (function () {
+            var ua = navigator.userAgent;
+            var mobile = /android|iphone|ipod|ipad|windows phone|mobile/i.test(ua)
+                || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            if (mobile && !new URLSearchParams(location.search).has("pc")) {
+                location.replace("h5.html");
+            }
+        })();
+    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {

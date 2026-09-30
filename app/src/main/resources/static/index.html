@@ -1,5 +1,18 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><link rel="icon" href="favicon.svg" type="image/svg+xml"><meta http-equiv="refresh" content="0;url=login.html"></head>
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <title>小泽助手</title>
+    <script>
+        /* 入口自动识别：手机浏览器 → H5 页，PC 浏览器 → 桌面版登录页 */
+        (function () {
+            var ua = navigator.userAgent;
+            var mobile = /android|iphone|ipod|ipad|windows phone|mobile/i.test(ua)
+                || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); /* iPadOS 13+ 伪装成 Mac UA */
+            location.replace(mobile ? "h5.html" : "login.html");
+        })();
+    </script>
+</head>
 <body></body>
 </html>

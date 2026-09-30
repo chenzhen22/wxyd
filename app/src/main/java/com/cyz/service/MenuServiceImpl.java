@@ -44,6 +44,7 @@ public class MenuServiceImpl implements MenuService {
         REGISTRY.put("shellScript", "Shell脚本");
         REGISTRY.put("note", "记忆笔记");
         REGISTRY.put("shareFile", "文件共享");
+        REGISTRY.put("pdfTool", "证据材料整理");
         REGISTRY.put("sqlTool", "SQL查询");
         REGISTRY.put("dubboCall", "Dubbo调用");
         REGISTRY.put("archiveTool", "归档下载");

@@ -185,6 +185,13 @@
             <artifactId>lombok</artifactId>
         </dependency>
 
+        <!-- 证据材料整理：PDF / 图片合并、A4 竖向归一、横向旋转、页脚页码（Java 8 兼容） -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>2.0.24</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

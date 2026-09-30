@@ -98,6 +98,10 @@ $(function () {
         if ($(this).data("target") === "shareFile" && window.ShareFile) {
             ShareFile.init();
         }
+        // 证据材料整理模块懒加载
+        if ($(this).data("target") === "pdfTool" && window.PdfTool) {
+            PdfTool.init();
+        }
         // 群聊模块懒加载
         if ($(this).data("target") === "groupChat" && window.GroupChat) {
             GroupChat.mount($("#groupChatBody")[0]);

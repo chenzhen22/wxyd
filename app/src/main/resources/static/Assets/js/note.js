@@ -122,10 +122,36 @@ var Note = (function () {
         if (m === 'mine') {
             loadMyNotes();
         } else {
-            $('#noteList').html('<div class="note-hint">输入关键字，按标题搜索公共笔记</div>');
             showView('welcome');
             $('#noteBreadcrumb').text('记忆笔记 / 公共搜索');
+            loadPublic('');
         }
+    }
+
+    /* 公共笔记（keyword 为空时返回全部，按标题模糊搜索） */
+    function loadPublic(keyword) {
+        loading(true);
+        $.getJSON('note/search' + (keyword ? '?keyword=' + encodeURIComponent(keyword) : ''), function (res) {
+            loading(false);
+            renderPublicList((res && res.body) || []);
+        }).fail(function () {
+            loading(false);
+            $('#noteList').html('<div class="note-hint">加载失败</div>');
+        });
+    }
+
+    function renderPublicList(list) {
+        if (!list.length) {
+            $('#noteList').html('<div class="note-hint">' + ($('#noteSearch').val().trim() ? '未找到相关公共笔记' : '暂无公共笔记') + '</div>');
+            return;
+        }
+        var html = '';
+        list.forEach(function (t) {
+            html += '<div class="note-item" data-owner="' + t.ownerId + '" data-name="' + escHtml(t.name) + '">' +
+                '<span class="note-item-name">' + escHtml(t.name) + '</span>' +
+                '<span class="note-item-owner">' + escHtml(t.ownerName || '') + '</span></div>';
+        });
+        $('#noteList').html(html);
     }
 
     /* ---------------- 我的笔记 ---------------- */
@@ -327,23 +353,7 @@ var Note = (function () {
             } else {
                 clearTimeout(searchTimer);
                 searchTimer = setTimeout(function () {
-                    if (!kw) { $('#noteList').html('<div class="note-hint">输入关键字，按标题搜索公共笔记</div>'); return; }
-                    loading(true);
-                    $.getJSON('note/search?keyword=' + encodeURIComponent(kw), function (res) {
-                        loading(false);
-                        var list = (res && res.body) || [];
-                        if (!list.length) {
-                            $('#noteList').html('<div class="note-hint">未找到相关公共笔记</div>');
-                            return;
-                        }
-                        var html = '';
-                        list.forEach(function (t) {
-                            html += '<div class="note-item" data-owner="' + t.ownerId + '" data-name="' + escHtml(t.name) + '">' +
-                                '<span class="note-item-name">' + escHtml(t.name) + '</span>' +
-                                '<span class="note-item-owner">' + escHtml(t.ownerName || '') + '</span></div>';
-                        });
-                        $('#noteList').html(html);
-                    }).fail(function () { loading(false); $('#noteList').html('<div class="note-hint">搜索失败</div>'); });
+                    loadPublic(kw);
                 }, 300);
             }
         });

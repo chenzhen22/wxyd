@@ -222,11 +222,11 @@ public class NoteDataService {
         return f != null && f.isFile() && f.delete();
     }
 
-    /** 按标题模糊搜索公共笔记（所有用户目录），带属主名 */
+    /** 按标题模糊搜索公共笔记（所有用户目录），带属主名。keyword 为空时返回全部公共笔记 */
     public List<Note> searchPublic(String keyword) {
         List<Note> list = new ArrayList<>();
-        if (keyword == null || keyword.trim().isEmpty()) return list;
-        String kw = keyword.trim().toLowerCase();
+        String kw = (keyword == null) ? null : keyword.trim().toLowerCase();
+        boolean filterKw = kw != null && !kw.isEmpty();
         File root = new File(shareDir);
         File[] dirs = root.listFiles(File::isDirectory);
         if (dirs == null) return list;
@@ -243,10 +243,9 @@ public class NoteDataService {
             for (File f : files) {
                 Note n = readNoteFile(f);
                 if (n == null || !"public".equals(n.getVisibility())) continue;
-                if (n.getName().toLowerCase().contains(kw)) {
-                    fillOwner(n, ownerId);
-                    list.add(toListItem(n));
-                }
+                if (filterKw && !n.getName().toLowerCase().contains(kw)) continue;
+                fillOwner(n, ownerId);
+                list.add(toListItem(n));
             }
         }
         list.sort(Comparator.comparing(Note::getUpdateTime, Comparator.nullsLast(Comparator.reverseOrder())));

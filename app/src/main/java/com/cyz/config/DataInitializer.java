@@ -32,6 +32,7 @@ public class DataInitializer implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         ensureGithubLoginColumn();
+        ensurePasswordNullable();
         int count = mysqlMapper.countUsers();
         if (count > 0) {
             log.info("[INIT] users 表已有 {} 个用户，跳过超管播种", count);
@@ -72,6 +73,28 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] 已自动执行 V7 迁移：users 表增加 github_login 列");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V7 迁移失败（请手动执行 sql/V7__github_login.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 幂等确保 users.password 可空（对应 sql/V8__password_nullable.sql）：
+     * GitHub 登录用户没有密码，password 为 NULL；密码登录路径已兼容 null（直接视为密码错误）。
+     */
+    private void ensurePasswordNullable() {
+        try {
+            String nullable = jdbcTemplate.queryForObject(
+                    "SELECT IS_NULLABLE FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME='password'",
+                    String.class);
+            if ("YES".equals(nullable)) {
+                log.info("[INIT] users.password 已可空，跳过 V8 迁移");
+                return;
+            }
+            jdbcTemplate.execute("ALTER TABLE `users` " +
+                    "MODIFY `password` VARCHAR(256) NULL COMMENT 'SM4 密文 hex（GitHub 登录用户为 NULL）'");
+            log.info("[INIT] 已自动执行 V8 迁移：users.password 改为可空");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V8 迁移失败（请手动执行 sql/V8__password_nullable.sql）：{}", e.getMessage());
         }
     }
 }

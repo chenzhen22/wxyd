@@ -8,6 +8,7 @@ public class User {
     private String username;
     private String password;
     private String githubLogin;
+    private String email;
     private String displayName;
     private Integer role;
     private Integer status;

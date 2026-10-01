@@ -44,6 +44,7 @@ mysql -u root -p < app/src/main/resources/sql/V2__user_robot.sql  # users + ding
 - Copy the template and fill in real values: `cp app/src/main/resources/env.properties.example app/src/main/resources/env.properties` (`env.properties` is gitignored, never commit it).
 - Required keys: `datasource.url/username/password`, `wxyd.sm4.key` (32 hex chars; generate via `com.cyz.util.SMUtil.generateSM4Key()`), `wxyd.admin.username/password` (seeds a super-admin on first boot when `users` is empty).
 - Optional GitHub OAuth login: fill `wxyd.github.client-id` / `wxyd.github.client-secret` / `wxyd.github.redirect-uri` (all three) to enable; redirect-uri must equal the GitHub OAuth App's Authorization callback URL. Leave empty to disable. New GitHub users are auto-provisioned (status=0 免审批) keyed by GitHub login; password login remains available. Schema: run `app/src/main/resources/sql/V7__github_login.sql`. **注意**：换 token 端点位于 `github.com`，服务端必须能出网访问 `github.com:443`（国内环境常被拦截）；若无法直连，可配置 `wxyd.github.proxy-host`/`proxy-port` 走能访问 GitHub 的代理。RestTemplate 已设 10s 连接 / 15s 读超时。
+- Optional email registration (`register.html` 三步流程：滑块验证 → 邮箱 6 位验证码（5 分钟有效、60s 重发间隔）→ 设置密码/可选用户名)：fill `wxyd.smtp.host/port/username/password/from` to enable mail sending（端口 465 走 SSL，其余走 STARTTLS；QQ 邮箱等需填授权码）。未配置时发码接口报「SMTP 未配置」。mock 模式（`wxyd.mock.enabled=true`）只打印验证码日志不真发。滑块/验证码/registerToken 均存内存（单实例），重启即失效。Schema: `app/src/main/resources/sql/V9__email_register.sql`（users.email 唯一列，`DataInitializer` 启动自检补列）。注册成功免审批（status=0）并自动登录；旧 `/register`（用户名密码，status=1 待审批）保留。
 - `WxydApplication` loads `env.properties` via `@PropertySource`.
 
 ### Tests
@@ -66,8 +67,8 @@ All source lives under `app/src/main/java/com/cyz/`.
 |---------|----------------|
 | `WxydApplication` | Spring Boot entry point |
 | `config/` | WebMvc, MyBatis (`mybatisMysqlConfig`, `DataSourceConfig`), `AuthInterceptor`, `DataInitializer`, `Sm4KeyHolder` (holds the SM4 key from env), `ProperConfig` |
-| `controller/` | HTTP endpoints: `AuthController` (login/register/logout), `UserController`, `MessageController` (留言板), `RobotController` (钉钉机器人), `ApiController` (`tbphx.do` legacy gateway), `CommController` (marker interface) |
-| `service/` | Business logic for auth/user/message/robot |
+| `controller/` | HTTP endpoints: `AuthController` (login/register/logout + `register/email/*` 邮箱注册), `CaptchaController` (`captcha/slider`、`captcha/verify` 滑块验证码), `UserController`, `MessageController` (留言板), `RobotController` (钉钉机器人), `ApiController` (`tbphx.do` legacy gateway), `CommController` (marker interface) |
+| `service/` | Business logic for auth/user/message/robot + `SliderCaptchaService`（Java2D 滑块图、ticket）、`EmailRegisterService`（邮箱验证码/registerToken/完成注册）、`MailService`（SMTP 发信，`wxyd.smtp.*`） |
 | `aspect/` | `ControllerAspect` — around-advice on all `CommController` impls, sets `traceId`/`clientIp` MDC, logs in/out/elapsed |
 | `pojo/` | `Result` (uniform response), `User`, `DingRobot`, `Message`, `WhiteUser`, ... |
 | `constant/` | `ErrorEnum` (error codes used by `Result`) |

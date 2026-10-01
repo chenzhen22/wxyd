@@ -37,6 +37,8 @@ public interface MysqlMapper {
 
 	User queryUserByGithubLogin(String githubLogin);
 
+	User queryUserByEmail(String email);
+
 	User queryUserById(Long id);
 
 	User queryUserPwdById(Long id);

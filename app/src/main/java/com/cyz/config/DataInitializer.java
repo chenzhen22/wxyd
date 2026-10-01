@@ -33,6 +33,7 @@ public class DataInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         ensureGithubLoginColumn();
         ensurePasswordNullable();
+        ensureEmailColumn();
         int count = mysqlMapper.countUsers();
         if (count > 0) {
             log.info("[INIT] users 表已有 {} 个用户，跳过超管播种", count);
@@ -95,6 +96,29 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] 已自动执行 V8 迁移：users.password 改为可空");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V8 迁移失败（请手动执行 sql/V8__password_nullable.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 幂等确保 users 表存在 email 列（对应 sql/V9__email_register.sql）：
+     * 邮箱验证码注册流程写入；唯一索引防重复注册。
+     */
+    private void ensureEmailColumn() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME='email'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) {
+                log.info("[INIT] users.email 列已存在，跳过 V9 迁移");
+                return;
+            }
+            jdbcTemplate.execute("ALTER TABLE `users` " +
+                    "ADD COLUMN `email` VARCHAR(128) NULL COMMENT '注册邮箱，邮箱注册流程写入' AFTER `github_login`, " +
+                    "ADD UNIQUE KEY `uk_email` (`email`)");
+            log.info("[INIT] 已自动执行 V9 迁移：users 表增加 email 列");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V9 迁移失败（请手动执行 sql/V9__email_register.sql）：{}", e.getMessage());
         }
     }
 }

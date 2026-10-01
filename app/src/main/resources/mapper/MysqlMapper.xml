@@ -69,7 +69,7 @@
 	</select>
 
 	<select id="queryUserByEmail" parameterType="String" resultType="com.cyz.pojo.User">
-		select `id`,`username`,`email`,`display_name`,`role`,`status`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` where `email`=#{email}
+		select `id`,`username`,`password`,`email`,`display_name`,`role`,`status`,date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime from `users` where `email`=#{email}
 	</select>
 
 	<select id="queryUserById" parameterType="Long" resultType="com.cyz.pojo.User">

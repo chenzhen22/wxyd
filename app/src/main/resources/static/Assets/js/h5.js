@@ -161,7 +161,7 @@ function hideLogin() { $('#h5LoginMask').removeClass('show'); }
 
 function doLogin() {
     var u = $('#h5LoginUser').val().trim(), p = $('#h5LoginPwd').val();
-    if (!u || !p) { $('#h5LoginErr').text('请输入用户名和密码'); return; }
+    if (!u || !p) { $('#h5LoginErr').text('请输入用户名/邮箱和密码'); return; }
     loading(true);
     postJSON('login', { username: u, password: p }).done(function (res) {
         loading(false);

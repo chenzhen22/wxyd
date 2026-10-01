@@ -136,7 +136,7 @@
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
                 <circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/>
             </svg>
-            <input id="loginUser" type="text" placeholder="用户名">
+            <input id="loginUser" type="text" placeholder="用户名 / 邮箱">
         </div>
         <div class="input-group">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
@@ -175,7 +175,7 @@ window.addEventListener("pageshow", function (e) { if (e.persisted) $("#loginOve
 })();
 function doLogin(){
     var u=$("#loginUser").val(),p=$("#loginPwd").val();
-    if(!u||!p){$("#loginTip").text("请输入用户名和密码");return;}
+    if(!u||!p){$("#loginTip").text("请输入用户名/邮箱和密码");return;}
     showLoginOverlay("正在登录…");
     $(".btn-login").attr("disabled",true).text("登录中…");
     $.ajax({url:"login",type:"post",contentType:"application/json",

@@ -35,7 +35,11 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public User login(String username, String password) {
+        // 支持用户名或邮箱登录：先按用户名查，未命中再按邮箱查（邮箱统一小写存储）
         User u = mysqlMapper.queryUserByUsername(username);
+        if (u == null && username != null) {
+            u = mysqlMapper.queryUserByEmail(username.trim().toLowerCase());
+        }
         if (u == null || u.getPassword() == null) {
             throw new IllegalArgumentException("用户名或密码错误");
         }

@@ -32,6 +32,14 @@ import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
 import org.apache.commons.compress.archivers.sevenz.SevenZFile;
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFDrawing;
+import org.apache.poi.xssf.usermodel.XSSFShape;
+import org.apache.poi.xssf.usermodel.XSSFPicture;
+import org.apache.poi.xssf.usermodel.XSSFPictureData;
+import org.apache.poi.xssf.usermodel.XSSFClientAnchor;
+
 /**
  * 证据材料整理核心服务。
  * <p>
@@ -99,6 +107,8 @@ public class PdfMergeService {
             for (int i = 0; i < sources.size(); i++) {
                 SourceFile sf = sources.get(i);
                 byte[] data = sf.getData();
+                // 优先从文件名解析范围标注（如"(页码：61-69)"），匹配多页源时逐页生成标签
+                int[] range = parseLabelRange(sf.getName());
                 String baseLabel;
                 if (auto) {
                     baseLabel = null;
@@ -108,12 +118,24 @@ public class PdfMergeService {
                     baseLabel = (cleaned == null || cleaned.isEmpty()) ? String.valueOf(i + 1) : cleaned;
                 }
 
-                if (isPdf(data)) {
-                    PDDocument src = PDDocument.load(data);
+                if (isPdfByName(sf.getName()) || isPdf(data)) {
+                    byte[] pdfData = normalizePdf(data);
+                    PDDocument src = PDDocument.load(pdfData);
                     try {
                         int n = src.getNumberOfPages();
+                        int[] pdfRange = range;
+                        if (pdfRange != null && pdfRange[1] - pdfRange[0] + 1 != n) {
+                            pdfRange = null; // 范围与页数不匹配，回退为单一标注
+                        }
                         for (int p = 0; p < n; p++) {
-                            String label = auto ? String.valueOf(++autoSeq) : baseLabel;
+                            String label;
+                            if (auto) {
+                                label = String.valueOf(++autoSeq);
+                            } else if (pdfRange != null) {
+                                label = String.valueOf(pdfRange[0] + p);
+                            } else {
+                                label = baseLabel;
+                            }
                             addPdfPage(out, lu, src, p, label, font);
                         }
                     } finally {
@@ -124,7 +146,8 @@ public class PdfMergeService {
                     if (img == null) {
                         throw new PdfMergeException("无法解析的图片文件：" + sf.getName());
                     }
-                    String label = auto ? String.valueOf(++autoSeq) : baseLabel;
+                    String label = auto ? String.valueOf(++autoSeq)
+                            : (range != null ? String.valueOf(range[0]) : baseLabel);
                     addImagePage(out, img, sf.getName(), label, font);
                 } else {
                     throw new PdfMergeException("不支持的文件类型（仅支持 PDF / PNG / JPG）：" + sf.getName());
@@ -243,9 +266,39 @@ public class PdfMergeService {
 
     // ===================== 文件类型识别 =====================
 
+    /** 按扩展名识别 PDF（部分 PDF 头部有垃圾数据，魔数不在开头，需配合 isPdf 字节检测） */
+    static boolean isPdfByName(String name) {
+        if (name == null) return false;
+        String lower = name.toLowerCase();
+        return lower.endsWith(".pdf");
+    }
+
     static boolean isPdf(byte[] data) {
-        return data != null && data.length >= 5
-                && data[0] == '%' && data[1] == 'P' && data[2] == 'D' && data[3] == 'F' && data[4] == '-';
+        if (data == null || data.length < 5) return false;
+        if (data[0] == '%' && data[1] == 'P' && data[2] == 'D' && data[3] == 'F' && data[4] == '-') return true;
+        // 有些 PDF 头部有垃圾数据（如加密包装头），搜索前 1024 字节内的 %PDF- 标记
+        int limit = Math.min(data.length, 1024);
+        for (int i = 1; i <= limit - 5; i++) {
+            if (data[i] == '%' && data[i + 1] == 'P' && data[i + 2] == 'D'
+                    && data[i + 3] == 'F' && data[i + 4] == '-') return true;
+        }
+        return false;
+    }
+
+    /** 规范化 PDF 字节流：若 %PDF- 不在开头，截取从 %PDF- 开始的部分（剥除头部垃圾数据） */
+    static byte[] normalizePdf(byte[] data) {
+        if (data == null || data.length < 5) return data;
+        if (data[0] == '%' && data[1] == 'P' && data[2] == 'D' && data[3] == 'F' && data[4] == '-') return data;
+        int limit = Math.min(data.length, 1024);
+        for (int i = 1; i <= limit - 5; i++) {
+            if (data[i] == '%' && data[i + 1] == 'P' && data[i + 2] == 'D'
+                    && data[i + 3] == 'F' && data[i + 4] == '-') {
+                byte[] out = new byte[data.length - i];
+                System.arraycopy(data, i, out, 0, out.length);
+                return out;
+            }
+        }
+        return data;
     }
 
     static boolean isImage(byte[] data) {
@@ -293,6 +346,33 @@ public class PdfMergeService {
                 && d[3] == (byte) 0xAF && d[4] == 0x27 && d[5] == 0x1C;
     }
 
+    /** 按扩展名识别 xlsx（xlsx 本质是 zip，需在 zip 递归前拦截） */
+    static boolean isXlsxByName(String name) {
+        return name != null && name.toLowerCase().endsWith(".xlsx");
+    }
+
+    /**
+     * 从文件名解析页码范围标注，如 "(页码：61-69)" / "（页码：5-13）" → [61,69] / [5,13]。
+     * 范围长度上限 200，防止异常输入。无范围返回 null。
+     */
+    static int[] parseLabelRange(String name) {
+        if (name == null) return null;
+        String base = name;
+        int s = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
+        if (s >= 0) base = name.substring(s + 1);
+        Pattern p = Pattern.compile("页码[:：]?\\s*(\\d+)\\s*[-—–]\\s*(\\d+)");
+        Matcher m = p.matcher(base);
+        if (m.find()) {
+            try {
+                int a = Integer.parseInt(m.group(1));
+                int b = Integer.parseInt(m.group(2));
+                if (b >= a && b - a + 1 <= 200) return new int[]{a, b};
+            } catch (NumberFormatException ignore) {
+            }
+        }
+        return null;
+    }
+
     /**
      * 从文件名（可含路径）提取页码标注，与前端 parseLabel 保持一致：
      * 优先 "页码101" / "（101）" / "(101)"，否则取首个数字串；无则返回 ""。
@@ -314,6 +394,55 @@ public class PdfMergeService {
         Pattern p = Pattern.compile(regex);
         Matcher m = p.matcher(s);
         return m.find() ? m.group(1) : null;
+    }
+
+    /** 从文件名提取页码数字作为排序键（无数字返回 MAX_VALUE 排末尾） */
+    static int labelAsInt(String name) {
+        String lbl = parseLabelFromName(name);
+        if (lbl == null || lbl.isEmpty()) return Integer.MAX_VALUE;
+        try {
+            return Integer.parseInt(lbl);
+        } catch (NumberFormatException e) {
+            return Integer.MAX_VALUE;
+        }
+    }
+
+    /**
+     * 自然序比较：数字段按数值比（"10" 排在 "9" 之后），非数字段按字符比。
+     * 用于压缩包内文件名排序，确保 "1、xxx" < "2、xxx" < ... < "10、xxx"。
+     */
+    static int naturalCompare(String a, String b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return -1;
+        if (b == null) return 1;
+        int ia = 0, ib = 0;
+        int la = a.length(), lb = b.length();
+        while (ia < la && ib < lb) {
+            char ca = a.charAt(ia), cb = b.charAt(ib);
+            boolean da = ca >= '0' && ca <= '9';
+            boolean db = cb >= '0' && cb <= '9';
+            if (da && db) {
+                int ja = ia, jb = ib;
+                while (ja < la && a.charAt(ja) >= '0' && a.charAt(ja) <= '9') ja++;
+                while (jb < lb && b.charAt(jb) >= '0' && b.charAt(jb) <= '9') jb++;
+                long na = 0, nb = 0;
+                try {
+                    na = Long.parseLong(a.substring(ia, ja));
+                    nb = Long.parseLong(b.substring(ib, jb));
+                } catch (NumberFormatException e) {
+                    return a.substring(ia).compareTo(b.substring(ib));
+                }
+                if (na != nb) return na < nb ? -1 : 1;
+                if (ja - ia != jb - ib) return (ja - ia) - (jb - ib);
+                ia = ja;
+                ib = jb;
+            } else {
+                if (ca != cb) return ca - cb;
+                ia++;
+                ib++;
+            }
+        }
+        return (la - ia) - (lb - ib);
     }
 
     /**
@@ -367,7 +496,11 @@ public class PdfMergeService {
 
         Collections.sort(items, new Comparator<ArchiveItem>() {
             public int compare(ArchiveItem a, ArchiveItem b) {
-                return a.name.compareTo(b.name);
+                // 优先按文件名内的页码数字排序（与 v5 顺序一致），相同则按路径自然序
+                int la = labelAsInt(a.name);
+                int lb = labelAsInt(b.name);
+                if (la != lb) return Integer.compare(la, lb);
+                return naturalCompare(a.name, b.name);
             }
         });
 
@@ -381,12 +514,81 @@ public class PdfMergeService {
             if (total > MAX_EXPAND_BYTES) {
                 throw new PdfMergeException("压缩包解压后过大（超过 2GB）：" + archiveName);
             }
-            if (isPdf(it.data) || isImage(it.data)) {
+            if (isXlsxByName(it.name)) {
+                try {
+                    out.addAll(expandXlsx(it.data, it.name));
+                } catch (PdfMergeException pe) {
+                    throw pe;
+                } catch (Exception e) {
+                    throw new PdfMergeException("xlsx 解析失败：" + it.name + "（" + e.getMessage() + "）");
+                }
+            } else if (isPdfByName(it.name) || isPdf(it.data) || isImage(it.data)) {
                 out.add(new SourceFile(it.name, it.data));
             } else if (isZip(it.data) || is7z(it.data)) {
                 out.addAll(expandArchive(it.data, it.name, depth + 1));
             }
             // 其它类型（docx/txt 等）跳过
+        }
+        return out;
+    }
+
+    /**
+     * 提取 xlsx 中的嵌入图片（POI XSSFWorkbook），按 drawing 锚点 (sheet, col1, row1) 排序。
+     * 每张图作为一个 SourceFile，文件名注入 "(页码：N)" 让 parseLabelFromName 提取标签；
+     * 若 xlsx 文件名含范围（如"页码：5-13"），按图序从范围起点递增标注。
+     */
+    static List<SourceFile> expandXlsx(byte[] data, String name) throws IOException {
+        List<SourceFile> out = new ArrayList<>();
+        List<int[]> orderIdx = new ArrayList<>(); // [col1, row1, imgIdx]
+        List<byte[]> imgBytes = new ArrayList<>();
+        List<String> imgExt = new ArrayList<>();
+        try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(data))) {
+            int imgIdx = 0;
+            for (int si = 0; si < wb.getNumberOfSheets(); si++) {
+                XSSFSheet sheet = wb.getSheetAt(si);
+                XSSFDrawing drawing = sheet.getDrawingPatriarch();
+                if (drawing == null) continue;
+                for (XSSFShape shape : drawing.getShapes()) {
+                    if (!(shape instanceof XSSFPicture)) continue;
+                    XSSFPicture pic = (XSSFPicture) shape;
+                    XSSFPictureData pd = pic.getPictureData();
+                    if (pd == null) continue;
+                    int col1 = 0, row1 = 0;
+                    if (pic.getAnchor() instanceof XSSFClientAnchor) {
+                        XSSFClientAnchor a = (XSSFClientAnchor) pic.getAnchor();
+                        col1 = a.getCol1();
+                        row1 = a.getRow1();
+                    }
+                    // 加入 sheet 序号到 col1 高位以便跨 sheet 排序
+                    orderIdx.add(new int[]{si * 100000 + col1, row1, imgIdx});
+                    imgBytes.add(pd.getData());
+                    imgExt.add(pd.suggestFileExtension());
+                    imgIdx++;
+                }
+            }
+        }
+        Collections.sort(orderIdx, new Comparator<int[]>() {
+            public int compare(int[] a, int[] b) {
+                if (a[0] != b[0]) return a[0] - b[0];
+                return a[1] - b[1];
+            }
+        });
+        int[] range = parseLabelRange(name);
+        int seq = 0;
+        for (int[] o : orderIdx) {
+            int idx = o[2];
+            String labelNum;
+            if (range != null) {
+                int n = range[0] + seq;
+                if (n > range[1]) n = range[1]; // 超出范围上限则重复末位（模拟 v5 多图共享标注）
+                labelNum = String.valueOf(n);
+            } else {
+                labelNum = String.valueOf(seq + 1);
+            }
+            // subName 只含单个页码标注（不含原始范围），避免 parseLabelRange 重复匹配
+            String subName = "xlsx_img" + (seq + 1) + "(页码：" + labelNum + ")." + imgExt.get(idx);
+            out.add(new SourceFile(subName, imgBytes.get(idx)));
+            seq++;
         }
         return out;
     }

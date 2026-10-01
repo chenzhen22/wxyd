@@ -177,15 +177,18 @@
             var idx = Number($(this).data('idx'));
             if (state[idx]) state[idx].label = $(this).val();
         });
-        $page.on('click.pdftool', '.pdf-up', function () {
+        $page.on('click.pdftool', '.pdf-up', function (e) {
+            e.preventDefault();
             var idx = Number($(this).data('idx'));
             if (idx > 0) { var t = state[idx]; state[idx] = state[idx - 1]; state[idx - 1] = t; renderFiles(); }
         });
-        $page.on('click.pdftool', '.pdf-down', function () {
+        $page.on('click.pdftool', '.pdf-down', function (e) {
+            e.preventDefault();
             var idx = Number($(this).data('idx'));
             if (idx < state.length - 1) { var t = state[idx]; state[idx] = state[idx + 1]; state[idx + 1] = t; renderFiles(); }
         });
-        $page.on('click.pdftool', '.pdf-del', function () {
+        $page.on('click.pdftool', '.pdf-del', function (e) {
+            e.preventDefault();
             var idx = Number($(this).data('idx'));
             state.splice(idx, 1);
             renderFiles();

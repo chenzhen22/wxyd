@@ -86,8 +86,8 @@
                     labelCell +
                     '<td>' + pages + '</td>' +
                     '<td>' +
-                    '<button class="btn-api pdf-up" data-idx="' + idx + '"' + (idx === 0 ? ' disabled' : '') + '>↑</button> ' +
-                    '<button class="btn-api pdf-down" data-idx="' + idx + '"' + (idx === state.length - 1 ? ' disabled' : '') + '>↓</button> ' +
+                    '<button class="btn-api pdf-up" data-idx="' + idx + '"' + (idx === 0 ? ' disabled title="已是第一项"' : '') + '>↑</button> ' +
+                    '<button class="btn-api pdf-down" data-idx="' + idx + '"' + (idx === state.length - 1 ? ' disabled title="已是最后一项"' : '') + '>↓</button> ' +
                     '<button class="btn-del pdf-del" data-idx="' + idx + '">删除</button>' +
                     '</td></tr>';
             })(i);
@@ -112,11 +112,13 @@
         var $btn = $("#pdfMergeBtn");
         $btn.prop('disabled', true);
         tip('正在合并生成，请稍候…');
+        if (typeof loading === 'function') loading(true);
 
         var xhr = new XMLHttpRequest();
         xhr.open('POST', 'pdf/merge', true);
         xhr.responseType = 'blob';
         xhr.onload = function () {
+            if (typeof loading === 'function') loading(false);
             var ct = xhr.getResponseHeader('Content-Type') || '';
             if (xhr.status === 200 && ct.indexOf('application/pdf') === 0) {
                 var blob = xhr.response;
@@ -145,6 +147,7 @@
             }
         };
         xhr.onerror = function () {
+            if (typeof loading === 'function') loading(false);
             tip('网络错误，请重试');
             $btn.prop('disabled', false);
         };
@@ -185,7 +188,9 @@
             if (state[idx]) state[idx].label = $(this).val();
         });
         // 上移
-        $("#pdfFileTableBody").on("click", ".pdf-up", function () {
+        $("#pdfFileTableBody").on("click", ".pdf-up", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
             var idx = Number($(this).data("idx"));
             if (idx > 0) {
                 var t = state[idx]; state[idx] = state[idx - 1]; state[idx - 1] = t;
@@ -193,7 +198,9 @@
             }
         });
         // 下移
-        $("#pdfFileTableBody").on("click", ".pdf-down", function () {
+        $("#pdfFileTableBody").on("click", ".pdf-down", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
             var idx = Number($(this).data("idx"));
             if (idx < state.length - 1) {
                 var t = state[idx]; state[idx] = state[idx + 1]; state[idx + 1] = t;
@@ -201,7 +208,9 @@
             }
         });
         // 删除
-        $("#pdfFileTableBody").on("click", ".pdf-del", function () {
+        $("#pdfFileTableBody").on("click", ".pdf-del", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
             var idx = Number($(this).data("idx"));
             state.splice(idx, 1);
             render();

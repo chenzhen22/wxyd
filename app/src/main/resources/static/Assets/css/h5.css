@@ -128,6 +128,8 @@ input, textarea, select, button { font-family: inherit; font-size: 14px; }
 .h5-btn-sm { padding: 6px 10px; font-size: 12px; }
 .h5-btn-github { display: block; width: 100%; box-sizing: border-box; margin-top: 12px; padding: 12px; text-align: center; text-decoration: none; border-radius: 12px; font-size: 14px; font-weight: 600; color: #fff; background: #24292f; border: 1px solid rgba(255,255,255,.14); }
 .h5-btn-github:active { opacity: .85; }
+.h5-btn-gitee { display: block; width: 100%; box-sizing: border-box; margin-top: 10px; padding: 12px; text-align: center; text-decoration: none; border-radius: 12px; font-size: 14px; font-weight: 600; color: #fff; background: #c71d23; border: 1px solid rgba(255,255,255,.14); }
+.h5-btn-gitee:active { opacity: .85; }
 
 /* ---------- 表单 ---------- */
 .h5-field { margin-bottom: 12px; }

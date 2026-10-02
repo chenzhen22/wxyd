@@ -34,6 +34,7 @@ public class DataInitializer implements ApplicationRunner {
         ensureGithubLoginColumn();
         ensurePasswordNullable();
         ensureEmailColumn();
+        ensureGiteeLoginColumn();
         int count = mysqlMapper.countUsers();
         if (count > 0) {
             log.info("[INIT] users 表已有 {} 个用户，跳过超管播种", count);
@@ -119,6 +120,29 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] 已自动执行 V9 迁移：users 表增加 email 列");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V9 迁移失败（请手动执行 sql/V9__email_register.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 幂等确保 users 表存在 gitee_login 列（对应 sql/V10__gitee_login.sql）：
+     * Gitee OAuth 登录写入；唯一索引防重复关联。
+     */
+    private void ensureGiteeLoginColumn() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME='gitee_login'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) {
+                log.info("[INIT] users.gitee_login 列已存在，跳过 V10 迁移");
+                return;
+            }
+            jdbcTemplate.execute("ALTER TABLE `users` " +
+                    "ADD COLUMN `gitee_login` VARCHAR(64) NULL COMMENT 'Gitee 登录名，用于 OAuth 关联' AFTER `email`, " +
+                    "ADD UNIQUE KEY `uk_gitee_login` (`gitee_login`)");
+            log.info("[INIT] 已自动执行 V10 迁移：users 表增加 gitee_login 列");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V10 迁移失败（请手动执行 sql/V10__gitee_login.sql）：{}", e.getMessage());
         }
     }
 }

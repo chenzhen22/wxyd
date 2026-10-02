@@ -109,6 +109,15 @@
         }
         .btn-github:hover { background: #32383f; transform: translateY(-1px); }
 
+        .btn-gitee {
+            display: block; width: 100%; box-sizing: border-box; padding: 13px; margin-top: 10px;
+            text-align: center; text-decoration: none; cursor: pointer;
+            border-radius: 12px; font-size: 15px; font-weight: 600; color: #fff;
+            background: #c71d23; border: 1px solid rgba(255,255,255,.12);
+            transition: background .2s, transform .2s;
+        }
+        .btn-gitee:hover { background: #d92c32; transform: translateY(-1px); }
+
         /* 登录 / 授权过程浮层 */
         .login-overlay { position: fixed; inset: 0; z-index: 999; display: none;
             align-items: center; justify-content: center;
@@ -149,10 +158,15 @@
 
         <div class="oauth-sep"><span>或</span></div>
         <a class="btn-github" href="/api/oauth/github?redirect=/api/api.html" onclick="showLoginOverlay('正在跳转 GitHub 授权…')">使用 GitHub 登录</a>
+        <a class="btn-gitee" href="/api/oauth/gitee?redirect=/api/api.html" onclick="showLoginOverlay('正在跳转 Gitee 授权…')">使用 Gitee 登录</a>
 
         <div class="tip" id="loginTip"></div>
 
-        <div class="register-link">还没有账号？ <a href="register.html">注册新用户</a></div>
+        <div class="register-link">
+            <a href="forgot.html">忘记密码？</a>
+            &nbsp;·&nbsp;
+            还没有账号？ <a href="register.html">注册新用户</a>
+        </div>
     </div>
 
     <div class="login-overlay" id="loginOverlay">

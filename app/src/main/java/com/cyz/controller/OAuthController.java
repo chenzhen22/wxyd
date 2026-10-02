@@ -27,10 +27,11 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * GitHub OAuth2 授权登录（仅管理员/团队自助登录，与密码登录并存）。
+ * GitHub / Gitee OAuth2 授权登录（仅管理员/团队自助登录，与密码登录并存）。
  * <p>
  * 流程：/oauth/github（发起）→ GitHub 授权页 → /oauth/github/callback（换 token、取用户信息、自动建号/登录、写 session）。
- * 两个端点均未被 AuthInterceptor 守护（不在拦截路径内），回调通过浏览器 302 跳转而非 XHR。
+ * Gitee 同理：/oauth/gitee → /oauth/gitee/callback。
+ * 各端点均未被 AuthInterceptor 守护（不在拦截路径内），回调通过浏览器 302 跳转而非 XHR。
  */
 @RestController
 @RequestMapping("oauth")
@@ -43,6 +44,12 @@ public class OAuthController implements CommController {
     private static final String SESSION_STATE = "githubOauthState";
     private static final String SESSION_REDIRECT = "githubOauthRedirect";
 
+    private static final String GITEE_AUTHORIZE = "https://gitee.com/oauth/authorize";
+    private static final String GITEE_TOKEN = "https://gitee.com/oauth/token";
+    private static final String GITEE_API_USER = "https://gitee.com/api/v5/user";
+    private static final String GITEE_SESSION_STATE = "giteeOauthState";
+    private static final String GITEE_SESSION_REDIRECT = "giteeOauthRedirect";
+
     @Value("${wxyd.github.client-id:}")
     private String clientId;
 
@@ -51,6 +58,15 @@ public class OAuthController implements CommController {
 
     @Value("${wxyd.github.redirect-uri:}")
     private String redirectUri;
+
+    @Value("${wxyd.gitee.client-id:}")
+    private String giteeClientId;
+
+    @Value("${wxyd.gitee.client-secret:}")
+    private String giteeClientSecret;
+
+    @Value("${wxyd.gitee.redirect-uri:}")
+    private String giteeRedirectUri;
 
     /** 可选：通过代理访问 GitHub（部分环境 github.com 出网被拦截，可指向能访问 GitHub 的代理） */
     @Value("${wxyd.github.proxy-host:}")
@@ -64,6 +80,8 @@ public class OAuthController implements CommController {
 
     private final AuthService authService;
     private final RestTemplate restTemplate;
+    /** Gitee 为国内站点，可直连，不走 GitHub 代理 */
+    private final RestTemplate giteeRestTemplate;
 
     public OAuthController(AuthService authService) {
         this.authService = authService;
@@ -76,6 +94,11 @@ public class OAuthController implements CommController {
             log.info("OAuth 访问 GitHub 使用代理：{}", p.address());
         }
         this.restTemplate = new RestTemplate(factory);
+
+        SimpleClientHttpRequestFactory giteeFactory = new SimpleClientHttpRequestFactory();
+        giteeFactory.setConnectTimeout(10000);
+        giteeFactory.setReadTimeout(15000);
+        this.giteeRestTemplate = new RestTemplate(giteeFactory);
     }
 
     /**
@@ -213,6 +236,107 @@ public class OAuthController implements CommController {
         headers.setAccept(java.util.Collections.singletonList(MediaType.parseMediaType("application/vnd.github+json")));
         HttpEntity<Void> entity = new HttpEntity<>(headers);
         ResponseEntity<Map> resp = restTemplate.exchange(GITHUB_API_USER, HttpMethod.GET, entity, Map.class);
+        return resp.getBody();
+    }
+
+    private boolean giteeEnabled() {
+        return giteeClientId != null && !giteeClientId.isEmpty()
+                && giteeClientSecret != null && !giteeClientSecret.isEmpty()
+                && giteeRedirectUri != null && !giteeRedirectUri.isEmpty();
+    }
+
+    /** 发起 Gitee 授权：生成 state 存入 session，重定向到 Gitee 授权页 */
+    @GetMapping("gitee")
+    public void gitee(@RequestParam(value = "redirect", required = false) String redirect,
+                      HttpSession session, HttpServletResponse response) throws IOException {
+        if (!giteeEnabled()) {
+            response.sendRedirect(safeRedirectTarget("/api/login.html?oauth=disabled"));
+            return;
+        }
+        String state = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
+        session.setAttribute(GITEE_SESSION_STATE, state);
+        // 仅允许站内路径（/api/ 开头），防开放跳转
+        String safeRedirect = (redirect != null && redirect.startsWith("/api/")) ? redirect : "/api/";
+        session.setAttribute(GITEE_SESSION_REDIRECT, safeRedirect);
+
+        String url = GITEE_AUTHORIZE + "?"
+                + "client_id=" + enc(giteeClientId)
+                + "&redirect_uri=" + enc(giteeRedirectUri)
+                + "&response_type=code"
+                + "&scope=" + enc("user_info")
+                + "&state=" + enc(state);
+        response.sendRedirect(url);
+    }
+
+    /** Gitee 授权回调：校验 state、换 token、取用户信息、自动建号/登录、写 session、跳回原页面 */
+    @GetMapping("gitee/callback")
+    public void giteeCallback(@RequestParam(value = "code", required = false) String code,
+                              @RequestParam(value = "state", required = false) String state,
+                              HttpSession session, HttpServletResponse response) throws IOException {
+        String savedState = (String) session.getAttribute(GITEE_SESSION_STATE);
+        String redirect = (String) session.getAttribute(GITEE_SESSION_REDIRECT);
+        session.removeAttribute(GITEE_SESSION_STATE);
+        session.removeAttribute(GITEE_SESSION_REDIRECT);
+
+        if (!giteeEnabled()) {
+            response.sendRedirect(safeRedirectTarget("/api/login.html?oauth=disabled"));
+            return;
+        }
+        if (code == null || code.isEmpty() || savedState == null || !savedState.equals(state)) {
+            response.sendRedirect(safeRedirectTarget("/api/login.html?oauth=error"));
+            return;
+        }
+
+        try {
+            String accessToken = exchangeGiteeToken(code);
+            Map<String, Object> profile = fetchGiteeUserProfile(accessToken);
+            String login = str(profile.get("login"));
+            String name = str(profile.get("name"));
+            if (login == null || login.isEmpty()) {
+                response.sendRedirect(safeRedirectTarget("/api/login.html?oauth=error"));
+                return;
+            }
+            User u = authService.findOrCreateByGitee(login, name);
+            session.setAttribute("userId", u.getId());
+            session.setAttribute("username", u.getUsername());
+            session.setAttribute("role", u.getRole());
+            response.sendRedirect(safeRedirectTarget(redirect != null ? redirect : "/api/"));
+        } catch (Exception e) {
+            boolean network = e instanceof java.net.ConnectException
+                    || e instanceof java.net.SocketTimeoutException
+                    || e instanceof java.net.UnknownHostException
+                    || e instanceof java.net.SocketException;
+            log.error("Gitee 授权登录失败" + (network ? "（服务器无法连接 gitee.com，请检查出网配置）" : ""), e);
+            response.sendRedirect(safeRedirectTarget("/api/login.html?oauth=" + (network ? "neterror" : "error")));
+        }
+    }
+
+    private String exchangeGiteeToken(String code) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(java.util.Collections.singletonList(MediaType.APPLICATION_JSON));
+        org.springframework.util.LinkedMultiValueMap<String, String> body = new org.springframework.util.LinkedMultiValueMap<>();
+        body.add("grant_type", "authorization_code");
+        body.add("client_id", giteeClientId);
+        body.add("client_secret", giteeClientSecret);
+        body.add("code", code);
+        body.add("redirect_uri", giteeRedirectUri);
+        HttpEntity<org.springframework.util.MultiValueMap<String, String>> entity = new HttpEntity<>(body, headers);
+        ResponseEntity<Map> resp = giteeRestTemplate.postForEntity(GITEE_TOKEN, entity, Map.class);
+        Map<String, Object> map = resp.getBody();
+        if (map == null || map.get("access_token") == null) {
+            throw new IllegalStateException("Gitee 返回无 access_token：" + map);
+        }
+        return String.valueOf(map.get("access_token"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> fetchGiteeUserProfile(String accessToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + accessToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        ResponseEntity<Map> resp = giteeRestTemplate.exchange(
+                GITEE_API_USER + "?access_token=" + enc(accessToken), HttpMethod.GET, entity, Map.class);
         return resp.getBody();
     }
 

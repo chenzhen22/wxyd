@@ -83,4 +83,29 @@ public class AuthServiceImpl implements AuthService {
         log.info("GitHub 首次登录自动建号：github={} userId={}", githubLogin, u.getId());
         return u;
     }
+
+    @Override
+    public User findOrCreateByGitee(String giteeLogin, String name) {
+        if (giteeLogin == null || giteeLogin.trim().isEmpty()) {
+            throw new IllegalArgumentException("Gitee 账号信息缺失");
+        }
+        giteeLogin = giteeLogin.trim();
+        User u = mysqlMapper.queryUserByGiteeLogin(giteeLogin);
+        if (u != null) {
+            u.setPassword(null);
+            return u;
+        }
+        // 首次登录：自动建号，免审批直接可用
+        u = new User();
+        u.setUsername(giteeLogin);
+        u.setGiteeLogin(giteeLogin);
+        u.setDisplayName(name != null && !name.isEmpty() ? name : giteeLogin);
+        u.setPassword(null);
+        u.setRole(1);
+        u.setStatus(0); // 已通过
+        mysqlMapper.insertUser(u);
+        u.setPassword(null);
+        log.info("Gitee 首次登录自动建号：gitee={} userId={}", giteeLogin, u.getId());
+        return u;
+    }
 }

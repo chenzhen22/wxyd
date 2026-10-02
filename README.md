@@ -15,7 +15,7 @@
 | 🤖 钉钉机器人 | 每用户独立机器人 CRUD，发送文本/文件消息（文件→zip→base64，>20KB 分块 ≤18KB），文件限制 200KB |
 | ☕ Java8-API | 384 个 Java API 文档 + 在线编辑运行测试代码（javax.tools.JavaCompiler + JUnit 4，10 秒超时，安全黑名单） |
 | 🗄️ SQL 查询 | 仅超级管理员可见的在线 SQL 工具，直连 wxyd 自有 MySQL 数据源；仅允许 SELECT/SHOW/DESC/EXPLAIN/WITH 单语句，分页查询，支持 CSV/Excel 导出 |
-| 📑 证据材料整理 | 上传多个 PDF / 图片，或内含上述文件的 ZIP / 7z 压缩包（服务端自动解压展开），合并为单一 A4 竖向带页码 PDF：横向内容自动旋转成竖向、矢量保真不裁剪、页脚按文件名原标注或顺序编号；失败返回 JSON 错误（仅登录可见，菜单管理可配显隐） |
+| 📑 证据材料整理 | 上传多个 PDF / 图片 / Word / Excel，或其 ZIP / 7z 压缩包（服务端自动解压展开），按文件名/文件夹页码标注合并为单一 A4 竖向带页码 PDF（与 v5 输出逐像素一致）：横向内容自动旋转成竖向、矢量保真不裁剪、发票 2 页并排、Excel 截图两两并排、Word 宋体/黑体渲染、标注重叠自动填空洞；失败返回 JSON 错误（仅登录可见，菜单管理可配显隐） |
 | 📁 文件共享 / 🐚 Shell脚本 / 🔌 Dubbo调用 / 📦 归档下载 | 辅助工具模块 |
 | 🎨 主题 | 7 套主题（含跟随系统），持久化到用户 |
 | 📱 H5 | 独立移动端页面（h5.html），桌面版功能基本对齐，群聊入口在底部 tab；次级模块（含证据材料整理）由首页卡片网格进入 |
@@ -268,13 +268,21 @@ md 文件存于 `{wxyd.share.dir}/{用户id}/{标题}.md`，元数据内嵌 YAML
 
 ### 证据材料整理
 
-上传多个 PDF / 图片，或内含上述文件的 ZIP / 7z 压缩包（服务端用 commons-compress 自动解压展开、按内部文件名标注页码），合并为单一 A4 竖向带页码 PDF。仅登录可见，菜单管理可配显隐。后端用 PDFBox 2.0.24：PDF 页经 `LayerUtility.importPageAsForm` 矢量嵌入（不栅格化、不裁剪），图片按类型用 `LosslessFactory`(PNG)/`JPEGFactory`(其他) 嵌入；横向内容（宽 > 高）自动旋转 90° 归一为竖向；页脚居中页码（按文件名原标注或顺序编号），`HELVETICA_BOLD 9pt`、灰色 `#5A5A5A`。
+上传多个 PDF / 图片 / Word / Excel，或其 ZIP / 7z 压缩包（可多级嵌套，服务端自动解压展开），合并为**与离线验证过的 v5 输出逐像素一致**的单一 A4 竖向带页码 PDF（104 页真实证据 zip 实测：页脚序列 100% 一致、无 ≥0.5% 差异页）。仅登录可见，菜单管理可配显隐。核心规则（v5）：
+
+- **页码标注解析**：文件名「页码：X-Y」/「页码：X」/「N-M」前缀 → 父文件夹「页码：X」兜底；无标注按顺序补齐。
+- **冲突空洞分配**：标注重叠的条目（如命名笔误「21-32」实占 31-32）按实际页数填入第一个空闲页码空洞，无需硬编码。
+- **PDF 页矢量嵌入**（`LayerUtility.importPageAsForm`，不栅格化、不裁剪、文字可选中）；横向页旋转 90°（顶边朝左）；多页 PDF 标注 1 页（发票类）自动左右并排压缩。
+- **xlsx**：A 列备注文字 + 截图逐条一页，剩余截图按验证过的分配算法两两并排（竖图对 gap=20 不旋转、横向旋转对 gap=14）；**docx**：纯文字页宋体/黑体渲染（bold ≥16pt 居中），含 ≥3 图的考勤类渲染为说明文字 + 图注 4 列网格 1 页。
+- **页脚**：`HELVETICA 11pt` 灰色 0.25，底部居中（`FOOTER_Y = A4H - 24`）。
+
+> 关键实现注意：pymupdf 用左上原点而 PDFBox 内容流用底部原点，所有 y 需 `A4H - y_top` 转换；PDF 图片 XObject 占据**单位正方形 [0,1]²**（矩阵系数须用目标 pt 尺寸，非像素比），Form 用点空间 BBox。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `pdf/merge` | 多文件合并。`files[]` 为 `MultipartFile[]`（≤500 个、≤500MB；支持 PDF / PNG / JPG / ZIP / 7Z，压缩包在服务端解压展开，其余类型忽略并汇总提示）；`meta` 为 JSON：`{"mode":"auto"\|"label","labels":["101","102"...]}`。`mode=auto` 顺序编号，`mode=label` 用清洗后的 `labels`（空白回退序号，仅保留数字/字母/括号/连字符/逗号/句号/空格，≤24 字）。成功返回 `application/pdf` 流（`Content-Disposition` 含 UTF-8 文件名 `证据材料（A4竖版·带页码）.pdf`）；失败返回 `application/json` `{"errorCode":...,"errorMsg":...}`（HTTP 200，前端按 `content-type` 区分），业务错误码 `000003`、通用错误码 `999999` |
+| POST | `pdf/merge` | 多文件合并。`files[]` 为 `MultipartFile[]`（≤500 个、≤500MB；支持 PDF / PNG / JPG / docx / xlsx / ZIP / 7Z，压缩包在服务端解压展开）；`meta` 为 JSON：`{"mode":"auto"\|"label","labels":["101",...]}`（labels 仅对直接上传的纯数字标注生效，压缩包内按文件名/文件夹解析）。成功返回 `application/pdf` 流（`Content-Disposition` 含 UTF-8 文件名 `证据材料（A4竖版·带页码）.pdf`）；失败返回 `application/json` `{"errorCode":...,"errorMsg":...}`（HTTP 200，前端按 `content-type` 区分），业务错误码 `000003`、通用错误码 `999999` |
 
-> 注意：`pom.xml` 中 pdfbox 固定为 **2.0.24**（本地仓库已缓存 2.0.24，2.0.32 仅有 `.lastUpdated` 桩未下载）。ZIP / 7z 解压依赖 **commons-compress 1.21 + xz 1.9**（7z 的 LZMA2 编解码由 xz 提供，二者本地仓库均已缓存）。`Matrix` 用 6 参数构造、`PDFormXObject.setMatrix` 直传 `AffineTransform`、`setNonStrokingColor` 用浮点版，确保 Java 8 / PDFBox 2.0.24 零告警编译。
+> 注意：`pom.xml` 中 pdfbox 固定为 **2.0.24**（本地仓库已缓存 2.0.24，2.0.32 仅有 `.lastUpdated` 桩未下载）。ZIP / 7z 解压依赖 **commons-compress 1.21 + xz 1.9**；docx/xlsx 解析依赖 **poi-ooxml 3.17**（均本地仓库已缓存）。中文字体渲染使用系统 `C:/Windows/Fonts/simsun.ttc`(宋体) + `simhei.ttf`(黑体)，服务器需为 Windows 或自带字体。`Matrix` 用 6 参数构造、`PDFormXObject.setMatrix` 直传 `AffineTransform`、`setNonStrokingColor` 用浮点版，确保 Java 8 / PDFBox 2.0.24 零告警编译。
 
 ### 外部网关（遗留）
 

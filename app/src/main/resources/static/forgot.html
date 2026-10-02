@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" name="viewport">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <title>重置密码 — 小泽助手</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            overflow: auto; padding: 24px 0;
+            font-family: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+            background: #15131f url("Assets/img/login-bg.jpg") center/cover no-repeat fixed;
+        }
+        .bg-overlay {
+            position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background:
+                radial-gradient(125% 110% at 50% 0%, rgba(15,12,41,.30), rgba(15,12,41,.78)),
+                linear-gradient(160deg, rgba(48,43,99,.50), rgba(36,36,62,.62));
+        }
+        .card {
+            position: relative; z-index: 1; width: 420px; padding: 40px 38px 32px;
+            color: #f1f1f4;
+            background: rgba(20,16,40,.45); backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%);
+            border: 1px solid rgba(255,255,255,.28); border-radius: 24px;
+            box-shadow: 0 12px 48px rgba(0,0,0,.55); animation: cardIn .7s cubic-bezier(.16,1,.3,1);
+        }
+        @keyframes cardIn { from{opacity:0;transform:translateY(40px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+        .card h2 {
+            text-align:center; margin-bottom:6px; font-size:26px; font-weight:700;
+            background:linear-gradient(90deg,#8fd3ff,#a78bfa,#f5b8e6);
+            -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+            filter: drop-shadow(0 2px 10px rgba(0,0,0,.55));
+        }
+        .subtitle { text-align:center; color:rgba(255,255,255,.85); font-size:13px; margin-bottom:22px; text-shadow:0 1px 6px rgba(0,0,0,.7); }
+
+        /* 步骤条 */
+        .steps { display:flex; align-items:center; justify-content:center; margin-bottom:24px; }
+        .step-dot { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+            font-size:13px; color:rgba(255,255,255,.75); background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); transition:all .3s; }
+        .step-dot.active { background:linear-gradient(135deg,#a78bfa,#8fd3ff); color:#fff; box-shadow:0 0 12px rgba(167,139,250,.6); }
+        .step-dot.done { background:rgba(52,211,153,.35); color:#34d399; }
+        .step-line { width:52px; height:1px; background:rgba(255,255,255,.3); }
+        .step-label { text-align:center; font-size:12px; color:rgba(255,255,255,.7); margin-bottom:18px; min-height:16px; }
+
+        .input-group { margin-bottom:18px; position:relative; }
+        .input-group input {
+            width:100%; padding:13px 16px 13px 44px;
+            background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.30);
+            border-radius:12px; color:#fff; font-size:15px; outline:none;
+            transition:border-color .3s,box-shadow .3s,background .3s;
+        }
+        .input-group input::placeholder { color:rgba(255,255,255,.65); }
+        .input-group input:focus { border-color:#c4b5fd; box-shadow:0 0 0 3px rgba(196,181,253,.35); background:rgba(255,255,255,.2); }
+        .input-group .icon { position:absolute; left:15px; top:50%; transform:translateY(-50%); width:19px; height:19px; opacity:.8; }
+
+        .btn {
+            width:100%; padding:13px; margin-top:4px; border:none; border-radius:12px; cursor:pointer;
+            font-size:15px; font-weight:600; color:#fff;
+            background:linear-gradient(135deg,#4facfe,#00f2fe);
+            transition:transform .2s,box-shadow .2s,opacity .2s; box-shadow:0 4px 20px rgba(79,172,254,.4);
+        }
+        .btn:hover { transform:translateY(-2px); box-shadow:0 6px 28px rgba(79,172,254,.55); }
+        .btn:active { transform:translateY(0); opacity:.9; }
+        .btn:disabled { opacity:.55; cursor:not-allowed; transform:none; }
+        .btn-ghost { background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.3); box-shadow:none; }
+        .btn-ghost:hover { background:rgba(255,255,255,.2); box-shadow:none; }
+
+        .tip { color:#34d399; font-size:13px; text-align:center; margin-top:14px; min-height:18px; }
+        .tip.err { color:#f87171; }
+        .login-link { text-align:center; margin-top:20px; font-size:14px; color:rgba(255,255,255,.9); text-shadow:0 1px 6px rgba(0,0,0,.7); }
+        .login-link a { color:#8fd3ff; text-decoration:none; transition:color .2s; }
+        .login-link a:hover { color:#c4b5fd; }
+        .step-pane { display:none; }
+        .step-pane.on { display:block; animation: fadeIn .35s ease; }
+        @keyframes fadeIn { from{opacity:0;transform:translateX(14px)} to{opacity:1;transform:translateX(0)} }
+
+        /* 滑块验证码 */
+        .captcha-box { margin-bottom:14px; }
+        .captcha-wrap { position:relative; width:100%; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,.3); }
+        .captcha-wrap canvas { display:block; width:100%; height:auto; }
+        #pieceImg { position:absolute; top:0; left:0; width:auto; pointer-events:none; filter:drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
+        .captcha-track { position:relative; margin-top:10px; height:38px; border-radius:10px;
+            background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.28); overflow:hidden; touch-action:none; }
+        .captcha-track .hint { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+            font-size:13px; color:rgba(255,255,255,.75); user-select:none; pointer-events:none; letter-spacing:1px; }
+        #knob { position:absolute; top:0; left:0; width:44px; height:100%; cursor:grab; touch-action:none;
+            background:linear-gradient(135deg,#a78bfa,#8fd3ff); border-radius:10px;
+            display:flex; align-items:center; justify-content:center; box-shadow:0 2px 10px rgba(0,0,0,.35); }
+        #knob:active { cursor:grabbing; }
+        #knob svg { width:18px; height:18px; }
+
+        /* 6 位验证码输入 */
+        .code-row { display:flex; gap:10px; justify-content:center; margin-bottom:18px; }
+        .code-row input { width:46px; height:54px; text-align:center; font-size:22px; font-weight:600;
+            background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.30); border-radius:12px;
+            color:#fff; outline:none; transition:border-color .3s,box-shadow .3s; }
+        .code-row input:focus { border-color:#c4b5fd; box-shadow:0 0 0 3px rgba(196,181,253,.35); }
+        .email-echo { text-align:center; font-size:13px; color:rgba(255,255,255,.85); margin-bottom:16px; }
+        .email-echo b { color:#8fd3ff; font-weight:600; }
+
+        /* ===== H5 适配 ===== */
+        @media (max-width: 640px) {
+            body { padding: 16px 0; align-items: flex-start; }
+            .card { width: 92%; padding: 30px 20px 24px; border-radius: 20px; }
+            .card h2 { font-size: 22px; }
+            .step-line { width: 34px; }
+            .input-group input { padding: 12px 14px 12px 40px; font-size: 16px; }
+            .input-group .icon { left: 13px; width: 18px; height: 18px; }
+            .btn { padding: 12px; }
+            .code-row { gap: 7px; }
+            .code-row input { width: 38px; height: 48px; font-size: 19px; border-radius: 10px; }
+            .captcha-track { height: 42px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-overlay"></div>
+
+    <div class="card">
+        <h2>重置密码</h2>
+        <p class="subtitle">小泽助手 · 验证已绑定邮箱后设置新密码</p>
+
+        <div class="steps">
+            <div class="step-dot active" id="dot1">1</div><div class="step-line"></div>
+            <div class="step-dot" id="dot2">2</div><div class="step-line"></div>
+            <div class="step-dot" id="dot3">3</div>
+        </div>
+        <div class="step-label" id="stepLabel">第 1 步：验证邮箱</div>
+
+        <!-- Step 1：邮箱 + 滑块 -->
+        <div class="step-pane on" id="pane1">
+            <div class="input-group">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
+                <input id="email" type="email" placeholder="绑定的邮箱账号" autocomplete="email">
+            </div>
+            <div class="captcha-box" id="captchaBox" style="display:none;">
+                <div class="captcha-wrap">
+                    <canvas id="bgCanvas" width="300" height="150"></canvas>
+                    <img id="pieceImg" alt="">
+                </div>
+                <div class="captcha-track" id="track">
+                    <div class="hint" id="trackHint">按住滑块，拖动到缺口位置</div>
+                    <div id="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></div>
+                </div>
+            </div>
+            <button class="btn" id="btnSend" onclick="startVerify()">发送验证码</button>
+        </div>
+
+        <!-- Step 2：邮箱验证码 -->
+        <div class="step-pane" id="pane2">
+            <div class="email-echo">验证码已发送至 <b id="emailEcho"></b>（5 分钟内有效）</div>
+            <div class="code-row" id="codeRow">
+                <input type="tel" maxlength="1" inputmode="numeric"><input type="tel" maxlength="1" inputmode="numeric"><input type="tel" maxlength="1" inputmode="numeric"><input type="tel" maxlength="1" inputmode="numeric"><input type="tel" maxlength="1" inputmode="numeric"><input type="tel" maxlength="1" inputmode="numeric">
+            </div>
+            <button class="btn" id="btnVerify" onclick="doVerify()">验证邮箱</button>
+            <button class="btn btn-ghost" id="btnResend" onclick="resend()" style="margin-top:10px;">重新发送</button>
+        </div>
+
+        <!-- Step 3：设置新密码 -->
+        <div class="step-pane" id="pane3">
+            <div class="email-echo">邮箱验证通过，请设置新密码</div>
+            <div class="input-group">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                <input id="pwd" type="password" placeholder="新密码（至少 6 位）" autocomplete="new-password">
+            </div>
+            <div class="input-group">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M9 15l2 2 4-4"/></svg>
+                <input id="pwd2" type="password" placeholder="确认新密码" autocomplete="new-password">
+            </div>
+            <button class="btn" id="btnComplete" onclick="doComplete()">重置密码</button>
+        </div>
+
+        <div class="tip" id="tip"></div>
+        <div class="login-link">想起密码了？ <a href="login.html">返回登录</a></div>
+    </div>
+
+<script src="Assets/js/jquery-3.7.1.min.js" type="text/javascript"></script>
+<script>
+var BG_W = 300, PIECE = 44;
+var curEmail = '', resetToken = '', captchaData = null;
+var dragging = false, dragStartX = 0, knobStart = 0, verified = false;
+var resendTimer = null, resendLeft = 0;
+
+function tip(msg, isErr) {
+    $("#tip").text(msg).toggleClass("err", !!isErr);
+    if (!isErr && msg) setTimeout(function(){ if($("#tip").text()==msg) $("#tip").text(""); }, 4000);
+}
+function gotoStep(n) {
+    $(".step-pane").removeClass("on");
+    $("#pane"+n).addClass("on");
+    for (var i=1;i<=3;i++){
+        $("#dot"+i).toggleClass("active", i===n).toggleClass("done", i<n);
+    }
+    $("#stepLabel").text("第 "+n+" 步："+["验证邮箱","输入验证码","设置新密码"][n-1]);
+}
+function fail(res){ tip(res && res.errorMsg ? res.errorMsg : "请求失败，请重试", true); }
+
+/* ===== Step 1：邮箱 + 滑块 ===== */
+function startVerify(){
+    var email = $("#email").val().trim();
+    if(!/^[\w.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)){ tip("请输入正确的邮箱地址", true); return; }
+    curEmail = email;
+    verified = false;
+    $("#btnSend").attr("disabled", true).text("加载滑块…");
+    $.ajax({ url:"captcha/slider", type:"get", dataType:"json",
+        success:function(res){
+            $("#btnSend").attr("disabled", false).text("发送验证码");
+            if(res.errorCode!="000000"){ fail(res); return; }
+            captchaData = res.body;
+            renderCaptcha();
+            $("#captchaBox").slideDown(200);
+        },
+        error:function(){ $("#btnSend").attr("disabled", false).text("发送验证码"); tip("网络异常，请重试", true); }
+    });
+}
+function renderCaptcha(){
+    var canvas = $("#bgCanvas")[0], ctx = canvas.getContext("2d");
+    var img = new Image();
+    img.onload = function(){
+        ctx.clearRect(0,0,BG_W,150); ctx.drawImage(img,0,0);
+        var p = new Image();
+        p.onload = function(){
+            var s = $(canvas).outerWidth()/BG_W;
+            var $pi = $("#pieceImg").attr("src", p.src);
+            $pi.css({ width: (52*s)+"px", top: (captchaData.y*s)+"px", left: "0px" });
+            resetKnob();
+        };
+        p.src = "data:image/png;base64," + captchaData.piece;
+    };
+    img.src = "data:image/png;base64," + captchaData.bg;
+}
+function resetKnob(){ $("#knob").css("left","0px"); $("#trackHint").show(); dragging=false; }
+function scale(){ return $("#bgCanvas").outerWidth()/BG_W; }
+function knobLeft(){ return parseFloat($("#knob").css("left"))||0; }
+
+$("#knob").on("mousedown touchstart", function(e){
+    if(verified) return;
+    dragging = true;
+    var pt = e.type==="touchstart" ? e.originalEvent.touches[0] : e;
+    dragStartX = pt.clientX; knobStart = knobLeft();
+    $("#trackHint").hide();
+    e.preventDefault();
+});
+$(document).on("mousemove touchmove", function(e){
+    if(!dragging) return;
+    var pt = e.type==="touchmove" ? e.originalEvent.touches[0] : e;
+    var max = ($("#track").outerWidth() - $("#knob").outerWidth());
+    var left = Math.max(0, Math.min(max, knobStart + (pt.clientX - dragStartX)));
+    $("#knob").css("left", left+"px");
+    // 拼图块跟随：knob 满行程映射到缺口可移动范围
+    var pieceMax = BG_W - PIECE;
+    var s = scale();
+    var px = Math.min(pieceMax*s, left/s);
+    $("#pieceImg").css("left", Math.max(0, Math.min(pieceMax*s, px))+"px");
+    e.preventDefault();
+});
+$(document).on("mouseup touchend", function(){
+    if(!dragging) return;
+    dragging = false;
+    var left = knobLeft();
+    var max = ($("#track").outerWidth() - $("#knob").outerWidth());
+    var s = scale();
+    var pieceMax = BG_W - PIECE;
+    // 提交拼图圆在原图坐标系中的左边缘 x（拼图图片内圆左偏移 4px）
+    var pieceLeft = Math.round(parseFloat($("#pieceImg").css("left"))/s) + 4;
+    if(max>0 && left >= max-2){ pieceLeft = pieceMax + 4; } // 拖到最右
+    $.ajax({ url:"captcha/verify", type:"post", contentType:"application/json",
+        data:JSON.stringify({body:{captchaId:captchaData.captchaId, x:pieceLeft}}),
+        success:function(res){
+            if(res.errorCode=="000000"){ verified = true; sendCode(res.body.ticket); }
+            else { tip(res.errorMsg||"滑块验证未通过，请重试", true); refreshCaptcha(); }
+        },
+        error:function(){ tip("网络异常，请重试", true); refreshCaptcha(); }
+    });
+});
+function refreshCaptcha(){
+    $.ajax({ url:"captcha/slider", type:"get", dataType:"json",
+        success:function(res){ if(res.errorCode=="000000"){ captchaData=res.body; renderCaptcha(); } }
+    });
+}
+function sendCode(ticket){
+    tip("验证通过，正在发送验证码…");
+    $("#btnSend").attr("disabled", true).text("发送中…");
+    $.ajax({ url:"password/reset/send", type:"post", contentType:"application/json",
+        data:JSON.stringify({body:{email:curEmail, ticket:ticket}}),
+        success:function(res){
+            $("#btnSend").attr("disabled", false).text("发送验证码");
+            if(res.errorCode!="000000"){ verified = false; fail(res); refreshCaptcha(); return; }
+            tip("验证码已发送，请查收邮箱");
+            $("#emailEcho").text(curEmail);
+            startResendCountdown();
+            gotoStep(2);
+            $("#codeRow input").first().focus();
+        },
+        error:function(){ verified = false; $("#btnSend").attr("disabled", false).text("发送验证码"); refreshCaptcha(); tip("网络异常，请重试", true); }
+    });
+}
+
+/* ===== Step 2：6 位验证码 ===== */
+var $codes = $("#codeRow input");
+$codes.on("input", function(){
+    var v = this.value.replace(/\D/g,"");
+    this.value = v.slice(-1);
+    if(this.value && $(this).next("input").length) $(this).next("input").focus();
+    if($codes.filter(function(){return this.value!=="";}).length===6) doVerify();
+});
+$codes.on("keydown", function(e){
+    if(e.which===8 && !this.value){ var prev=$(this).prev("input"); if(prev.length){ prev.focus(); prev.val(""); } e.preventDefault(); }
+});
+$codes.on("paste", function(e){
+    var text = (e.originalEvent.clipboardData||window.clipboardData).getData("text").replace(/\D/g,"").slice(0,6);
+    if(!text) return;
+    e.preventDefault();
+    $codes.each(function(i){ this.value = text[i]||""; });
+    $codes.eq(Math.min(text.length,5)).focus();
+    if(text.length===6) doVerify();
+});
+function codeValue(){ return $codes.map(function(){return this.value;}).get().join(""); }
+function doVerify(){
+    var code = codeValue();
+    if(code.length!==6){ tip("请输入 6 位验证码", true); return; }
+    $("#btnVerify").attr("disabled", true).text("验证中…");
+    $.ajax({ url:"password/reset/verify", type:"post", contentType:"application/json",
+        data:JSON.stringify({body:{email:curEmail, code:code}}),
+        success:function(res){
+            $("#btnVerify").attr("disabled", false).text("验证邮箱");
+            if(res.errorCode!="000000"){ fail(res); $codes.val(""); $codes.first().focus(); return; }
+            resetToken = res.body.resetToken;
+            tip("邮箱验证通过，请设置新密码");
+            gotoStep(3);
+            $("#pwd").focus();
+        },
+        error:function(){ $("#btnVerify").attr("disabled", false).text("验证邮箱"); tip("网络异常，请重试", true); }
+    });
+}
+function startResendCountdown(){
+    resendLeft = 60;
+    $("#btnResend").attr("disabled", true).text("重新发送 (60s)");
+    clearInterval(resendTimer);
+    resendTimer = setInterval(function(){
+        resendLeft--;
+        if(resendLeft<=0){ clearInterval(resendTimer); $("#btnResend").attr("disabled", false).text("重新发送"); }
+        else { $("#btnResend").text("重新发送 ("+resendLeft+"s)"); }
+    }, 1000);
+}
+function resend(){
+    // 重发需重新滑块验证（ticket 一次性）
+    gotoStep(1);
+    $("#captchaBox").slideUp(150);
+    tip("请重新滑动滑块后发送验证码");
+}
+
+/* ===== Step 3：重置密码 ===== */
+function doComplete(){
+    var p1=$("#pwd").val(), p2=$("#pwd2").val();
+    if(!p1 || p1.length<6){ tip("密码长度至少 6 位", true); return; }
+    if(p1!==p2){ tip("两次输入的密码不一致", true); return; }
+    $("#btnComplete").attr("disabled", true).text("提交中…");
+    $.ajax({ url:"password/reset/complete", type:"post", contentType:"application/json",
+        data:JSON.stringify({body:{resetToken:resetToken, password:p1}}),
+        success:function(res){
+            $("#btnComplete").attr("disabled", false).text("重置密码");
+            if(res.errorCode!="000000"){ fail(res); return; }
+            tip("密码重置成功，正在跳转登录页…");
+            setTimeout(function(){ window.location.href="login.html"; }, 1200);
+        },
+        error:function(){ $("#btnComplete").attr("disabled", false).text("重置密码"); tip("网络异常，请重试", true); }
+    });
+}
+$(document).keydown(function(e){ if(e.which===13){ var on=$(".step-pane.on").attr("id");
+    if(on==="pane1") startVerify(); else if(on==="pane2") doVerify(); else if(on==="pane3") doComplete(); } });
+</script>
+</body>
+</html>

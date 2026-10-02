@@ -469,23 +469,23 @@
         </div>
 
         <div class="module-box" id="pdfTool">
-            <div class="page-title">证据材料整理 <span class="admin-badge">PDF / 图片 / 压缩包 → 合并 A4 竖向带页码</span></div>
+            <div class="page-title">证据材料整理 <span class="admin-badge">PDF / 图片 / Office / 压缩包 → 合并 A4 竖向带页码</span></div>
 
             <div class="cert-card">
                 <div class="cert-card-tit">使用说明</div>
                 <ol style="margin:6px 0 0 18px;color:var(--text-2);font-size:13px;line-height:1.9">
-                    <li>上传 PDF / 图片（PNG/JPG），或其压缩包（<b>ZIP / 7z</b>，内含上述文件），按列表顺序排列（可用 ↑/↓ 调整）。</li>
-                    <li>自动从文件名提取页码标注（如“<code>页码101</code>”“<code>(101)</code>”），可手动修改；<b>压缩包内文件由服务端解压后，按各自文件名自动标注</b>。</li>
-                    <li>页码模式：<b>保留原标注</b>（按框内码数，不重新编号，同一份多页共用一个码）或 <b>顺序重新编号</b>。</li>
-                    <li>横向页面/图片自动旋转 90° 成竖向，内容不裁剪、PDF 文字仍可选中。</li>
+                    <li>上传 PDF / 图片（PNG/JPG）/ Word / Excel，或其压缩包（<b>ZIP / 7z</b>，可多级嵌套），按列表顺序排列（可用 ↑/↓ 调整）。</li>
+                    <li>页码按文件名/文件夹标注解析（如「页码：61-69」「21-32前缀」、父文件夹「页码：X」兜底）；标注重叠（命名笔误）时按实际页数自动填入空闲页码；无标注按顺序补齐。</li>
+                    <li>页码模式：<b>保留原标注</b>（按文件名/文件夹标注，同份多页逐页编号）或 <b>顺序重新编号</b>。</li>
+                    <li>横向页面/图片自动旋转 90° 成竖向（顶边朝左），内容不裁剪、PDF 文字仍可选中；发票类 2 页 PDF 自动左右并排到 1 页；Excel 截图两两并排；Word 文字页宋体/黑体渲染。</li>
                 </ol>
             </div>
 
             <div class="cert-card">
                 <div class="cert-card-tit">上传证据材料（支持拖拽，可多选）</div>
                 <div class="drop-zone" id="pdfDropZone">
-                    <input type="file" id="pdfFileInput" multiple accept=".pdf,.png,.jpg,.jpeg,.zip,.7z,image/png,image/jpeg,application/pdf,application/zip,application/x-7z-compressed" style="display:none">
-                    <div class="drop-zone-hint" id="pdfDropZoneHint">📄 将证据文件拖拽到此处，或点击选择（PDF / PNG / JPG / ZIP / 7Z）</div>
+                    <input type="file" id="pdfFileInput" multiple accept=".pdf,.png,.jpg,.jpeg,.zip,.7z,.docx,.xlsx,image/png,image/jpeg,application/pdf,application/zip,application/x-7z-compressed" style="display:none">
+                    <div class="drop-zone-hint" id="pdfDropZoneHint">📄 将证据文件拖拽到此处，或点击选择（PDF / 图片 / Word / Excel / ZIP / 7Z）</div>
                     <div class="drop-zone-file" id="pdfDropZoneFile" style="display:none"></div>
                 </div>
                 <div style="margin-top:8px;">

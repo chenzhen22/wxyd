@@ -1,14 +1,11 @@
 package com.cyz.pdf;
 
 import com.cyz.controller.CommController;
-import com.cyz.pojo.Result;
-import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -19,8 +16,9 @@ import java.util.List;
 /**
  * 证据材料整理控制器（路径前缀 pdf，context-path /api，完整路径 /api/pdf/merge）。
  * <p>
- * 鉴权由 AuthInterceptor 统一保障（需登录）；本控制器仅做业务参数校验与合并调用。
- * 上传文件与页码标注（meta）由前端一次性提交，服务端在内存中生成最终 PDF 后流式返回。
+ * 鉴权由 AuthInterceptor 统一保障（需登录）。上传文件（PDF / 图片 / ZIP / 7Z / docx / xlsx）
+ * 一次性提交，服务端在内存中展开压缩包、按文件名/文件夹页码标注分配页码（v5 规则）、
+ * 合并为单一 A4 竖向 PDF 后流式返回；页码标注解析、冲突空洞分配等全部由 PdfMergeService 完成。
  */
 @RestController
 @RequestMapping("pdf")
@@ -32,11 +30,12 @@ public class PdfMergeController implements CommController {
     private static final String DOWNLOAD_NAME = "证据材料（A4竖版·带页码）.pdf";
 
     /**
-     * 合并证据材料为单一 A4 竖向带页码 PDF。
+     * 合并证据材料为单一 A4 竖向带页码 PDF（v5 规则）。
      * <p>
      * 请求（multipart/form-data）：<br>
-     * - files: 多个 PDF / PNG / JPG，或其压缩包（.zip / .7z，可含上述文件）<br>
+     * - files: 多个 PDF / PNG / JPG / docx / xlsx，或其压缩包（.zip / .7z）<br>
      * - meta: JSON 字符串 { "mode": "auto"|其他, "labels": ["101","102",...] }
+     *   （labels 为直接上传文件的页码标注；压缩包内文件按文件名/文件夹标注自动解析）
      *
      * @return 成功时直接返回 application/pdf 字节流；失败时返回 JSON 错误
      */
@@ -56,15 +55,13 @@ public class PdfMergeController implements CommController {
         JSONObject metaObj = (meta == null || meta.trim().isEmpty()) ? new JSONObject() : JSONObject.parseObject(meta);
         String mode = metaObj.getString("mode");
         List<String> labels = new ArrayList<>();
-        JSONArray arr = metaObj.getJSONArray("labels");
-        if (arr != null) {
-            for (int i = 0; i < arr.size(); i++) {
-                labels.add(arr.getString(i));
+        if (metaObj.getJSONArray("labels") != null) {
+            for (int i = 0; i < metaObj.getJSONArray("labels").size(); i++) {
+                labels.add(metaObj.getJSONArray("labels").getString(i));
             }
         }
 
         List<PdfMergeService.SourceFile> sources = new ArrayList<>(files.length);
-        List<String> mergedLabels = new ArrayList<>(); // 与展开后 sources 一一对齐
         long total = 0;
         List<String> rejected = new ArrayList<>();
         for (int fi = 0; fi < files.length; fi++) {
@@ -86,49 +83,42 @@ public class PdfMergeController implements CommController {
             }
             total += data.length;
             if (total > MAX_TOTAL_BYTES) {
-                writeError(response, "000003", "合并后总大小超出限制（500MB）");
+                writeError(response, "000003", "上传总大小超出限制（500MB）");
                 return;
             }
-            if (PdfMergeService.isZip(data) || PdfMergeService.is7z(data)) {
-                // 压缩包：服务端解压展开后合并，内部按文件名标注页码
-                List<PdfMergeService.SourceFile> expanded;
-                try {
-                    expanded = PdfMergeService.expandArchive(data, fileName);
-                } catch (PdfMergeService.PdfMergeException pe) {
-                    writeError(response, "000003", fileName + "：" + pe.getMessage());
-                    return;
-                } catch (IOException ioe) {
-                    writeError(response, "000003", "解压失败：" + fileName + "（" + ioe.getMessage() + "）");
-                    return;
-                }
-                if (expanded.isEmpty()) {
-                    continue; // 包内无可用文件，跳过而不阻断整体
-                }
-                for (PdfMergeService.SourceFile sf : expanded) {
-                    sources.add(sf);
-                    mergedLabels.add(PdfMergeService.parseLabelFromName(sf.getName()));
-                }
-            } else if (PdfMergeService.isPdf(data) || PdfMergeService.isImage(data)) {
-                String uiLabel = (fi < labels.size()) ? labels.get(fi) : null;
-                sources.add(new PdfMergeService.SourceFile(fileName, data));
-                mergedLabels.add(uiLabel);
-            } else {
+            boolean supported = PdfMergeService.isPdf(data) || PdfMergeService.isImage(data)
+                    || PdfMergeService.isZip(data) || PdfMergeService.is7z(data)
+                    || fileName.toLowerCase().endsWith(".docx")
+                    || fileName.toLowerCase().endsWith(".xlsx");
+            if (!supported) {
                 rejected.add(fileName);
+                continue;
             }
+            // 直接上传文件：UI 填写的纯数字标注转为合成父文件夹「页码：N」参与解析；
+            // 非数字/空标注则交由文件名/文件夹解析，无标注时按顺序补齐
+            String path = fileName;
+            if (fi < labels.size() && labels.get(fi) != null) {
+                String ui = labels.get(fi).trim();
+                if (ui.matches("\\d+")) {
+                    path = "(页码：" + ui + ")/" + fileName;
+                }
+            }
+            sources.add(new PdfMergeService.SourceFile(path, data));
         }
 
         if (!rejected.isEmpty()) {
             writeError(response, "000003",
-                    "存在不支持的文件类型（仅支持 PDF / PNG / JPG / ZIP / 7Z），已忽略：" + String.join("、", rejected));
+                    "存在不支持的文件类型（仅支持 PDF / 图片 / Word / Excel / ZIP / 7Z），已忽略："
+                            + String.join("、", rejected));
             return;
         }
         if (sources.isEmpty()) {
-            writeError(response, "000003", "没有可合并的有效文件（需 PDF / PNG / JPG，或内含上述文件的 ZIP / 7Z）");
+            writeError(response, "000003", "没有可合并的有效文件");
             return;
         }
 
         try {
-            byte[] pdf = new PdfMergeService().merge(sources, mode, mergedLabels);
+            byte[] pdf = new PdfMergeService().merge(sources, mode);
             response.setContentType("application/pdf");
             response.setContentLengthLong(pdf.length);
             response.setHeader("Content-Disposition",

@@ -35,6 +35,7 @@
         if (n.endsWith('.zip') || f.type === 'application/zip'
             || f.type === 'application/x-zip-compressed') return 'archive';
         if (n.endsWith('.7z') || f.type === 'application/x-7z-compressed') return 'archive';
+        if (n.endsWith('.docx') || n.endsWith('.xlsx')) return 'office';
         return 'unknown';
     }
 
@@ -44,7 +45,7 @@
             var f = fileList[i];
             var t = fileType(f);
             if (t === 'unknown') {
-                tip('已忽略不支持的文件：' + f.name + '（仅限 PDF/PNG/JPG/ZIP/7Z）');
+                tip('已忽略不支持的文件：' + f.name + '（仅限 PDF/PNG/JPG/ZIP/7Z/DOCX/XLSX）');
                 continue;
             }
             // 压缩包：不再逐文件标注，服务端解压后按内部文件名标注
@@ -75,7 +76,9 @@
             (function (idx) {
                 var it = state[idx];
                 var isArc = it.type === 'archive';
-                var pages = isArc ? '压缩包·自动解压' : (it.type === 'image' ? '1' : 'PDF');
+                var pages = isArc ? '压缩包·自动解压'
+                    : (it.type === 'office' ? 'Word/Excel·服务端渲染'
+                        : (it.type === 'image' ? '1' : 'PDF'));
                 var labelCell = isArc
                     ? '<td style="color:#888;font-size:12px">服务端解压<br>按文件名标注</td>'
                     : '<td><input type="text" class="pdf-label-input" data-idx="' + idx +

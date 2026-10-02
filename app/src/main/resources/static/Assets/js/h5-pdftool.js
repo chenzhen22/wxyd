@@ -25,6 +25,7 @@
         if (n.endsWith('.zip') || f.type === 'application/zip'
             || f.type === 'application/x-zip-compressed') return 'archive';
         if (n.endsWith('.7z') || f.type === 'application/x-7z-compressed') return 'archive';
+        if (n.endsWith('.docx') || n.endsWith('.xlsx')) return 'office';
         return 'unknown';
     }
 
@@ -38,7 +39,7 @@
             // 压缩包：不再逐文件标注，服务端解压后按内部文件名标注
             state.push({ file: f, label: (t === 'archive' ? '' : parseLabel(f.name)), type: t });
         }
-        if (ignored.length) toast('已忽略：' + ignored.join('、') + '（仅 PDF/PNG/JPG/ZIP/7Z）');
+        if (ignored.length) toast('已忽略：' + ignored.join('、') + '（仅 PDF/PNG/JPG/ZIP/7Z/DOCX/XLSX）');
         renderFiles();
     }
 
@@ -61,7 +62,9 @@
         for (var i = 0; i < state.length; i++) {
             var it = state[i];
             var isArc = it.type === 'archive';
-            var pages = isArc ? '🗜 压缩包 · 服务端自动解压' : (it.type === 'image' ? '图片 · 1 页' : 'PDF · 多页');
+            var pages = isArc ? '🗜 压缩包 · 服务端自动解压'
+                : (it.type === 'office' ? '📄 Word/Excel · 服务端渲染'
+                    : (it.type === 'image' ? '图片 · 1 页' : 'PDF · 多页'));
             var labelField = isArc
                 ? '<div class="h5-field" style="margin:8px 0 0"><label>页码标注</label>' +
                   '<div style="font-size:13px;color:var(--text-2)">解压后按文件名自动标注（无需填写）</div></div>'
@@ -160,7 +163,7 @@
             '<button class="h5-btn-primary h5-btn-block" id="pdfMergeBtn">📄 合并生成 PDF</button>' +
             '<div id="pdfMergeMsg" style="text-align:center;margin-top:8px;font-size:13px;color:var(--text-2);min-height:18px"></div>' +
             '</div>' +
-            '<input type="file" id="pdfHiddenInput" multiple accept=".pdf,.png,.jpg,.jpeg,.zip,.7z,application/pdf,image/png,image/jpeg,application/zip,application/x-7z-compressed" style="display:none">'
+            '<input type="file" id="pdfHiddenInput" multiple accept=".pdf,.png,.jpg,.jpeg,.zip,.7z,.docx,.xlsx,application/pdf,image/png,image/jpeg,application/zip,application/x-7z-compressed" style="display:none">'
         );
         /* 浮动按钮：添加文件 */
         setFab(true, function () { $('#pdfHiddenInput').click(); });

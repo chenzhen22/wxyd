@@ -35,6 +35,7 @@ public class DataInitializer implements ApplicationRunner {
         ensurePasswordNullable();
         ensureEmailColumn();
         ensureGiteeLoginColumn();
+        ensureNoteIndexTable();
         int count = mysqlMapper.countUsers();
         if (count > 0) {
             log.info("[INIT] users 表已有 {} 个用户，跳过超管播种", count);
@@ -143,6 +144,47 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] 已自动执行 V10 迁移：users 表增加 gitee_login 列");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V10 迁移失败（请手动执行 sql/V10__gitee_login.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 幂等确保笔记检索索引表存在（对应 sql/V11__note_index.sql）：
+     * 个人知识库 v2 的全文检索索引，md 文件仍为真相源，本表仅承载检索。
+     * 部署环境无 mysql 客户端，故启动时自检建表；已存在则跳过。
+     * 失败仅记录提示，不阻断启动（检索可降级为目录扫描兜底）。
+     */
+    private void ensureNoteIndexTable() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.TABLES " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='note_index'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) {
+                log.info("[INIT] note_index 表已存在，跳过 V11 迁移");
+                return;
+            }
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `note_index` (" +
+                    "`id` BIGINT NOT NULL AUTO_INCREMENT," +
+                    "`owner_id` BIGINT NOT NULL COMMENT '笔记属主用户 id'," +
+                    "`note_name` VARCHAR(64) NOT NULL COMMENT '净化后的标题，与文件名一致'," +
+                    "`title` VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'frontmatter.name 原始标题'," +
+                    "`category` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '分类，受控词表或用户自建'," +
+                    "`tags` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '标签，逗号分隔'," +
+                    "`source_key` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '来源条目 key，空=非摘录'," +
+                    "`is_public` TINYINT NOT NULL DEFAULT 1 COMMENT '1=公开 0=私有'," +
+                    "`content` MEDIUMTEXT COMMENT '正文全文，供内容命中检索'," +
+                    "`preview` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '列表预览，150 字'," +
+                    "`owner_name` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '属主展示名，冗余避免列表 N+1'," +
+                    "`update_time` DATETIME NOT NULL COMMENT '文件最后修改时间'," +
+                    "PRIMARY KEY (`id`)," +
+                    "UNIQUE KEY `uk_owner_note` (`owner_id`,`note_name`)," +
+                    "KEY `idx_public_time` (`is_public`,`update_time`)," +
+                    "KEY `idx_source` (`source_key`)," +
+                    "KEY `idx_owner_time` (`owner_id`,`update_time`)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='笔记检索索引，md 文件为真相源'");
+            log.info("[INIT] 已自动执行 V11 迁移：创建 note_index 笔记检索索引表");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V11 迁移失败（请手动执行 sql/V11__note_index.sql）：{}", e.getMessage());
         }
     }
 }

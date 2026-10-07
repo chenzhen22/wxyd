@@ -8,8 +8,25 @@
 - 构建：`mvn clean package -pl app -DskipTests -B`
   （mvn = `D:\cz\java\maven\apache-maven-3.8.4\bin\mvn.cmd`，本地仓库 `D:\cz\repository`），
   产物 `app/target/app-1.0.0.jar`（约 90MB）。
+- **不要加 `-o` 离线构建**：本地仓库不完整（缺 spring-boot-starter-data-jdbc 2.7.18、
+  mybatis-spring-boot-starter 2.3.2、protobuf-java 3.19.4、poi-ooxml 3.17），
+  离线会直接失败。走 nexus（localhost:8081）联网构建约 40s 可过。
 - 运行：`java -jar app/target/app-1.0.0.jar --server.port=8090`
   （JDK = `D:\cz\project\jdk1.8.0_181`）。
+
+## 数据库与迁移约定（重要）
+
+- 真实库是**远程 MySQL**：`mysql5.sqlpub.com:3310/wxyd_123`（凭据见 `env.properties`，
+  该文件已 gitignore，仓库里的那份是占位副本）。
+- **本机与部署环境都没有 mysql 客户端**，无法手工执行 SQL。
+  → 迁移套路固定为「**写 `app/src/main/resources/sql/V{n}__xxx.sql` 供人工存档，
+  同时在 `DataInitializer` 里加一个 `ensureXxx()` 幂等自检方法，启动时自动补列/建表**」。
+  新增列/表时必须两处都改，只写 SQL 脚本线上不会生效。
+- 幂等写法：先查 `information_schema.COLUMNS` / `information_schema.TABLES`
+  判断存在与否，再执行 ALTER/CREATE；失败只 `log.error` 不抛异常，不阻断启动。
+- 现有迁移：V2 users+ding_robot / V4 群聊四表 / V5 已读 / V6 menu_config /
+  V7 github_login / V8 password  nullable / V9 email / V10 gitee_login /
+  **V11 note_index（笔记检索索引，2026-10-07 新增）**。
 
 ## 启动必避的两个坑
 

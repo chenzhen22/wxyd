@@ -7,6 +7,8 @@ import com.cyz.note.service.NoteSearchService;
 import com.cyz.pojo.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpSession;
@@ -217,6 +219,103 @@ public class NoteController {
         }
         int copied = noteDataService.migrateOld(userId(session));
         result.setBody(copied);
+        return result;
+    }
+
+    /* ---------------- v2 P1：wiki 链接 / 导出 / 标签管理 ---------------- */
+
+    /**
+     * 按标题解析可见笔记（R7 wiki 链接跳转）：返回 ownerId 供前端 openDetail。
+     * 自己的优先；不可见/不存在统一返回 null body，不泄露存在性。
+     */
+    @GetMapping("resolve")
+    public Result resolve(@RequestParam("name") String name, HttpSession session) {
+        Result result = Result.getInstance();
+        result.setBody(noteDataService.resolveNote(userId(session), name));
+        return result;
+    }
+
+    /** 反向链接（R7）：哪些可见笔记引用了 [[name]] */
+    @GetMapping("backlinks")
+    public Result backlinks(@RequestParam("name") String name, HttpSession session) {
+        Result result = Result.getInstance();
+        result.setBody(noteDataService.backlinks(userId(session), name));
+        return result;
+    }
+
+    /**
+     * 导出单篇笔记（R9）：md 文件下载。
+     * 自己的任意笔记或他人的 public 笔记；无权/不存在报 000018。
+     */
+    @GetMapping("export")
+    public ResponseEntity<byte[]> export(@RequestParam("ownerId") Long ownerId,
+                                         @RequestParam("name") String name,
+                                         HttpSession session) {
+        if (ownerId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        String md = noteDataService.exportNote(userId(session), ownerId, name);
+        if (md == null) {
+            return ResponseEntity.status(404).build();
+        }
+        String fname = name.replaceAll("[\\\\/:*?\"<>|]", "_") + ".md";
+        String encoded;
+        try {
+            // Java 8 无 encode(String, Charset) 重载，只能用 String 形式
+            encoded = java.net.URLEncoder.encode(fname, "UTF-8").replace("+", "%20");
+        } catch (java.io.UnsupportedEncodingException e) {
+            encoded = fname; // UTF-8 恒可用，理论不可达
+        }
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename*=UTF-8''" + encoded)
+                .contentType(MediaType.parseMediaType("text/markdown;charset=UTF-8"))
+                .body(md.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 导出自己的全部笔记（R9）：zip 下载，包内为原始 md 文件。
+     */
+    @GetMapping("exportAll")
+    public ResponseEntity<byte[]> exportAll(HttpSession session) {
+        List<String[]> files = noteDataService.exportAllNotes(userId(session));
+        if (files.isEmpty()) {
+            return ResponseEntity.status(404).build();
+        }
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(bos,
+                java.nio.charset.StandardCharsets.UTF_8)) {
+            for (String[] f : files) {
+                zip.putNextEntry(new java.util.zip.ZipEntry(f[0]));
+                zip.write(f[1].getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+        } catch (java.io.IOException e) {
+            log.error("打包笔记导出失败", e);
+            return ResponseEntity.status(500).build();
+        }
+        String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(new java.util.Date());
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=wxyd-notes-" + stamp + ".zip")
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .body(bos.toByteArray());
+    }
+
+    /**
+     * 重命名/合并标签（R10）：只影响自己的笔记。to 为空 = 删除该标签。
+     * 原生 fetch 下载场景少，这里仍走 jQuery 无妨；但下载链接必须原生 <a> 触发。
+     */
+    @PostMapping("tags/rename")
+    public Result renameTag(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        Map<String, Object> body = body(req);
+        try {
+            int changed = noteDataService.renameTag(userId(session),
+                    str(body.get("from")), str(body.get("to")));
+            result.setBody(changed);
+        } catch (IllegalArgumentException e) {
+            result.setErrorEnum(ErrorEnum.ERROR000015);
+            result.setErrorMsg(e.getMessage());
+        }
         return result;
     }
 

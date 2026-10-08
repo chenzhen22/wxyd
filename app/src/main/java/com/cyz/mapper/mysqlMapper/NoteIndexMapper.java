@@ -46,6 +46,21 @@ public interface NoteIndexMapper {
     List<NoteIndex> listPublicBySource(@Param("sourceKey") String sourceKey,
                                        @Param("limit") Integer limit);
 
+    /**
+     * 按标题精确解析一篇【对当前用户可见】的笔记（wiki 链接跳转用）：
+     * 自己的优先级由 order by 保证（own first），找不到返回 null。
+     */
+    NoteIndex findVisibleByName(@Param("currentUserId") Long currentUserId,
+                                @Param("noteName") String noteName);
+
+    /**
+     * 反向链接：正文中含 [[noteName]] 引用、且对当前用户可见的笔记（排除自身）。
+     * content 在索引里是全文，LIKE 即可；转义由调用方保证（标题已净化，不含 % _）。
+     */
+    List<NoteIndex> listBacklinks(@Param("currentUserId") Long currentUserId,
+                                  @Param("noteName") String noteName,
+                                  @Param("limit") Integer limit);
+
     /** 某用户用过的全部分类（含次数），供分类联想 */
     List<Map<String, Object>> listCategories(@Param("ownerId") Long ownerId);
 

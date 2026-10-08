@@ -414,6 +414,7 @@
                     </div>
                     <div class="note-hint-line" id="noteScopeHint"></div>
                     <div class="note-tag-filter" id="noteTagFilter"></div>
+                    <div class="note-tag-manage"><a href="javascript:;" id="btnTagManage">管理标签…</a></div>
                     <div class="note-list" id="noteList"></div>
                 </div>
                 <main class="note-article-col" id="noteArticleCol">
@@ -421,6 +422,13 @@
                     <div class="note-welcome">
                         <h2>📝 记忆笔记</h2>
                         <p>请从左侧选择一篇笔记开始阅读，或新增你自己的笔记</p>
+                        <div class="note-recent" id="noteRecent" style="display:none;">
+                            <div class="note-recent-title">🕘 最近浏览</div>
+                            <div id="noteRecentList"></div>
+                        </div>
+                        <div style="margin-top:12px;">
+                            <a class="note-export-all" id="btnExportAll" href="note/exportAll">⬇ 导出全部笔记（zip）</a>
+                        </div>
                     </div>
                     <article class="note-content" id="noteContent" style="display:none">
                         <h1 id="noteTitle"></h1>
@@ -429,7 +437,11 @@
                         <div class="note-source-bar" id="noteSourceBar" style="display:none;">
                             <a id="noteSourceLink" href="javascript:;">参考：<span id="noteSourceName"></span></a>
                         </div>
+                        <div class="note-backlinks" id="noteBacklinks" style="display:none;"></div>
                         <div id="noteBody"></div>
+                        <div style="margin-top:16px;display:none;" id="noteExportWrap">
+                            <a class="note-export-one" id="btnExportNote" href="#">⬇ 导出本篇（md）</a>
+                        </div>
                     </article>
                     <div class="note-editor" id="noteEditor" style="display:none;">
                         <div class="note-editor-row">
@@ -608,7 +620,7 @@
 <script src="Assets/js/group-chat.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/javaapi.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/shellscript.js?v=3" type="text/javascript"></script>
-<script src="Assets/js/note.js?v=4" type="text/javascript"></script>
+<script src="Assets/js/note.js?v=5" type="text/javascript"></script>
 <script src="Assets/js/dubbo.js?v=5" type="text/javascript"></script>
 <script src="Assets/js/archive.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/sqltool.js?v=2" type="text/javascript"></script>

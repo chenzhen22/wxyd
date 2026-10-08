@@ -26,8 +26,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 记忆笔记数据服务（用户级）。
@@ -437,6 +439,155 @@ public class NoteDataService {
         } catch (IllegalArgumentException e) {
             return new ArrayList<>();
         }
+    }
+
+    /* ---------------- v2 P1：wiki 链接 / 导出 / 标签管理 ---------------- */
+
+    /**
+     * 按标题解析一篇对当前用户可见的笔记（R7 wiki 链接跳转用）。
+     * 自己的优先；命中返回 ownerId+name，找不到返回 null。
+     */
+    public Note resolveNote(long viewerId, String name) {
+        String title = sanitizeTitle(name);
+        if (title == null) return null;
+        try {
+            NoteIndex row = noteIndexMapper.findVisibleByName(viewerId, title);
+            if (row == null) return null;
+            Note n = new Note();
+            n.setName(row.getNoteName());
+            n.setOwnerId(row.getOwnerId());
+            n.setOwnerName(row.getOwnerName());
+            n.setVisibility(row.getIsPublic() != null && row.getIsPublic() == 1 ? "public" : "private");
+            return n;
+        } catch (Exception e) {
+            log.warn("解析笔记标题失败：{} / {}", viewerId, title, e);
+            return null;
+        }
+    }
+
+    /**
+     * 反向链接（R7）：哪些可见笔记的正文引用了 [[name]]。
+     * 不含笔记自身；链接语法由前端渲染与点击。
+     */
+    public List<Note> backlinks(long viewerId, String name) {
+        String title = sanitizeTitle(name);
+        if (title == null) return new ArrayList<>();
+        try {
+            List<NoteIndex> rows = noteIndexMapper.listBacklinks(viewerId, title, 50);
+            List<Note> list = new ArrayList<>();
+            if (rows == null) return list;
+            for (NoteIndex r : rows) {
+                Note n = new Note();
+                n.setName(r.getNoteName());
+                n.setCategory(r.getCategory());
+                n.setOwnerId(r.getOwnerId());
+                n.setOwnerName(r.getOwnerName());
+                n.setUpdateTime(r.getUpdateTime());
+                n.setPreview(r.getPreview());
+                n.setVisibility(r.getIsPublic() != null && r.getIsPublic() == 1 ? "public" : "private");
+                list.add(n);
+            }
+            return list;
+        } catch (Exception e) {
+            log.warn("查询反向链接失败：{} / {}", viewerId, name, e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 导出单篇（R9）：自己的任意笔记或他人的 public 笔记。
+     * 返回带 frontmatter 的完整 md 文本；无权或不存在返回 null。
+     */
+    public String exportNote(long viewerId, long ownerId, String name) {
+        Note n = getNote(viewerId, ownerId, name);
+        if (n == null) return null;
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("name", n.getName());
+        meta.put("category", n.getCategory());
+        meta.put("visibility", n.getVisibility());
+        if (n.getTags() != null) meta.put("tags", n.getTags());
+        if (n.getSourceKey() != null) meta.put("source", n.getSourceKey());
+        return "---\n" + new Yaml().dump(meta) + "---\n\n" + (n.getContent() == null ? "" : n.getContent());
+    }
+
+    /**
+     * 导出自己的全部笔记（R9）。
+     * @return [0]=文件名, [1]=md 文本 的列表；文件名已保证唯一
+     */
+    public List<String[]> exportAllNotes(long userId) {
+        List<String[]> out = new ArrayList<>();
+        File dir = userDir(userId);
+        File[] files = dir.listFiles((d, name) -> name.endsWith(".md"));
+        if (files == null) return out;
+        Set<String> used = new HashSet<>();
+        for (File f : files) {
+            Note n = readNoteFile(f);
+            if (n == null) continue;
+            String fname = f.getName();
+            if (!used.add(fname)) continue;
+            try {
+                out.add(new String[]{fname,
+                        new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8)});
+            } catch (IOException e) {
+                log.warn("导出笔记读取失败：{}", f.getAbsolutePath(), e);
+            }
+        }
+        out.sort(Comparator.comparing(a -> a[0]));
+        return out;
+    }
+
+    /**
+     * 重命名/合并标签（R10）：只影响自己的笔记。
+     * to 为空视为"删除该标签"；合并时大小写不敏感去重（保持首次出现顺序）。
+     *
+     * @return 更新的笔记篇数
+     */
+    public int renameTag(long userId, String from, String to) {
+        String f = from == null ? "" : from.trim();
+        String t = to == null ? "" : to.trim();
+        if (f.isEmpty()) throw new IllegalArgumentException("原标签不能为空");
+        if (!t.isEmpty() && t.length() > 20) throw new IllegalArgumentException("新标签过长（≤20 字符）");
+        if (!t.isEmpty() && f.equalsIgnoreCase(t)) return 0; // 无变化
+        File dir = userDir(userId);
+        File[] files = dir.listFiles((d, name) -> name.endsWith(".md"));
+        if (files == null) return 0;
+        int changed = 0;
+        for (File file : files) {
+            try {
+                Note n = readNoteFile(file);
+                if (n == null || n.getTags() == null) continue;
+                boolean hit = false;
+                List<String> tags = new ArrayList<>();
+                for (String tag : n.getTags()) {
+                    if (tag.equalsIgnoreCase(f)) { hit = true; continue; }
+                    // 合并目标去重（大小写不敏感）
+                    boolean dup = false;
+                    for (String x : tags) {
+                        if (x.equalsIgnoreCase(t)) { dup = true; break; }
+                    }
+                    if (!dup) tags.add(tag);
+                }
+                if (!hit) continue;
+                if (!t.isEmpty()) tags.add(t);
+                List<String> norm = NoteSearchService.normalizeTags(tags);
+                // 重写文件：沿用该文件解析出的 meta（visibility 等）+ 新 tags
+                Map<String, Object> meta = new HashMap<>();
+                meta.put("name", n.getName());
+                meta.put("category", n.getCategory());
+                meta.put("visibility", n.getVisibility());
+                if (norm != null) meta.put("tags", norm);
+                if (n.getSourceKey() != null) meta.put("source", n.getSourceKey());
+                String md = "---\n" + new Yaml().dump(meta) + "---\n\n" + (n.getContent() == null ? "" : n.getContent());
+                Files.write(file.toPath(), md.getBytes(StandardCharsets.UTF_8));
+                syncIndex(userId, sanitizeTitle(n.getName()), n.getCategory(),
+                        n.getVisibility(), n.getContent(), norm, n.getSourceKey());
+                changed++;
+            } catch (IOException e) {
+                log.warn("标签重命名写文件失败：{}", file.getAbsolutePath(), e);
+            }
+        }
+        log.info("标签重命名完成：用户 {}，「{}」→「{}」，更新 {} 篇", userId, f, t, changed);
+        return changed;
     }
 
     /**

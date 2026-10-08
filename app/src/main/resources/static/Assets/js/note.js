@@ -25,11 +25,15 @@ var Note = (function () {
             .replace(/"/g, '&quot;');
     }
 
-    // 行内格式：先转义，再处理 `code` 与 **bold**（转义后安全）
+    // 行内格式：先转义，再处理 `code`、**bold** 与 [[wiki 链接]]（转义后安全）
     function inline(s) {
         return escHtml(s)
             .replace(/`([^`]+)`/g, '<code>$1</code>')
-            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/\[\[([^\[\]]+)\]\]/g, function (m, title) {
+                // R7 双向链接：点击后经 note/resolve 解析再跳转（服务端保证只解析可见笔记）
+                return '<a href="javascript:;" class="note-wikilink" data-wiki="' + title.trim() + '">' + title.trim() + '</a>';
+            });
     }
 
     // 将 markdown 正文渲染为 HTML，并抽取标题生成“本页目录”
@@ -304,9 +308,71 @@ var Note = (function () {
                 return;
             }
             currentDetail = res.body;
+            pushRecent(ownerId, name);
             renderNoteDetail(res.body, mine);
+            renderBacklinks(name);
+            // R9 单篇导出：原生 <a> 下载（jQuery ajax 不便处理 blob 下载）
+            $('#btnExportNote').attr('href', 'note/export?ownerId=' + ownerId
+                + '&name=' + encodeURIComponent(name));
+            $('#noteExportWrap').show();
             showView('content');
         }).fail(function () { loading(false); alterModal('加载失败'); });
+    }
+
+    /* ---------------- 最近浏览（R8，localStorage，仅本机本浏览器） ---------------- */
+
+    var RECENT_KEY = 'wxydNoteRecent';
+    var RECENT_MAX = 10;
+
+    function getRecent() {
+        try {
+            var raw = localStorage.getItem(RECENT_KEY);
+            var arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+        } catch (e) { return []; }
+    }
+
+    function pushRecent(ownerId, name) {
+        var list = getRecent().filter(function (r) {
+            return !(String(r.ownerId) === String(ownerId) && r.name === name);
+        });
+        list.unshift({ ownerId: ownerId, name: name, time: new Date().getTime() });
+        if (list.length > RECENT_MAX) list = list.slice(0, RECENT_MAX);
+        try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) { /* 存储满则忽略 */ }
+        renderRecent();
+    }
+
+    function renderRecent() {
+        var list = getRecent();
+        var $box = $('#noteRecent');
+        if (!list.length) { $box.hide(); return; }
+        var html = '';
+        list.forEach(function (r) {
+            html += '<div class="note-item note-recent-item" data-owner="' + escHtml(r.ownerId)
+                + '" data-name="' + escHtml(r.name) + '">'
+                + '<span class="note-item-name">' + escHtml(r.name) + '</span></div>';
+        });
+        $('#noteRecentList').html(html);
+        $box.show();
+    }
+
+    /* ---------------- 反向链接（R7） ---------------- */
+
+    function renderBacklinks(name) {
+        $.getJSON('note/backlinks?name=' + encodeURIComponent(name), function (res) {
+            var list = (res && res.body) || [];
+            var $b = $('#noteBacklinks');
+            if (!list.length) { $b.hide().empty(); return; }
+            var html = '<div class="note-backlinks-title">🔗 被以下笔记引用</div>';
+            list.forEach(function (n) {
+                html += '<a href="javascript:;" class="note-backlink" data-owner="' + n.ownerId
+                    + '" data-name="' + escHtml(n.name) + '">'
+                    + escHtml(n.name)
+                    + (n.ownerId === myId ? '' : ' <span class="note-item-owner">' + escHtml(n.ownerName || '') + '</span>')
+                    + '</a>';
+            });
+            $b.html(html).show();
+        });
     }
 
     function renderNoteDetail(note, mine) {
@@ -505,6 +571,7 @@ var Note = (function () {
             if (myId) $('#noteUserBadge').show();
             loadTags();
             loadCategories();
+            renderRecent();
         });
 
         $('#noteTabMine').on('click', function () { switchTab('mine'); });
@@ -546,6 +613,51 @@ var Note = (function () {
             var ownerId = $t.data('owner');
             var isMine = ownerId == null || (myId != null && ownerId === myId);
             openDetail(ownerId != null ? ownerId : myId, $t.data('name'), isMine);
+        });
+
+        // R7 wiki 链接：先 resolve 再跳（服务端只解析可见笔记）
+        $('#noteBody').on('click', '.note-wikilink', function () {
+            var title = $(this).data('wiki');
+            $.getJSON('note/resolve?name=' + encodeURIComponent(title), function (res) {
+                var n = res && res.body;
+                if (n && n.ownerId != null) {
+                    openDetail(n.ownerId, n.name, myId != null && n.ownerId === myId);
+                } else {
+                    alterModal('未找到笔记「' + title + '」（可能不存在或对您不可见）');
+                }
+            }).fail(function () { alterModal('解析失败'); });
+        });
+
+        // R7 反向链接 / R8 最近浏览：直接跳转
+        $('#noteBacklinks').on('click', '.note-backlink', function () {
+            var ownerId = $(this).data('owner');
+            openDetail(ownerId, $(this).data('name'), myId != null && ownerId === myId);
+        });
+        $('#noteRecentList').on('click', '.note-recent-item', function () {
+            var ownerId = $(this).data('owner');
+            openDetail(ownerId, $(this).data('name'), myId != null && ownerId === myId);
+        });
+
+        // R10 标签管理：重命名 / 合并 / 删除
+        $('#btnTagManage').on('click', function () {
+            var from = window.prompt('要修改的标签名：');
+            if (!from || !from.trim()) return;
+            var to = window.prompt('新标签名（留空 = 从所有笔记中删除该标签）：');
+            if (to === null) return;
+            $.ajax({
+                url: 'note/tags/rename', type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({ body: { from: from.trim(), to: to.trim() } }),
+                success: function (res) {
+                    if (res && res.errorCode === '000000') {
+                        alterModal('已更新 ' + (res.body || 0) + ' 篇笔记的标签');
+                        loadTags();
+                        reload();
+                    } else {
+                        alterModal((res && res.errorMsg) || '操作失败');
+                    }
+                },
+                error: function () { alterModal('操作失败'); }
+            });
         });
         $('#noteList').on('click', '.note-op', function () {
             var op = $(this).data('op');

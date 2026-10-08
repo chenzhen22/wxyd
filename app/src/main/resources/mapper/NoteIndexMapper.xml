@@ -133,6 +133,36 @@
 		  and `content` like concat('%',#{keyword},'%')
 	</select>
 
+	<!-- 按标题精确解析一篇可见笔记：自己的优先（wiki 链接跳转用） -->
+	<select id="findVisibleByName" resultType="com.cyz.note.model.NoteIndex">
+		select `owner_id`,`note_name`,`title`,`category`,`tags`,`source_key`,
+		       `is_public`,`content_indexed`,`preview`,`owner_name`,
+		       date_format(`update_time`,'%Y-%m-%d %H:%i') as `update_time`
+		from `note_index`
+		where `note_name`=#{noteName}
+		  and (`is_public`=1 or `owner_id`=#{currentUserId})
+		order by (`owner_id`=#{currentUserId}) desc, `update_time` desc
+		limit 1
+	</select>
+
+	<!--
+	  反向链接：正文中含 [[noteName]] 且对当前用户可见的笔记（排除自身）。
+	  注意：正文 LIKE 仅在 content 已入库时有效 —— 所有笔记正文均入库（属主检索需要），
+	  故此处无需 owner_id 限定正文条件；可见性仍由 ① 强制。
+	-->
+	<select id="listBacklinks" resultType="com.cyz.note.model.NoteIndex">
+		select `owner_id`,`note_name`,`title`,`category`,`tags`,`source_key`,
+		       `is_public`,`content_indexed`,`preview`,`owner_name`,
+		       date_format(`update_time`,'%Y-%m-%d %H:%i') as `update_time`
+		from `note_index`
+		where (`is_public`=1 or `owner_id`=#{currentUserId})
+		  and not (`owner_id`=#{currentUserId} and `note_name`=#{noteName})
+		  and `content_indexed`=1
+		  and `content` like concat('%[[',#{noteName},']]%')
+		order by `update_time` desc
+		limit #{limit}
+	</select>
+
 	<!-- 信息性：公开笔记中带正文的行数（属主本人需要全文检索自己的公开笔记，属预期） -->
 	<select id="countPublicWithContent" resultType="Integer">
 		select count(1) from `note_index`

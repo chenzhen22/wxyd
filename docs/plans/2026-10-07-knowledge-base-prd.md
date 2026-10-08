@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |----|------|
-| 版本 | v2.0（升级已有 v1「记忆笔记」，非新建模块） |
+| 版本 | v2.1（P0 全量 + P1 已实现：双向链接/最近浏览/导出/标签管理；H5 端同步待做） |
 | 日期 | 2026-10-07（2026-10-08 更新：Q1 全文检索范围定稿） |
 | 状态 | Q1/Q2/Q3 全部定稿，Phase 1–3 已实现并通过权限红线验证 |
 | 读者 | 研发 Leader / 技术评审 + 管理层立项 + 全角色通用 |
@@ -301,10 +301,10 @@ Then  "Java API"（预置）和该用户已建的 "Java"（个人）都可选
 
 | 需求 | 说明 | 对应 |
 |------|------|------|
-| R7 `[[双向链接]]` | 笔记正文引用另一篇笔记，详情页解析为可点击链接 | US-7 |
-| R8 最近浏览 | `GET /note/recent`，基于前端 localStorage 记录最近 10 篇 | US-8 |
-| R9 导出 | `GET /note/export?ownerId=&name=` 返回 md；`GET /note/exportAll` 打包 zip | US-9 |
-| R10 标签管理 | 标签列表 + 使用次数 + 重命名/合并（合并时批量改写所有笔记 frontmatter） | US-10 |
+| R7 `[[双向链接]]` | ✅ 已实现：`inline()` 渲染为可点击链接，`note/resolve` 服务端解析可见性后跳转；详情页展示反向链接（`note/backlinks`，索引 content LIKE `[[name]]`） | US-7 |
+| R8 最近浏览 | ✅ 已实现：纯前端 localStorage（key=wxydNoteRecent，上限 10 篇，去重置顶），欢迎页展示、点击直达；无后端接口（按 PRD 原设计） | US-8 |
+| R9 导出 | ✅ 已实现：单篇 md（带 frontmatter，Content-Disposition filename*=UTF-8''）、全量 zip（UTF-8 entry）；他人 private 一律 404 | US-9 |
+| R10 标签管理 | ✅ 已实现：`POST /note/tags/rename`（from→to，to 空=删除；合并大小写不敏感去重，批量重写 frontmatter + 同步索引），前端「管理标签…」入口 | US-10 |
 
 ### 5.3 Future Considerations（P2，v1 架构上需留口）
 

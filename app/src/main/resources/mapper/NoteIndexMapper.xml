@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cyz.mapper.mysqlMapper.NoteIndexMapper">
+
+	<!-- upsert：依赖 uk_owner_note 唯一键，避免应用层先查后插的竞态 -->
+	<insert id="upsert" parameterType="com.cyz.note.model.NoteIndex">
+		insert into `note_index`
+		(`owner_id`,`note_name`,`title`,`category`,`tags`,`source_key`,
+		 `is_public`,`content_indexed`,`content`,`preview`,`owner_name`,`update_time`)
+		values
+		(#{ownerId},#{noteName},#{title},#{category},#{tags},#{sourceKey},
+		 #{isPublic},#{contentIndexed},#{content},#{preview},#{ownerName},
+		 date_format(now(),'%Y-%m-%d %H:%i:%s'))
+		on duplicate key update
+			`title`=values(`title`),
+			`category`=values(`category`),
+			`tags`=values(`tags`),
+			`source_key`=values(`source_key`),
+			`is_public`=values(`is_public`),
+			`content_indexed`=values(`content_indexed`),
+			`content`=values(`content`),
+			`preview`=values(`preview`),
+			`owner_name`=values(`owner_name`),
+			`update_time`=values(`update_time`)
+	</insert>
+
+	<delete id="deleteByOwnerAndName">
+		delete from `note_index` where `owner_id`=#{ownerId} and `note_name`=#{noteName}
+	</delete>
+
+	<delete id="truncateAll">
+		truncate table `note_index`
+	</delete>
+
+	<!--
+	  全库检索。两条硬约束在 SQL 层强制，不依赖调用方自觉：
+	  ① 可见性：(is_public=1 OR owner_id=#{currentUserId}) —— private 对他人永不可见。
+	  ② 正文命中：必须同时满足 owner_id=#{currentUserId} AND content_indexed=1。
+	     注意 ② 不能只判 content_indexed —— 该列含义是「本篇正文已入库」，
+	     而任何人保存自己的笔记时正文都会入库（含 public）。若只判该列，
+	     他人搜 public 笔记的正文关键词就会命中，等于 Q1 决策失效。
+	     加上 owner_id 限定后：他人 public 笔记只能按标题命中（Q1 要求的行为）。
+	  scope/field 用 <choose> 收敛，避免任何用户输入拼进 SQL。
+	-->
+	<select id="search" resultType="com.cyz.note.model.NoteIndex">
+		select `owner_id`,`note_name`,`title`,`category`,`tags`,`source_key`,
+		       `is_public`,`content_indexed`,`content`,`preview`,`owner_name`,
+		       date_format(`update_time`,'%Y-%m-%d %H:%i') as `update_time`
+		from `note_index`
+		where (`is_public`=1 or `owner_id`=#{currentUserId})
+		<choose>
+			<when test="scope != null and scope == 'mine'">
+				and `owner_id`=#{currentUserId}
+			</when>
+			<when test="scope != null and scope == 'public'">
+				and `owner_id`&lt;&gt;#{currentUserId}
+			</when>
+			<otherwise/>
+		</choose>
+		<if test="keyword != null and keyword != ''">
+			and
+			<choose>
+				<when test="field == 'title'">
+					`title` like concat('%',#{keyword},'%')
+				</when>
+				<when test="field == 'content'">
+					`owner_id`=#{currentUserId}
+					and `content_indexed`=1
+					and `content` like concat('%',#{keyword},'%')
+				</when>
+				<otherwise>
+					(`title` like concat('%',#{keyword},'%')
+					 or (`owner_id`=#{currentUserId}
+					     and `content_indexed`=1
+					     and `content` like concat('%',#{keyword},'%')))
+				</otherwise>
+			</choose>
+		</if>
+		order by
+		<choose>
+			<when test="keyword != null and keyword != '' and field != 'content'">
+				(case when `title` like concat('%',#{keyword},'%') then 0 else 1 end) asc,
+			</when>
+			<otherwise/>
+		</choose>
+		`update_time` desc, `id` desc
+		limit #{limit}
+	</select>
+
+	<!-- 反查引用某来源条目的公开笔记（资料页底部「关于此条目的笔记」） -->
+	<select id="listPublicBySource" resultType="com.cyz.note.model.NoteIndex">
+		select `owner_id`,`note_name`,`title`,`category`,`tags`,`source_key`,
+		       `is_public`,`content_indexed`,`preview`,`owner_name`,
+		       date_format(`update_time`,'%Y-%m-%d %H:%i') as `update_time`
+		from `note_index`
+		where `source_key`=#{sourceKey} and `is_public`=1
+		order by `update_time` desc, `id` desc
+		limit #{limit}
+	</select>
+
+	<!-- 分类聚合：前端联想用（预置词表由服务层合并，此处只给用户自建分类） -->
+	<select id="listCategories" resultType="java.util.HashMap">
+		select `category` as `name`, count(*) as `cnt`
+		from `note_index`
+		where `owner_id`=#{ownerId} and `category`&lt;&gt;''
+		group by `category`
+		order by cnt desc, `category` asc
+	</select>
+
+	<!--
+	  标签聚合：tags 是逗号分隔的单列，无法直接对单个标签 group by，
+	  故此处按「整串 tags 值」分组返回，分串统计在 NoteSearchService 内存中完成。
+	  注意：远程 MySQL 开启了 only_full_group_by，聚合查询必须带 GROUP BY，
+	  否则报 "In aggregated query without GROUP BY"（曾导致 /note/tags 500）。
+	-->
+	<select id="listTags" resultType="java.util.HashMap">
+		select `tags` as `name`, count(*) as `cnt`
+		from `note_index`
+		where `owner_id`=#{ownerId} and `tags`&lt;&gt;''
+		group by `tags`
+	</select>
+
+	<!--
+	  🔒 检索越权自检：与 search 的 field=content 分支条件保持一致。
+	  正常返回 0；大于 0 说明 search 正文匹配漏了 owner_id 限定（Q1 被绕过）。
+	  keyword 由调用方从「他人 public 笔记的正文」取样生成。
+	-->
+	<select id="countContentSearchHits" resultType="Integer">
+		select count(1) from `note_index`
+		where (`is_public`=1 or `owner_id`=#{currentUserId})
+		  and `owner_id`=#{currentUserId}
+		  and `content_indexed`=1
+		  and `content` like concat('%',#{keyword},'%')
+	</select>
+
+	<!-- 信息性：公开笔记中带正文的行数（属主本人需要全文检索自己的公开笔记，属预期） -->
+	<select id="countPublicWithContent" resultType="Integer">
+		select count(1) from `note_index`
+		where `is_public`=1 and `content_indexed`=1 and ifnull(`content`,'')&lt;&gt;''
+	</select>
+
+	<select id="countAll" resultType="Integer">
+		select count(1) from `note_index`
+	</select>
+
+	<select id="listOwnerIds" resultType="java.lang.Long">
+		select distinct `owner_id` from `note_index` order by `owner_id`
+	</select>
+
+</mapper>

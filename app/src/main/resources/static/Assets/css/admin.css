@@ -2239,6 +2239,84 @@ select option { background: var(--select-bg); color: var(--select-fg); }
 .note-tab.active { background: var(--accent-grad); color: #fff; border: none; font-weight: 600; }
 .note-hint { padding: 20px 10px; text-align: center; color: var(--text-9); font-size: 13px; }
 
+/* ---------- v2：个人知识库 ---------- */
+
+/* 检索范围 / 字段 */
+.note-field-row { display: flex; gap: 6px; margin-bottom: 6px; }
+.note-field {
+    flex: 1; min-width: 0; padding: 4px 6px; font-size: 12px;
+    background: var(--glass-4); color: var(--text-3);
+    border: 1px solid var(--glass-5); border-radius: 6px; cursor: pointer;
+}
+.note-field:focus { outline: none; border-color: var(--accent); }
+
+/* 范围提示：说明"他人笔记仅按标题匹配"（Q1 决策的用户可见表达） */
+.note-hint-line { font-size: 11px; color: var(--text-9); line-height: 1.5; margin-bottom: 6px; }
+.note-hint-line.warn { color: #e0a800; }
+
+/* 标签筛选 */
+.note-tag-filter { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.note-tag-filter:empty { display: none; }
+.note-tag-chip {
+    padding: 2px 8px; font-size: 11px; border-radius: 10px; cursor: pointer;
+    background: var(--glass-4); color: var(--text-5); border: 1px solid transparent;
+}
+.note-tag-chip:hover { border-color: var(--accent); color: var(--text-1); }
+.note-tag-chip.active { background: rgba(167, 139, 250, .18); color: #a78bfa; border-color: rgba(167, 139, 250, .4); }
+.note-tag-chip .cnt { opacity: .6; margin-left: 3px; }
+
+/* 列表项里的标签与命中标记 */
+.note-item-tags { display: flex; gap: 3px; flex-shrink: 0; }
+.note-item-tag {
+    padding: 0 5px; font-size: 10px; border-radius: 4px;
+    background: rgba(167, 139, 250, .12); color: #a78bfa; white-space: nowrap;
+}
+.note-item-badge {
+    padding: 0 5px; font-size: 10px; border-radius: 4px; flex-shrink: 0;
+    background: rgba(255, 193, 7, .15); color: #e0a800;
+}
+.note-item-badge.title { background: rgba(67, 233, 123, .15); color: #43e97b; }
+.note-preview {
+    font-size: 11px; color: var(--text-9); line-height: 1.5;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px;
+}
+.note-preview mark { background: rgba(167, 139, 250, .3); color: #e9e3ff; border-radius: 2px; }
+.note-item { flex-wrap: wrap; }
+.note-item-main { flex: 1; min-width: 0; }
+
+/* 详情页标签行 */
+.note-tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0; }
+.note-tag-view {
+    padding: 2px 9px; font-size: 12px; border-radius: 10px; cursor: pointer;
+    background: rgba(167, 139, 250, .12); color: #a78bfa;
+}
+.note-tag-view:hover { background: rgba(167, 139, 250, .22); }
+
+/* 来源跳转条（R3 正向关联） */
+.note-source-bar {
+    margin: 10px 0; padding: 8px 12px; border-radius: 8px;
+    background: rgba(56, 189, 248, .1); border-left: 3px solid rgba(56, 189, 248, .5);
+    font-size: 13px;
+}
+.note-source-bar a { color: #38bdf8; text-decoration: none; }
+.note-source-bar a:hover { text-decoration: underline; }
+
+/* 资料页「存入笔记」按钮 */
+.btn-save-note {
+    border: none; background: rgba(167, 139, 250, .16); color: #a78bfa;
+    font-size: 11px; padding: 2px 9px; border-radius: 5px; cursor: pointer;
+    white-space: nowrap; transition: background .15s;
+}
+.btn-save-note:hover { background: rgba(167, 139, 250, .3); }
+.btn-save-note.done { background: rgba(67, 233, 123, .2); color: #43e97b; }
+.source-note-bar {
+    margin-top: 12px; padding: 8px 12px; border-radius: 8px; font-size: 13px;
+    background: rgba(167, 139, 250, .08); border-left: 3px solid rgba(167, 139, 250, .45);
+    color: var(--text-4);
+}
+.source-note-bar a { color: #a78bfa; text-decoration: none; cursor: pointer; }
+.source-note-bar a:hover { text-decoration: underline; }
+
 .note-item { display: flex; align-items: center; gap: 6px; }
 .note-item .note-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note-item-owner { font-size: 11px; color: var(--text-9); flex-shrink: 0; }

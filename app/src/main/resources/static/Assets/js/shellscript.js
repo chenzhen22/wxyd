@@ -122,6 +122,69 @@ var ShellScript = (function () {
         $('#ssIntro').html(renderMarkdown(topic.intro || ''));
         renderSyntaxes(topic.syntaxes || []);
         renderExamples(topic.examples || []);
+        renderSourceNotes(topic.name, topic.category);
+    }
+
+    /**
+     * 一键沉淀（R2）：把当前条目完整存成我的私有笔记。
+     * 内容按资料页的原有结构拼装（介绍 / 语法 / 示例），保证笔记可独立阅读。
+     */
+    function saveCurrentTopic() {
+        if (!currentTopic) return;
+        var t = currentTopic;
+        var md = ['## 介绍', t.intro || '', '## 语法'];
+        (t.syntaxes || []).forEach(function (s) {
+            md.push('### ' + s.name);
+            if (s.signature) md.push('```bash', s.signature, '```');
+            if (s.description) md.push(s.description);
+        });
+        md.push('## 示例');
+        (t.examples || []).forEach(function (ex) {
+            md.push('### ' + ex.name);
+            if (ex.description) md.push(ex.description);
+            if (ex.code) md.push('```bash', ex.code, '```');
+        });
+        if (typeof Note !== 'undefined' && Note.saveFromSource) {
+            Note.saveFromSource('shell/' + t.name, t.name, t.category, md.join('\n'), function (ok, msg) {
+                var $b = $('#btnSaveNote');
+                if (ok) {
+                    $b.text('已存入').addClass('done');
+                    setTimeout(function () { $b.text('存入笔记').removeClass('done'); }, 2000);
+                    alterModal('已存为私有笔记：' + msg);
+                } else {
+                    alterModal(msg || '保存失败');
+                }
+            });
+        } else {
+            alterModal('笔记模块未就绪');
+        }
+    }
+
+    /** 反向关联（R3）：展示有多少公开笔记引用了当前条目 */
+    function renderSourceNotes(name, category) {
+        if (typeof Note === 'undefined' || !Note.listSourceNotes) { return; }
+        Note.listSourceNotes('shell/' + name, function (list) {
+            if (!list || !list.length) { $('#ssSourceNotes').remove(); return; }
+            var html = '<div class="source-note-bar">关于此条目的笔记（' + list.length + '）：';
+            list.forEach(function (n, i) {
+                html += (i > 0 ? '、' : '')
+                    + '<a data-owner="' + n.ownerId + '" data-name="' + escHtml(n.name) + '">'
+                    + escHtml(n.name) + '</a>';
+            });
+            html += '</div>';
+            $('#ssSourceNotes').remove();
+            $('#ssExamples').after(html);
+            $('#ssSourceNotes a').off('click').on('click', function () {
+                openNote($(this).data('owner'), $(this).data('name'));
+            });
+        });
+    }
+
+    /** 跳到笔记模块并打开该篇（详情在 api.html 的笔记页） */
+    function openNote(ownerId, name) {
+        var u = 'note.html?ownerId=' + encodeURIComponent(ownerId)
+              + '&name=' + encodeURIComponent(name);
+        window.open(u, '_blank');
     }
 
     function renderSyntaxes(syntaxes) {
@@ -167,6 +230,11 @@ var ShellScript = (function () {
             var keyword = $(this).val().trim().toLowerCase();
             renderTopicList(allTopics, keyword);
         });
+
+        var $btn = $('#btnSaveNote');
+        if ($btn.length) {
+            $btn.on('click', function () { saveCurrentTopic(); });
+        }
     }
 
     return { init: init };

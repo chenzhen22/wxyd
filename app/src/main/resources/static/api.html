@@ -224,7 +224,10 @@
                         <p>请从左侧选择一个 API 开始学习，支持在线编辑运行测试代码</p>
                     </div>
                     <div class="javaapi-content" id="jaContent" style="display:none">
-                        <h1 id="jaTitle"></h1>
+                        <div style="display:flex;align-items:flex-start;gap:10px;justify-content:space-between;">
+                            <h1 id="jaTitle" style="flex:1;margin-bottom:0;"></h1>
+                            <button class="btn-save-note" id="btnSaveApi" title="把本条目（含方法与示例）存为我的私有笔记">存入笔记</button>
+                        </div>
                         <span id="jaPackage" class="package-badge"></span>
                         <div id="jaIntro"></div>
                         <h3>📋 方法列表</h3>
@@ -261,7 +264,10 @@
                         <p>请从左侧选择一个主题开始学习</p>
                     </div>
                     <div class="shellscript-content" id="ssContent" style="display:none">
-                        <h1 id="ssTitle"></h1>
+                        <div style="display:flex;align-items:flex-start;gap:10px;justify-content:space-between;">
+                            <h1 id="ssTitle" style="flex:1;margin-bottom:0;"></h1>
+                            <button class="btn-save-note" id="btnSaveNote" title="把本条目完整存为我的私有笔记">存入笔记</button>
+                        </div>
                         <span id="ssCategory" class="category-badge"></span>
                         <div id="ssIntro"></div>
                         <h3>📋 语法速查</h3>
@@ -327,6 +333,7 @@
                             <button class="btn-main" id="dubboSave" type="button">保存</button>
                             <button class="btn-main" id="dubboInvoke" type="button">调用</button>
                             <button class="btn-api" id="dubboRename" type="button">重命名</button>
+                            <button class="btn-api" id="dubboSaveNote" type="button" title="把当前调用配置存为我的私有笔记，便于下次复用">存为笔记</button>
                             <button class="btn-del" id="dubboDelete" type="button">删除</button>
                         </div>
                     </div>
@@ -392,7 +399,21 @@
                         <button class="note-tab" id="noteTabPublic">公共搜索</button>
                     </div>
                     <button class="btn-main" id="btnNewNote" style="width:100%;margin-bottom:8px;">＋ 新增笔记</button>
-                    <input type="text" id="noteSearch" class="note-search" placeholder="🔍 搜索笔记..." autocomplete="off">
+                    <input type="text" id="noteSearch" class="note-search" placeholder="🔍 搜索笔记（标题+正文）" autocomplete="off">
+                    <div class="note-field-row">
+                        <select id="noteScope" class="note-field">
+                            <option value="mine">我的笔记</option>
+                            <option value="public">他人公开</option>
+                            <option value="all">全部可见</option>
+                        </select>
+                        <select id="noteField" class="note-field">
+                            <option value="all">标题+正文</option>
+                            <option value="title">仅标题</option>
+                            <option value="content">仅正文</option>
+                        </select>
+                    </div>
+                    <div class="note-hint-line" id="noteScopeHint"></div>
+                    <div class="note-tag-filter" id="noteTagFilter"></div>
                     <div class="note-list" id="noteList"></div>
                 </div>
                 <main class="note-article-col" id="noteArticleCol">
@@ -404,16 +425,24 @@
                     <article class="note-content" id="noteContent" style="display:none">
                         <h1 id="noteTitle"></h1>
                         <div class="note-meta"><span id="noteCategory" class="category-badge"></span><span id="noteVisBadge" class="note-vis-badge"></span><span id="noteEditWrap" style="display:none;"><button class="btn-main" id="btnEditNote" style="padding:3px 12px;font-size:12px;">编辑</button></span></div>
+                        <div class="note-tags" id="noteTags" style="display:none;"></div>
+                        <div class="note-source-bar" id="noteSourceBar" style="display:none;">
+                            <a id="noteSourceLink" href="javascript:;">参考：<span id="noteSourceName"></span></a>
+                        </div>
                         <div id="noteBody"></div>
                     </article>
                     <div class="note-editor" id="noteEditor" style="display:none;">
                         <div class="note-editor-row">
                             <input type="text" id="noteEditTitle" class="note-editor-input" placeholder="标题" maxlength="50">
-                            <input type="text" id="noteEditCategory" class="note-editor-input" placeholder="分类" maxlength="20">
+                            <input type="text" id="noteEditCategory" class="note-editor-input" placeholder="分类" maxlength="20" list="noteCategoryList">
+                            <datalist id="noteCategoryList"></datalist>
                             <select id="noteEditVis" class="note-editor-input" style="width:auto;">
                                 <option value="public">公共</option>
                                 <option value="private">私有</option>
                             </select>
+                        </div>
+                        <div class="note-editor-row" style="margin-top:8px;">
+                            <input type="text" id="noteEditTags" class="note-editor-input" placeholder="标签，逗号分隔（如：Java, 性能, 故障案例）">
                         </div>
                         <textarea id="noteEditBody" class="note-editor-body" placeholder="正文（markdown 格式）…"></textarea>
                         <div id="noteEditPreview" class="note-editor-preview" style="display:none;"></div>
@@ -577,10 +606,10 @@
 </div>
 <script src="Assets/js/menu-manage.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/group-chat.js?v=3" type="text/javascript"></script>
-<script src="Assets/js/javaapi.js?v=2" type="text/javascript"></script>
-<script src="Assets/js/shellscript.js?v=2" type="text/javascript"></script>
-<script src="Assets/js/note.js?v=3" type="text/javascript"></script>
-<script src="Assets/js/dubbo.js?v=4" type="text/javascript"></script>
+<script src="Assets/js/javaapi.js?v=3" type="text/javascript"></script>
+<script src="Assets/js/shellscript.js?v=3" type="text/javascript"></script>
+<script src="Assets/js/note.js?v=4" type="text/javascript"></script>
+<script src="Assets/js/dubbo.js?v=5" type="text/javascript"></script>
 <script src="Assets/js/archive.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/sqltool.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>

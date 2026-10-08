@@ -276,6 +276,57 @@ var DubboTool = (function ($) {
         }
     }
 
+    /**
+     * 一键沉淀（R2）：把当前 Dubbo 调用配置存为我的私有笔记。
+     * Dubbo 没有资料页，摘录对象是「可复用的调用样例」——
+     * 调通过的接口 + 参数是最值得沉淀的经验之一，下次直接翻笔记复用。
+     */
+    function saveAsNote() {
+        var cfg = readForm();
+        if (!cfg.interfaceName || !cfg.methodName) {
+            showError('请先填写接口名与方法名');
+            return;
+        }
+        var title = (cfg.name || (cfg.serviceName || 'Dubbo') + '.' + cfg.methodName);
+        var md = [
+            '## 调用配置',
+            '```json',
+            JSON.stringify({
+                registryAddress: cfg.registryAddress,
+                serviceName: cfg.serviceName,
+                version: cfg.version,
+                interfaceName: cfg.interfaceName,
+                methodName: cfg.methodName,
+                timeout: cfg.timeout
+            }, null, 2),
+            '```',
+            '## 请求参数',
+            '```json',
+            cfg.paramJson || '{}',
+            '```'
+        ];
+        var res = gid('dubboResult').textContent;
+        if (res) {
+            md.push('## 上次调用结果');
+            md.push('```json');
+            md.push(res.length > 4000 ? res.slice(0, 4000) + '\n...（已截断）' : res);
+            md.push('```');
+        }
+        if (typeof Note === 'undefined' || !Note.saveFromSource) {
+            showError('笔记模块未就绪');
+            return;
+        }
+        Note.saveFromSource('dubbo/' + (currentId || cfg.name || 'call'),
+            title, 'Dubbo', md.join('\n'), function (ok, msg) {
+                if (ok) {
+                    showError('');
+                    alert('已存为私有笔记：' + msg);
+                } else {
+                    showError(msg || '保存失败');
+                }
+            });
+    }
+
     function init() {
         gid('dubboNew').addEventListener('click', newRequest);
         gid('dubboSave').addEventListener('click', saveConfig);
@@ -288,6 +339,8 @@ var DubboTool = (function ($) {
             if (currentId) { deleteConfig(currentId); } else { showError('请先保存或从左侧列表加载请求'); }
         });
         gid('dubboFormat').addEventListener('click', formatJson);
+        var $btn = document.getElementById('dubboSaveNote');
+        if ($btn) { $btn.addEventListener('click', saveAsNote); }
         gid('dubboSearch').addEventListener('input', function (e) {
             searchTerm = e.target.value || '';
             refreshList();

@@ -136,6 +136,59 @@ var JavaApi = (function () {
         $('#jaResultError').hide();
         isRunning = false;
         $('#jaRunBtn').text('▶ 运行测试').prop('disabled', false);
+
+        renderApiSourceNotes(api.name);
+    }
+
+    /**
+     * 一键沉淀（R2）：把当前 API 条目（含方法签名与可运行示例）存为我的私有笔记。
+     * 这是最有价值的摘录场景 —— 查到能用的 API，当场存下比事后回忆强得多。
+     */
+    function saveCurrentApi() {
+        if (!currentApi) return;
+        var a = currentApi;
+        var md = ['## 介绍', a.intro || '', '## 方法'];
+        (a.methods || []).forEach(function (m) {
+            md.push('### ' + (m.signature || m.name));
+            if (m.description) md.push(m.description);
+        });
+        md.push('## 可运行示例');
+        (a.testCases || []).forEach(function (t) {
+            md.push('### ' + t.name);
+            if (t.description) md.push(t.description);
+            if (t.code) md.push('```java', t.code, '```');
+        });
+        if (typeof Note !== 'undefined' && Note.saveFromSource) {
+            Note.saveFromSource('javaapi/' + a.name, a.name, 'Java API', md.join('\n'), function (ok, msg) {
+                var $b = $('#btnSaveApi');
+                if (ok) {
+                    $b.text('已存入').addClass('done');
+                    setTimeout(function () { $b.text('存入笔记').removeClass('done'); }, 2000);
+                    alterModal('已存为私有笔记：' + msg);
+                } else {
+                    alterModal(msg || '保存失败');
+                }
+            });
+        } else {
+            alterModal('笔记模块未就绪');
+        }
+    }
+
+    /** 反向关联（R3）：有多少公开笔记引用了当前 API */
+    function renderApiSourceNotes(name) {
+        if (typeof Note === 'undefined' || !Note.listSourceNotes) { return; }
+        Note.listSourceNotes('javaapi/' + name, function (list) {
+            var bar = $('#jaSourceNotes');
+            if (!list || !list.length) { bar.remove(); return; }
+            var html = '关于此 API 的笔记（' + list.length + '）：';
+            list.forEach(function (n, i) {
+                html += (i > 0 ? '、' : '')
+                    + '<a href="note.html?ownerId=' + encodeURIComponent(n.ownerId)
+                    + '&name=' + encodeURIComponent(n.name) + '" target="_blank">' + escHtml(n.name) + '</a>';
+            });
+            bar.remove();
+            $('#jaIntro').after('<div class="source-note-bar" id="jaSourceNotes">' + html + '</div>');
+        });
     }
 
     function renderMethods(methods) {
@@ -293,6 +346,11 @@ var JavaApi = (function () {
             var methodName = $(this).data('method');
             jumpToTestCase(methodName);
         });
+
+        var $btn = $('#btnSaveApi');
+        if ($btn.length) {
+            $btn.on('click', function () { saveCurrentApi(); });
+        }
     }
 
     return { init: init };

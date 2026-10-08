@@ -3,10 +3,12 @@
 --
 -- 设计要点：
 --   1. md 文件仍是唯一真相源（保留 v1 的可导出、可手工编辑优势），本表仅作检索加速。
---   2. 【全文检索只覆盖本人笔记】产品决策 Q1 已定稿：content 列只入库「属主自己的笔记」正文，
---      他人 public 笔记仅存元数据（title/category/tags/preview），content 留空，
---      并置 content_indexed=0 作为显式标志，查询层据此决定能否做内容命中。
---      → 代价：搜他人的 public 笔记只能按标题命中，搜不到正文内容。这是已知且已接受的取舍。
+--   2. 【全文检索只对属主生效】产品决策 Q1：任何人保存自己的笔记时正文都会入库
+--      （否则本人无法全文检索自己的笔记，这是功能本身的要求）。
+--      Q1 的保证来自**查询条件**，不是来自"库里没有这份数据"：
+--        - 正文命中条件必须写作 `owner_id = #{currentUserId} AND content_indexed = 1`
+--        - 漏掉 owner_id 限定会让他人搜到你的 public 笔记正文（已实测踩过，见 NoteIndexMapper.xml 注释）
+--      → 表现：他人 public 笔记只能按标题命中，搜不到正文内容。这是已知且已接受的取舍。
 --   3. 查询必须强制 `is_public = 1 OR owner_id = #{currentUserId}`，
 --      private 笔记绝不出现在他人结果里；content 列再叠一层纵深防御。
 --   4. uk_owner_note(owner_id, note_name) 保证一用户一标题，与 v1 的「同用户标题唯一」一致。
@@ -20,8 +22,8 @@ CREATE TABLE IF NOT EXISTS `note_index` (
   `tags` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '标签，逗号分隔',
   `source_key` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '来源条目 key（javaapi/xxx、shell/xxx），空=非摘录',
   `is_public` TINYINT NOT NULL DEFAULT 1 COMMENT '1=公开 0=私有',
-  `content_indexed` TINYINT NOT NULL DEFAULT 0 COMMENT '1=content 已入库 0=仅元数据（他人public不入库，Q1决策）',
-  `content` MEDIUMTEXT COMMENT '正文全文，仅 content_indexed=1 时有值，供本人内容命中检索',
+  `content_indexed` TINYINT NOT NULL DEFAULT 0 COMMENT '1=本篇正文已入库（仅 owner_id 本人可做正文命中检索）',
+  `content` MEDIUMTEXT COMMENT '正文全文；仅 owner_id 本人可检索，查询条件强制限定',
   `preview` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '列表预览，150 字',
   `owner_name` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '属主展示名，冗余避免列表 N+1',
   `update_time` DATETIME NOT NULL COMMENT '文件最后修改时间',

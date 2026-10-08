@@ -1,16 +1,22 @@
 /**
- * 记忆笔记前端逻辑（用户级 · 可编辑）
- * 双 tab：我的笔记（可新增/编辑/删除）/ 公共搜索（按标题搜公共笔记，只读）。
+ * 记忆笔记前端逻辑（用户级 · 可编辑）—— 个人知识库 v2
+ * 检索走服务端（note/search?keyword&scope&field），支持标题+正文全文命中。
+ * 双 tab：我的笔记（可新增/编辑/删除）/ 公共搜索（他人公开笔记，只读）。
  * 编辑器为纯 textarea + renderMarkdown 实时预览；详情排版沿用左侧目录 + 居中文章 + 右侧 TOC。
- * 后端：note/list、note/search、note/get、note/save、note/delete（Result 包裹）。
+ * 后端：note/list、note/search、note/get、note/save、note/delete、
+ *       note/saveFromSource、note/categories、note/tags、note/rebuildIndex。
+ *
+ * ⚠️ Q1 决策（产品）：他人公开笔记的正文不入库，只能按标题搜索。
+ *    前端在 scope 包含他人时必须给出明确文案，避免用户误以为功能失效。
  */
 var Note = (function () {
-    var allNotes = [];      // 我的笔记
+    var allNotes = [];      // 当前列表
     var mode = 'mine';      // mine | public
     var myId = null;
     var editing = null;     // {oldName, isNew}
     var currentDetail = null;
     var loaded = false;
+    var activeTag = null;   // 当前标签筛选（null=不限）
 
     function escHtml(str) {
         if (!str) return '';
@@ -104,6 +110,41 @@ var Note = (function () {
         return { html: html, toc: toc };
     }
 
+    /** 搜索结果预览：把命中的关键词高亮（先转义再插 mark，避免 XSS） */
+    function highlight(text, keyword) {
+        var safe = escHtml(text || '');
+        if (!keyword) return safe;
+        var kw = escHtml(keyword);
+        if (!kw) return safe;
+        try {
+            var re = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            return safe.replace(re, function (m) { return '<mark>' + m + '</mark>'; });
+        } catch (e) {
+            return safe;
+        }
+    }
+
+    /** sourceKey → 资料页跳转 URL（正向关联 R3）；dubbo 无独立资料页返回 null */
+    function sourceUrl(key) {
+        if (!key) return null;
+        var parts = String(key).split('/');
+        var kind = parts[0];
+        var name = parts[1];
+        if (!name) return null;
+        if (kind === 'javaapi') return 'javaapi.html?topic=' + encodeURIComponent(name);
+        if (kind === 'shell') return 'shellscript.html?topic=' + encodeURIComponent(name);
+        return null;
+    }
+
+    function sourceLabel(key) {
+        if (!key) return '';
+        var parts = String(key).split('/');
+        var kind = parts[0] === 'javaapi' ? 'Java API'
+            : parts[0] === 'shell' ? 'Shell 脚本'
+            : parts[0] === 'dubbo' ? 'Dubbo 调用' : '资料';
+        return kind + ' / ' + (parts[1] || '');
+    }
+
     /* ---------------- 视图切换 ---------------- */
 
     function showView(view) {
@@ -119,87 +160,137 @@ var Note = (function () {
         $('#noteTabPublic').toggleClass('active', m === 'public');
         $('#btnNewNote').toggle(m === 'mine');
         $('#noteSearch').val('');
-        if (m === 'mine') {
-            loadMyNotes();
-        } else {
+        $('#noteScope').val(m === 'public' ? 'public' : 'mine');
+        activeTag = null;
+        loadTags();
+        if (m === 'public') {
             showView('welcome');
             $('#noteBreadcrumb').text('记忆笔记 / 公共搜索');
-            loadPublic('');
+        }
+        refreshScopeHint();
+        reload();
+    }
+
+    /** 范围提示：他人笔记只能按标题搜（Q1 决策），必须如实告知用户 */
+    function refreshScopeHint() {
+        var scope = $('#noteScope').val();
+        var field = $('#noteField').val();
+        var $h = $('#noteScopeHint');
+        if (scope !== 'mine' && field !== 'title') {
+            $h.attr('class', 'note-hint-line warn')
+               .text('他人笔记仅支持按标题搜索（正文不入库）');
+        } else {
+            $h.attr('class', 'note-hint-line').text('');
         }
     }
 
-    /* 公共笔记（keyword 为空时返回全部，按标题模糊搜索） */
-    function loadPublic(keyword) {
+    /** 统一按当前 scope/field/keyword 走服务端检索 */
+    function reload() {
+        var kw = ($('#noteSearch').val() || '').trim();
+        var scope = $('#noteScope').val();
+        var field = $('#noteField').val();
         loading(true);
-        $.getJSON('note/search' + (keyword ? '?keyword=' + encodeURIComponent(keyword) : ''), function (res) {
+        var url = 'note/search?field=' + encodeURIComponent(field)
+                + '&scope=' + encodeURIComponent(scope)
+                + (kw ? '&keyword=' + encodeURIComponent(kw) : '');
+        $.getJSON(url, function (res) {
             loading(false);
-            renderPublicList((res && res.body) || []);
-        }).fail(function () {
-            loading(false);
-            $('#noteList').html('<div class="note-hint">加载失败</div>');
-        });
-    }
-
-    function renderPublicList(list) {
-        if (!list.length) {
-            $('#noteList').html('<div class="note-hint">' + ($('#noteSearch').val().trim() ? '未找到相关公共笔记' : '暂无公共笔记') + '</div>');
-            return;
-        }
-        var html = '';
-        list.forEach(function (t) {
-            html += '<div class="note-item" data-owner="' + t.ownerId + '" data-name="' + escHtml(t.name) + '">' +
-                '<span class="note-item-name">' + escHtml(t.name) + '</span>' +
-                '<span class="note-item-owner">' + escHtml(t.ownerName || '') + '</span></div>';
-        });
-        $('#noteList').html(html);
-    }
-
-    /* ---------------- 我的笔记 ---------------- */
-
-    function loadMyNotes() {
-        $.getJSON('note/list', function (res) {
             allNotes = (res && res.body) || [];
-            renderMyList($('#noteSearch').val());
+            renderList(allNotes, kw);
         }).fail(function () {
+            loading(false);
             $('#noteList').html('<div class="note-hint">加载失败</div>');
         });
     }
 
-    function renderMyList(keyword) {
-        var filtered = allNotes.filter(function (t) {
-            if (!keyword) return true;
-            var kw = keyword.toLowerCase();
-            return (t.name && t.name.toLowerCase().indexOf(kw) !== -1)
-                || (t.category && t.category.toLowerCase().indexOf(kw) !== -1);
-        });
-        if (filtered.length === 0) {
-            $('#noteList').html('<div class="note-hint">' + (keyword ? '未找到匹配的笔记' : '暂无笔记，点击「＋ 新增笔记」创建') + '</div>');
+    function renderList(list, keyword) {
+        if (activeTag) {
+            list = list.filter(function (n) {
+                return (n.tags || []).some(function (t) { return t === activeTag; });
+            });
+        }
+        if (!list.length) {
+            $('#noteList').html('<div class="note-hint">' + (keyword ? '未找到相关笔记' : '暂无笔记') + '</div>');
             return;
         }
+        var mine = $('#noteScope').val() === 'mine';
         var groups = {};
-        filtered.forEach(function (t) {
-            var cat = t.category || '未分类';
-            if (!groups[cat]) groups[cat] = [];
-            groups[cat].push(t);
+        var order = [];
+        list.forEach(function (n) {
+            var g = (n.category || '未分类') + '\u0000' + (mine ? '' : (n.ownerName || ''));
+            if (!groups[g]) { groups[g] = []; order.push({ key: g, cat: n.category || '未分类', owner: n.ownerName || '' }); }
+            groups[g].push(n);
         });
-        var sortedCats = Object.keys(groups).sort();
+        order.sort(function (a, b) {
+            return a.cat.localeCompare(b.cat) || a.owner.localeCompare(b.owner);
+        });
         var html = '';
-        sortedCats.forEach(function (cat) {
-            html += '<div class="note-cat">' + escHtml(cat) + '</div>';
-            groups[cat].sort(function (a, b) { return a.name.localeCompare(b.name); });
-            groups[cat].forEach(function (t) {
-                var vis = t.visibility === 'private'
+        order.forEach(function (g) {
+            html += '<div class="note-cat">' + escHtml(g.cat)
+                    + (g.owner ? '<span class="note-item-owner"> · ' + escHtml(g.owner) + '</span>' : '')
+                    + '</div>';
+            groups[g.key].forEach(function (n) {
+                var isMine = mine || (myId != null && n.ownerId === myId);
+                var vis = n.visibility === 'private'
                     ? '<span class="note-vis-badge private">私有</span>'
                     : '<span class="note-vis-badge public">公开</span>';
-                html += '<div class="note-item" data-name="' + escHtml(t.name) + '">' +
-                    '<span class="note-item-name">' + escHtml(t.name) + '</span>' + vis +
-                    '<span class="note-item-ops">' +
-                    '<button class="note-op" data-op="edit" data-name="' + escHtml(t.name) + '">编辑</button>' +
-                    '<button class="note-op del" data-op="del" data-name="' + escHtml(t.name) + '">删除</button>' +
-                    '</span></div>';
+                var badge = '';
+                if (n.titleMatched) badge += '<span class="note-item-badge title">标题命中</span>';
+                else if (n.contentMatched) badge += '<span class="note-item-badge">正文命中</span>';
+                // Q1：他人的正文不入库，明确提示"仅按标题匹配"，避免误以为搜不到是 bug
+                if (n.contentSearchable === false) badge += '<span class="note-item-badge">仅标题</span>';
+                var tags = (n.tags || []).slice(0, 3).map(function (t) {
+                    return '<span class="note-item-tag">' + escHtml(t) + '</span>';
+                }).join('');
+                var ops = isMine
+                    ? '<span class="note-item-ops">'
+                      + '<button class="note-op" data-op="edit" data-name="' + escHtml(n.name) + '">编辑</button>'
+                      + '<button class="note-op del" data-op="del" data-name="' + escHtml(n.name) + '">删除</button>'
+                      + '</span>'
+                    : '';
+                html += '<div class="note-item" data-owner="' + (n.ownerId != null ? n.ownerId : myId)
+                        + '" data-name="' + escHtml(n.name) + '">'
+                    + '<div class="note-item-main">'
+                    + '  <div style="display:flex;align-items:center;gap:6px;">'
+                    + '    <span class="note-item-name">' + highlight(n.name, keyword) + '</span>'
+                    + (isMine ? vis : '') + badge
+                    + '  </div>'
+                    + (n.preview ? '<div class="note-preview">' + highlight(n.preview, keyword) + '</div>' : '')
+                    + (tags ? '<div class="note-item-tags" style="margin-top:3px;">' + tags + '</div>' : '')
+                    + '</div>'
+                    + ops
+                    + '</div>';
             });
         });
         $('#noteList').html(html);
+    }
+
+    /** 标签筛选条（R5） */
+    function loadTags() {
+        $.getJSON('note/tags', function (res) {
+            var list = (res && res.body) || [];
+            if (!list.length) { $('#noteTagFilter').empty(); return; }
+            var html = '<span class="note-tag-chip' + (activeTag ? '' : ' active') + '" data-tag="">全部</span>';
+            list.forEach(function (t) {
+                html += '<span class="note-tag-chip' + (activeTag === t.name ? ' active' : '')
+                        + '" data-tag="' + escHtml(t.name) + '">' + escHtml(t.name)
+                        + '<span class="cnt">' + t.cnt + '</span></span>';
+            });
+            $('#noteTagFilter').html(html);
+        });
+    }
+
+    /** 分类联想数据源（R4） */
+    function loadCategories() {
+        $.getJSON('note/categories', function (res) {
+            var body = (res && res.body) || {};
+            var names = [];
+            (body.preset || []).forEach(function (c) { names.push(c.name); });
+            (body.custom || []).forEach(function (c) { names.push(c.name); });
+            $('#noteCategoryList').html(names.map(function (n) {
+                return '<option value="' + escHtml(n) + '">';
+            }).join(''));
+        });
     }
 
     /* ---------------- 详情 ---------------- */
@@ -234,6 +325,8 @@ var Note = (function () {
             $('#noteEditWrap').hide();
         }
         $('#noteBody').html(res.html);
+        renderNoteTags(note);
+        renderNoteSource(note);
         $('#noteBreadcrumb').html(mode === 'public'
             ? '记忆笔记<span class="sep">/</span>公共搜索<span class="sep">/</span>' + escHtml(note.ownerName || '')
             : '记忆笔记<span class="sep">/</span>' + escHtml(note.category || '未分类'));
@@ -242,6 +335,26 @@ var Note = (function () {
         $('#btnEditNote').off('click').on('click', function () {
             openEditor(currentDetail);
         });
+    }
+
+    /** 详情页标签行（R5）：点击标签可筛选 */
+    function renderNoteTags(note) {
+        var tags = note.tags || [];
+        var $t = $('#noteTags');
+        if (!tags.length) { $t.hide().empty(); return; }
+        $t.show().html(tags.map(function (x) {
+            return '<span class="note-tag-view" data-tag="' + escHtml(x) + '">' + escHtml(x) + '</span>';
+        }).join(''));
+    }
+
+    /** 来源跳转条（R3 正向关联）：笔记 → 资料页 */
+    function renderNoteSource(note) {
+        var url = sourceUrl(note.source);
+        var bar = $('#noteSourceBar');
+        if (!url) { bar.hide(); return; }
+        $('#noteSourceName').text(sourceLabel(note.source));
+        $('#noteSourceLink').attr('href', url);
+        bar.show();
     }
 
     function renderToc(toc) {
@@ -272,6 +385,7 @@ var Note = (function () {
         $('#noteEditTitle').val(note ? note.name : '');
         $('#noteEditCategory').val(note ? (note.category || '') : '');
         $('#noteEditVis').val(note && note.visibility === 'private' ? 'private' : 'public');
+        $('#noteEditTags').val(note && note.tags ? note.tags.join(', ') : '');
         $('#noteEditBody').val(note ? (note.content || '') : '');
         $('#noteEditPreview').hide();
         $('#btnNotePreview').text('预览');
@@ -286,8 +400,14 @@ var Note = (function () {
             category: $('#noteEditCategory').val().trim(),
             visibility: $('#noteEditVis').val(),
             content: $('#noteEditBody').val(),
+            tags: $('#noteEditTags').val().split(/[,，]/).map(function (s) { return s.trim(); })
+                     .filter(function (s) { return !!s; }),
             oldName: editing.oldName
         };
+        // 摘录笔记保留来源，避免编辑一次就把 source 丢了（R3 断链）
+        if (editing && editing.isNew === false && currentDetail && currentDetail.source) {
+            body.source = currentDetail.source;
+        }
         if (!body.name) { alterModal('请输入标题'); return; }
         loading(true);
         $.ajax({
@@ -297,7 +417,8 @@ var Note = (function () {
                 loading(false);
                 if (res.errorCode === '000000') {
                     alterModal('保存成功');
-                    loadMyNotes();
+                    loadTags();
+                    reload();
                     openDetail(myId, res.body, true);
                 } else {
                     alterModal(res.errorMsg || '保存失败');
@@ -317,7 +438,8 @@ var Note = (function () {
                     loading(false);
                     if (res.errorCode === '000000') {
                         alterModal('已删除');
-                        loadMyNotes();
+                        loadTags();
+                        reload();
                         showView('welcome');
                         $('#noteBreadcrumb').text('记忆笔记');
                     } else {
@@ -329,6 +451,49 @@ var Note = (function () {
         });
     }
 
+    /* ---------------- 一键沉淀（R2，供资料页调用） ---------------- */
+
+    /**
+     * 把资料页条目存为我的私有笔记。
+     * @param {string} sourceKey   javaapi/{name} | shell/{name} | dubbo/{configId}
+     * @param {string} sourceTitle 条目标题（用于生成「xxx（摘录）」）
+     * @param {string} sourceCategory 来源分类
+     * @param {string} content     条目 markdown 正文
+     * @param {function} cb        回调 (ok, message)
+     */
+    function saveFromSource(sourceKey, sourceTitle, sourceCategory, content, cb) {
+        if (!content || !content.trim()) {
+            cb && cb(false, '摘录内容为空');
+            return;
+        }
+        $.ajax({
+            url: 'note/saveFromSource', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({
+                body: {
+                    sourceKey: sourceKey,
+                    sourceTitle: sourceTitle,
+                    sourceCategory: sourceCategory,
+                    content: content
+                }
+            }),
+            success: function (res) {
+                if (res && res.errorCode === '000000') {
+                    cb && cb(true, (res.body && res.body.name) || '');
+                } else {
+                    cb && cb(false, (res && res.errorMsg) || '保存失败');
+                }
+            },
+            error: function () { cb && cb(false, '保存失败'); }
+        });
+    }
+
+    /** 已保存过该来源的笔记数（资料页展示「关于此条目的笔记」） */
+    function listSourceNotes(sourceKey, cb) {
+        $.getJSON('note/source/notes?sourceKey=' + encodeURIComponent(sourceKey), function (res) {
+            cb && cb((res && res.body) || []);
+        }).fail(function () { cb && cb([]); });
+    }
+
     /* ---------------- 初始化 ---------------- */
 
     function init() {
@@ -338,24 +503,40 @@ var Note = (function () {
         $.getJSON('user/info', function (res) {
             myId = res && res.body && res.body.id;
             if (myId) $('#noteUserBadge').show();
+            loadTags();
+            loadCategories();
         });
 
         $('#noteTabMine').on('click', function () { switchTab('mine'); });
         $('#noteTabPublic').on('click', function () { switchTab('public'); });
         $('#btnNewNote').on('click', function () { openEditor(null); });
 
-        // 搜索框：我的 tab 本地过滤；公共 tab 服务端按标题搜索
+        // 搜索：防抖 300ms 走后端全文检索
         var searchTimer = null;
         $('#noteSearch').on('input', function () {
-            var kw = $(this).val().trim();
-            if (mode === 'mine') {
-                renderMyList(kw);
-            } else {
-                clearTimeout(searchTimer);
-                searchTimer = setTimeout(function () {
-                    loadPublic(kw);
-                }, 300);
-            }
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(reload, 300);
+        });
+        $('#noteScope, #noteField').on('change', function () {
+            refreshScopeHint();
+            reload();
+        });
+
+        // 标签筛选条
+        $('#noteTagFilter').on('click', '.note-tag-chip', function () {
+            var t = $(this).data('tag') || null;
+            activeTag = t;
+            loadTags();   // 刷新高亮
+            reload();
+        });
+        // 详情页标签点击 → 回到列表并按该标签筛选
+        $('#noteTags').on('click', '.note-tag-view', function () {
+            activeTag = $(this).data('tag');
+            showView('welcome');
+            $('#noteSearch').val('');
+            loadTags();
+            reload();
+            $('#noteBreadcrumb').html('记忆笔记<span class="sep">/</span>标签：' + escHtml(activeTag));
         });
 
         // 列表点击（动态内容，统一委托）
@@ -363,14 +544,13 @@ var Note = (function () {
             if ($(e.target).hasClass('note-op')) return;
             var $t = $(this);
             var ownerId = $t.data('owner');
-            openDetail(ownerId != null ? ownerId : myId, $t.data('name'), mode === 'mine');
+            var isMine = ownerId == null || (myId != null && ownerId === myId);
+            openDetail(ownerId != null ? ownerId : myId, $t.data('name'), isMine);
         });
         $('#noteList').on('click', '.note-op', function () {
             var op = $(this).data('op');
             var name = $(this).data('name');
             if (op === 'edit') {
-                var note = allNotes.find(function (t) { return t.name === name; });
-                // 列表无正文，拉全量再编辑
                 $.getJSON('note/get?ownerId=' + myId + '&name=' + encodeURIComponent(name), function (res) {
                     if (res && res.errorCode === '000000') openEditor(res.body);
                     else alterModal('加载失败');
@@ -407,5 +587,9 @@ var Note = (function () {
         switchTab('mine');
     }
 
-    return { init: init };
+    return {
+        init: init,
+        saveFromSource: saveFromSource,
+        listSourceNotes: listSourceNotes
+    };
 })();

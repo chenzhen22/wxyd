@@ -150,6 +150,8 @@ public class DataInitializer implements ApplicationRunner {
     /**
      * 幂等确保笔记检索索引表存在（对应 sql/V11__note_index.sql）：
      * 个人知识库 v2 的全文检索索引，md 文件仍为真相源，本表仅承载检索。
+     * content 列只入库「属主自己笔记」的正文（产品决策 Q1）；他人 public 笔记仅存元数据，
+     * content_indexed=0 表示正文未入库，查询层据此只做标题匹配。
      * 部署环境无 mysql 客户端，故启动时自检建表；已存在则跳过。
      * 失败仅记录提示，不阻断启动（检索可降级为目录扫描兜底）。
      */
@@ -172,7 +174,8 @@ public class DataInitializer implements ApplicationRunner {
                     "`tags` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '标签，逗号分隔'," +
                     "`source_key` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '来源条目 key，空=非摘录'," +
                     "`is_public` TINYINT NOT NULL DEFAULT 1 COMMENT '1=公开 0=私有'," +
-                    "`content` MEDIUMTEXT COMMENT '正文全文，供内容命中检索'," +
+                    "`content_indexed` TINYINT NOT NULL DEFAULT 0 COMMENT '1=content 已入库 0=仅元数据（他人public不入库）'," +
+                    "`content` MEDIUMTEXT COMMENT '正文全文，仅 content_indexed=1 时有值'," +
                     "`preview` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '列表预览，150 字'," +
                     "`owner_name` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '属主展示名，冗余避免列表 N+1'," +
                     "`update_time` DATETIME NOT NULL COMMENT '文件最后修改时间'," +

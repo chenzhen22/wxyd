@@ -3,8 +3,8 @@
 | 项 | 内容 |
 |----|------|
 | 版本 | v2.0（升级已有 v1「记忆笔记」，非新建模块） |
-| 日期 | 2026-10-07 |
-| 状态 | 待评审 |
+| 日期 | 2026-10-07（2026-10-08 更新：Q1 全文检索范围定稿） |
+| 状态 | 待评审（Q1 已定稿；Q2、Q3 待产品拍板） |
 | 读者 | 研发 Leader / 技术评审 + 管理层立项 + 全角色通用 |
 | 一句话定位 | 把 wxyd 里散落在 Java API、Shell、Dubbo 资料页和自己脑子里的经验，收敛成**能搜、能连、能复用**的个人知识资产 |
 
@@ -141,13 +141,37 @@ wxyd 的使用者是平台内的开发者与运维。他们在排障、写脚本
 - `GET /note/search?keyword=&scope=mine|public&field=all|title|content`
 - `scope` 默认 `all`；`field` 默认 `all`（标题+正文），可限定仅标题
 - 匹配规则：**大小写不敏感的子串匹配**，不引入分词器（与用户"记得关键词"的实际心智一致）
-- 结果字段：除现有 `name`/`ownerName`/`preview` 外，新增 **`titleMatched`、`contentMatched`** 两个布尔量，用于前端高亮命中位置
+- 结果字段：除现有 `name`/`ownerName`/`preview` 外，新增 **`titleMatched`、`contentMatched`、`contentSearchable`** 三个布尔量
+  - `contentSearchable=false` 表示该结果来自他人，正文未入库（见下方 Q1 决策），前端应提示"仅按标题匹配"
 - 排序：标题命中优先 → 内容命中者按 `updateTime` 倒序
 - 命中片段：内容命中时，`preview` 返回**以关键词为中心的 ±40 字上下文**，而非正文开头 150 字
+
+**🔒 Q1 已定稿（2026-10-08，产品决策）**
+
+> **索引不存他人 public 笔记的正文全文。**
+> `note_index.content` 只入库「属主自己的笔记」正文；他人 public 笔记仅存元数据
+> （title/category/tags/preview），`content` 留空并置 `content_indexed = 0`。
+
+**产品理由**：public 仅代表"可读"，不代表"可被全文索引"。正文进索引意味着
+数据库里存在一份可被检索的副本，扩大了数据暴露面（备份、误查、DBA 直连等场景），
+与"private 绝不出现在他人结果里"这条红线的防御深度不匹配。
+
+**连带影响（必须同步到实现与文案）**：
+
+| 场景 | 行为 |
+|------|------|
+| 搜**自己**的笔记 | 标题 + 正文全文命中 |
+| 搜**他人 public** 笔记 | **仅标题命中**（正文不入库，无法匹配） |
+| 搜**他人 private** | 零命中（红线） |
+
+- 前端在 `scope=public` 搜索框旁需有明确文案说明「他人笔记仅支持按标题搜索」，避免用户误以为功能坏了
+- 指标口径相应调整：见 7.2「搜索成功率」仅统计本人笔记
+- 将来若要放开（产品有异议时），只需重建索引 + 放开查询侧条件，**表结构无需变更**
 
 **技术约束（重要）**
 - 当前 v1 的 `searchPublic` 是**遍历所有用户目录逐个读文件**（`listFiles` + 解析 frontmatter）。加全文检索后这是 O(用户数 × 文件数) 的磁盘 IO，必须改为**入库检索**。
 - 选型见 6.2。核心要求：MyBatis + MySQL 8 可实现，不引入新中间件。
+- 写入侧：`saveNote` 时仅当 `ownerId == 当前登录用户` 才写 `content` 并置 `content_indexed=1`；`rebuildIndex` 重建时按同一规则回填。
 
 **验收标准（Given/When/Then）**
 
@@ -155,7 +179,13 @@ wxyd 的使用者是平台内的开发者与运维。他们在排障、写脚本
 Given 用户 A 有笔记《线程池笔记》，正文含 "ThreadLocal" 段，标题不含该词
 When  A 在搜索框输入 "ThreadLocal" 并选择 scope=mine
 Then  该笔记出现在结果首行，preview 中高亮 "ThreadLocal"
-And   contentMatched = true
+And   contentMatched = true, contentSearchable = true
+
+Given 用户 A 有一篇 public 笔记《性能调优笔记》，正文含 "Arthas" 但标题不含
+When  用户 B 在 scope=public 下搜索 "Arthas"
+Then  该笔记【不出现在结果中】（正文未入库，仅能按标题匹配 —— Q1 决策）
+And   B 改为搜索 "性能调优"（标题词）则能命中该笔记
+And   该结果的 contentSearchable = false
 
 Given 用户 A 有私有笔记《薪资数据》，内容含 "机密"
 When  用户 B 搜索 "机密"
@@ -256,6 +286,9 @@ Then  "Java API"（预置）和该用户已建的 "Java"（个人）都可选
 - `GET /note/get` 读取他人私有笔记返回 `ERROR000018`（不存在），**不返回"无权限"** —— 不泄露"该笔记存在"这一信息
 - 文件路径防护沿用 v1：文件名净化 + `canonicalPath` 前缀校验（防止 `../` 穿越）
 - 新增的 `saveFromSource` 必须校验 `sourceKey` 合法性，**不得允许任意 classpath 路径**（仅允许匹配 `data/**` 与 `data-shell/**` 下的已知条目 key，否则报参数错误）
+- **数据最小化（Q1 决策衍生的红线）**：`note_index.content` 只允许存属主自己的笔记正文。
+  他人 public 笔记必须 `content=''` 且 `content_indexed=0` —— 这不只是"不查"，而是**库里根本不该有这份数据**。
+  验收时需直接查库确认：`SELECT COUNT(*) FROM note_index WHERE owner_id <> #{当前用户} AND content <> ''` 必须为 **0**。
 
 > ⚠️ **验收红线**：R6 任一条不通过则功能不予上线。
 
@@ -309,30 +342,40 @@ Then  "Java API"（预置）和该用户已建的 "Java"（个人）都可选
 ```sql
 CREATE TABLE IF NOT EXISTS `note_index` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `owner_id` BIGINT NOT NULL COMMENT '属主用户 id',
-  `note_name` VARCHAR(64) NOT NULL COMMENT '与文件名一致（净化后）',
-  `title` VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'frontmatter.name',
-  `category` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '分类',
-  `tags` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '逗号分隔',
+  `owner_id` BIGINT NOT NULL COMMENT '笔记属主用户 id',
+  `note_name` VARCHAR(64) NOT NULL COMMENT '净化后的标题，与文件名一致',
+  `title` VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'frontmatter.name 原始标题',
+  `category` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '分类，受控词表或用户自建',
+  `tags` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '标签，逗号分隔',
   `source_key` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '来源条目 key，空=非摘录',
-  `is_public` TINYINT NOT NULL DEFAULT 1 COMMENT '1=public 0=private',
-  `content` MEDIUMTEXT COMMENT '正文全文，仅 private 或自有索引；他人仅索引 public',
-  `preview` VARCHAR(512) NOT NULL DEFAULT '',
-  `owner_name` VARCHAR(64) NOT NULL DEFAULT '',
-  `update_time` DATETIME NOT NULL,
+  `is_public` TINYINT NOT NULL DEFAULT 1 COMMENT '1=公开 0=私有',
+  `content_indexed` TINYINT NOT NULL DEFAULT 0 COMMENT '1=content 已入库 0=仅元数据（他人public不入库，Q1决策）',
+  `content` MEDIUMTEXT COMMENT '正文全文，仅 content_indexed=1 时有值，供本人内容命中检索',
+  `preview` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '列表预览，150 字',
+  `owner_name` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '属主展示名，冗余避免列表 N+1',
+  `update_time` DATETIME NOT NULL COMMENT '文件最后修改时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_owner_note` (`owner_id`, `note_name`),
-  KEY `idx_public` (`is_public`, `update_time`),
-  KEY `idx_source` (`source_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='笔记检索索引，文件为真相源';
+  UNIQUE KEY `uk_owner_note` (`owner_id`,`note_name`),
+  KEY `idx_public_time` (`is_public`,`update_time`),
+  KEY `idx_source` (`source_key`),
+  KEY `idx_owner_time` (`owner_id`,`update_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='笔记检索索引，md 文件为真相源';
 ```
+
+> **已落地**：`sql/V11__note_index.sql`（人工存档）+ `DataInitializer.ensureNoteIndexTable()`（启动时幂等建表 —— 本机无 mysql 客户端）。
+>
+> 🔒 **`content_indexed` 是 Q1 决策的落地点：正文只对属主入库。**
+> 写入侧判定 —— 仅当 `ownerId == 当前登录用户` 才写 `content` 并置 `content_indexed=1`；
+> 他人 public 笔记 `content` 留空、置 0。查询侧据此只对 `content_indexed=1` 的行做正文 LIKE。
+> `content` 列再叠一层纵深防御：即使查询条件写错，库里也没有他人正文可泄漏。
+> 将来若产品放开，只需重建索引 + 放开查询条件，**表结构无需变更**。
 
 **约束：**
 - 检索统一走 MyBatis（`mapUnderscoreToCamelCase` 已开），**不加新依赖**
 - 保留 `NoteDataService.listMyNotes` 的目录扫描路径，作为索引缺失时的兜底重建
-- 提供 `POST /note/rebuildIndex`（仅超管），全库重建索引，幂等
-
-> ⚠️ **注意**：`content` 列含正文，若他人的 public 笔记也全文入库，**等于把 public 笔记正文复制进数据库**。这是可接受的（public 本就可读），但**private 笔记的正文绝不能被他人检索到** —— 查询必须强制 `is_public=1 OR owner_id=?`。
+- 提供 `POST /note/rebuildIndex`（仅超管），全库重建索引，幂等；重建时按同一规则回填 `content_indexed`
+- `MEDIUMTEXT` 而非 `TEXT`：v1 正文上限 500KB，`TEXT` 的 64KB 装不下
+- 唯一键用 `(owner_id, note_name)`：与 v1「同用户标题唯一」对齐，保证索引与文件一一对应
 
 ### 6.3 依赖与风险
 
@@ -360,7 +403,7 @@ CREATE TABLE IF NOT EXISTS `note_index` (
 | 指标 | 基线 | 目标 | 测量方式 |
 |------|------|------|--------|
 | 全库搜索使用率 | 无（v1 搜索仅标题，功能弱） | ≥40% 的活跃用户每周用 ≥3 次 | 新增 `note_search` 埋点（query/hit/miss） |
-| 搜索成功率 | — | ≥70%（有命中），零结果查询 ≤15% | `hit=0` 的查询占比 |
+| 搜索成功率 | — | ≥70%（有命中），零结果查询 ≤15% | `hit=0` 的查询占比；**因 Q1 决策，口径仅统计本人笔记**（他人 public 只能标题匹配，计入会失真） |
 | 一键沉淀使用量 | 0 | 上线 1 个月内 ≥100 次 | `saveFromSource` 调用计数 |
 | 新增笔记中带标签比例 | 0%（无标签功能） | ≥50% | `note_index.tags != ''` 占比 |
 | 资料页 → 笔记页跳转率 | 0 | ≥5% | 资料页跳转埋点 |
@@ -426,7 +469,7 @@ CREATE TABLE IF NOT EXISTS `note_index` (
 
 | # | 问题 | 归属 | 为何阻塞 |
 |---|------|------|---------|
-| Q1 | `note_index.content` 是否存储**他人 public 笔记全文**？存则支持跨用户全文检索（性能/存储换能力），不存则他人笔记仅能标题匹配 | 后端 + 产品 | 直接决定 R1 的能力边界与 SQL 设计 |
+| ~~Q1~~ | ~~`note_index.content` 是否存储他人 public 笔记全文~~ | — | ✅ **已定稿 2026-10-08：不存他人 public 正文**，落地点为 `content_indexed` 标志位，见 R1 与 6.2 |
 | Q2 | 摘录笔记默认 `private` 是否符合预期？是否应为 `public`（知识共享导向） | 产品 | 影响 R2 验收标准 |
 | Q3 | 一键沉淀的入口范围：Java API / Shell / Dubbo **三处全上**，还是先上其中一处试水 | 产品 + 前端 | 决定 P0 工作量（约 1/3 UI 工作量差异） |
 
@@ -445,7 +488,7 @@ CREATE TABLE IF NOT EXISTS `note_index` (
 
 | 阶段 | 内容 | 依赖 |
 |------|------|------|
-| **Phase 0**（阻塞期） | 答完 Q1–Q3，定稿存储选型 | Q1–Q3 结论 |
+| **Phase 0**（阻塞期） | ~~答完 Q1–Q3~~ Q1 已定稿；待答 Q2–Q3，定稿存储选型 | Q2–Q3 结论 |
 | **Phase 1** | `note_index` 表 + 检索层 + 全量重建；`note/search` 升级为全文检索（US-1） | Phase 0 |
 | **Phase 2** | frontmatter 扩字段（`tags`/`source`）+ 分类词表（US-4、US-5） | Phase 1 |
 | **Phase 3** | 一键沉淀（US-2）+ 双向关联（US-3） | Phase 2、Q3 结论 |

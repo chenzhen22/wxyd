@@ -51,7 +51,8 @@ registerH5Module('javaapi', function ($page) {
         loading(true);
         api({ url: 'javaapi/classes/' + encodeURIComponent(name), type: 'GET' }).done(function (c) {
             loading(false);
-            var html = '<div class="h5-section-title"><span class="h5-btn-ghost h5-btn-sm" id="jaBack">← 返回列表</span></div>' +
+            var html = '<div class="h5-section-title"><span class="h5-btn-ghost h5-btn-sm" id="jaBack">← 返回列表</span>' +
+                '<a class="h5-btn-ghost h5-btn-sm" id="jaSaveNote" style="color:#a78bfa;text-decoration:none">📝 存入笔记</a></div>' +
                 '<div class="h5-card"><div class="h5-card-title" style="font-size:18px">' + esc(c.name) + '</div>' +
                 '<div class="h5-card-tags"><span class="h5-badge h5-badge-role">' + esc(c.packageName || '') + '</span></div>' +
                 '<div style="margin-top:10px;color:var(--text-2);font-size:13.5px;white-space:pre-wrap;word-break:break-word">' + esc(c.intro || '') + '</div></div>';
@@ -78,6 +79,23 @@ registerH5Module('javaapi', function ($page) {
             $('#jaListWrap').hide();
             $('#jaDetailWrap').show().html(html);
             $('#jaBack').one('click', function () { $('#jaDetailWrap').hide(); $('#jaListWrap').show(); });
+            /* R2 一键沉淀：API 条目（方法+示例）存为私有笔记 */
+            $('#jaSaveNote').one('click', function () {
+                var md = ['## 介绍', c.intro || '', '## 方法'];
+                (c.methods || []).forEach(function (m) {
+                    md.push('### ' + (m.signature || m.name));
+                    if (m.description) md.push(m.description);
+                });
+                md.push('## 可运行示例');
+                (c.testCases || []).forEach(function (t) {
+                    md.push('### ' + t.name);
+                    if (t.description) md.push(t.description);
+                    if (t.code) md.push('```java', t.code, '```');
+                });
+                saveFromSourceH5('javaapi/' + c.name, c.name, 'Java API', md.join('\n'), function (ok, msg) {
+                    toast(ok ? '已存为私有笔记：' + msg : (msg || '保存失败'));
+                });
+            });
 
             if ((c.testCases || []).length) {
                 var tc = c.testCases;

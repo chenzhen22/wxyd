@@ -32,6 +32,7 @@ registerH5Module('dubbo', function ($page) {
         '<div style="display:flex;gap:8px">' +
         '<button class="h5-btn-primary" id="dbInvoke" style="flex:1">调用</button>' +
         '<button class="h5-btn" id="dbSave">保存</button>' +
+        '<button class="h5-btn" id="dbSaveNote" style="color:#a78bfa">存为笔记</button>' +
         '<button class="h5-btn" id="dbClear">清空</button>' +
         '</div></div>' +
         '<div id="dbResult"></div>');
@@ -131,10 +132,32 @@ registerH5Module('dubbo', function ($page) {
             var detail = r.success
                 ? (typeof r.response === 'string' ? r.response : JSON.stringify(r.response, null, 2))
                 : (r.error || '');
+            lastResult = r.success ? detail : ''; /* 成功结果供「存为笔记」摘录 */
             $('#dbResult').html('<div class="h5-card">' +
                 '<div class="h5-card-title">' + (r.success ? '✅ 调用成功' : '❌ 调用失败') +
                 ' <span class="h5-card-sub" style="display:inline;margin-left:6px">' + (r.costMs != null ? r.costMs + 'ms' : '') + '</span></div>' +
                 '<div class="h5-pre" style="margin-top:10px;max-height:420px">' + esc(detail || '（空响应）') + '</div></div>');
         }).fail(function () { loading(false); toast('请求失败'); });
+    });
+
+    /* R2 一键沉淀：把当前调用配置（+上次成功结果）存为私有笔记 */
+    var lastResult = '';
+    $('#dbSaveNote').on('click', function () {
+        var c = collect();
+        if (!c.interfaceName || !c.methodName) { toast('请先填写接口名与方法名'); return; }
+        var title = (c.serviceName || 'Dubbo') + '.' + c.methodName;
+        var md = ['## 调用配置', '```json',
+            JSON.stringify({ registryAddress: c.registryAddress, serviceName: c.serviceName,
+                version: c.version, interfaceName: c.interfaceName, methodName: c.methodName,
+                timeout: c.timeout }, null, 2),
+            '```', '## 请求参数', '```json', c.paramJson || '{}', '```'];
+        if (lastResult) {
+            md.push('## 上次调用结果', '```json',
+                lastResult.length > 4000 ? lastResult.slice(0, 4000) + '\n...（已截断）' : lastResult, '```');
+        }
+        if (typeof saveFromSourceH5 !== 'function') { toast('笔记模块未就绪'); return; }
+        saveFromSourceH5('dubbo/' + (currentId || 'h5-call'), title, 'Dubbo', md.join('\n'), function (ok, msg) {
+            toast(ok ? '已存为私有笔记：' + msg : (msg || '保存失败'));
+        });
     });
 });

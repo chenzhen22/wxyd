@@ -518,7 +518,8 @@ function openShellTopic(name) {
     loading(true);
     api({ url: 'shellscript/topics/' + encodeURIComponent(name), type: 'GET' }).done(function (t) {
         loading(false);
-        var html = '<div class="h5-section-title"><span class="h5-btn-ghost h5-btn-sm" id="ssBack">← 返回列表</span></div>' +
+        var html = '<div class="h5-section-title"><span class="h5-btn-ghost h5-btn-sm" id="ssBack">← 返回列表</span>' +
+            '<a class="h5-btn-ghost h5-btn-sm" id="ssSaveNote" style="color:#a78bfa;text-decoration:none">📝 存入笔记</a></div>' +
             '<div class="h5-card"><div class="h5-card-title" style="font-size:17px">' + esc(t.name) + '</div>' +
             (t.category ? '<div class="h5-card-tags"><span class="h5-badge h5-badge-role">' + esc(t.category) + '</span></div>' : '') +
             '<div style="margin-top:10px;color:var(--text-2);font-size:13.5px">' + esc(t.intro || '') + '</div></div>';
@@ -542,6 +543,24 @@ function openShellTopic(name) {
         $('#ssListWrap').hide();
         $('#ssDetailWrap').show().html(html);
         $('#ssBack').one('click', function () { $('#ssDetailWrap').hide(); $('#ssListWrap').show(); });
+        /* R2 一键沉淀：把条目完整存为私有笔记（Q2 默认 private） */
+        $('#ssSaveNote').one('click', function () {
+            var md = ['## 介绍', t.intro || '', '## 语法'];
+            (t.syntaxes || []).forEach(function (s) {
+                md.push('### ' + s.name);
+                if (s.signature) md.push('```bash', s.signature, '```');
+                if (s.description) md.push(s.description);
+            });
+            md.push('## 示例');
+            (t.examples || []).forEach(function (ex) {
+                md.push('### ' + ex.name);
+                if (ex.description) md.push(ex.description);
+                if (ex.code) md.push('```bash', ex.code, '```');
+            });
+            saveFromSourceH5('shell/' + t.name, t.name, t.category, md.join('\n'), function (ok, msg) {
+                toast(ok ? '已存为私有笔记：' + msg : (msg || '保存失败'));
+            });
+        });
     }).fail(function () { loading(false); toast('加载失败'); });
 }
 
@@ -557,6 +576,7 @@ function mdToHtml(md) {
         return esc(s)
             .replace(/`([^`]+)`/g, '<code style="background:var(--glass-3);padding:1px 5px;border-radius:5px;font-family:ui-monospace,monospace">$1</code>')
             .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+            .replace(/\[\[([^\[\]]+)\]\]/g, '<a href="javascript:;" class="h5-wikilink" data-wiki="$1" style="color:#a78bfa;text-decoration:none;border-bottom:1px dashed rgba(167,139,250,.5)">$1</a>')
             .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
     }
     lines.forEach(function (line) {
@@ -590,46 +610,71 @@ function mdToHtml(md) {
     return out.join('');
 }
 
-var noteMode = 'mine';
+/* ---------------- 记忆笔记（用户级 · 可编辑 · v2 个人知识库） ---------------- */
+
+var noteScope = 'mine';
 var noteSearchTimer = null;
 
 function renderNotes($page) {
     $page.html(
         '<div class="h5-section-title">记忆笔记' +
         '<div><span class="h5-btn-ghost h5-btn-sm" id="noteTabMine">我的笔记</span>' +
-        '<span class="h5-btn-ghost h5-btn-sm" id="noteTabPublic">公共搜索</span></div></div>' +
-        '<div class="h5-card" id="noteSearchCard" style="display:none">' +
-        '<div class="h5-field" style="margin:0"><input class="h5-input" id="noteSearchInput" placeholder="按标题搜索公共笔记…" maxlength="50"></div></div>' +
-        '<div id="noteListWrap"><div id="noteList"><div class="h5-empty">加载中…</div></div></div>' +
+        '<span class="h5-btn-ghost h5-btn-sm" id="noteTabPublic">他人公开</span></div></div>' +
+        '<div class="h5-card"><div class="h5-field" style="margin:0">' +
+        '<input class="h5-input" id="noteSearchInput" placeholder="🔍 搜索笔记（标题+正文）" maxlength="50"></div>' +
+        '<div id="noteScopeHint" class="h5-card-sub" style="margin-top:6px;color:#e0a800;display:none">他人笔记仅支持按标题搜索（正文不入库）</div></div>' +
+        '<div id="noteListWrap">' +
+        '<div id="noteRecentBox" style="display:none;margin-bottom:10px"></div>' +
+        '<div id="noteList"><div class="h5-empty">加载中…</div></div></div>' +
         '<div id="noteDetailWrap" style="display:none"></div>');
     $('#noteTabMine').on('click', function () { switchNoteTab('mine'); });
     $('#noteTabPublic').on('click', function () { switchNoteTab('public'); });
     $('#noteSearchInput').on('input', function () {
         clearTimeout(noteSearchTimer);
-        noteSearchTimer = setTimeout(loadPublicNotesH5, 300);
+        noteSearchTimer = setTimeout(loadNotesH5, 300);
     });
-    switchNoteTab('mine');
-    /* 列表点击：我的 tab → myId；公共 tab → ownerId */
+    /* v2：命中标记说明 / 详情导出 / 最近浏览 / wiki 链接（事件委托，动态内容） */
     $page.off('click', '.note-item-h5').on('click', '.note-item-h5', function () {
         var ownerId = $(this).data('owner');
-        openNoteH5(ownerId != null ? ownerId : H5State.userId, $(this).data('name'), noteMode === 'mine');
+        openNoteH5(ownerId != null ? ownerId : H5State.userId, $(this).data('name'),
+            ownerId == null || ownerId === H5State.userId);
     });
+    $page.on('click', '.h5-wikilink', function () {
+        var title = $(this).data('wiki');
+        api({ url: 'note/resolve?name=' + encodeURIComponent(title), type: 'GET' }).done(function (res) {
+            var n = res && res.body;
+            if (n && n.ownerId != null) {
+                openNoteH5(n.ownerId, n.name, n.ownerId === H5State.userId);
+            } else {
+                toast('未找到笔记「' + title + '」');
+            }
+        }).fail(function () { toast('解析失败'); });
+    });
+    $page.on('click', '.note-backlink-h5', function () {
+        var ownerId = $(this).data('owner');
+        openNoteH5(ownerId, $(this).data('name'), ownerId === H5State.userId);
+    });
+    $page.on('click', '.note-recent-item-h5', function () {
+        var ownerId = $(this).data('owner');
+        openNoteH5(ownerId, $(this).data('name'), ownerId === H5State.userId);
+    });
+    switchNoteTab('mine');
 }
 
 function switchNoteTab(mode) {
-    noteMode = mode;
+    noteScope = mode;
     $('#noteTabMine').css({ background: mode === 'mine' ? 'var(--accent)' : 'transparent', color: mode === 'mine' ? '#fff' : 'var(--text-2)' });
     $('#noteTabPublic').css({ background: mode === 'public' ? 'var(--accent)' : 'transparent', color: mode === 'public' ? '#fff' : 'var(--text-2)' });
-    $('#noteSearchCard').toggle(mode === 'public');
+    $('#noteScopeHint').toggle(mode === 'public');
     $('#noteDetailWrap').hide();
     $('#noteListWrap').show();
     if (mode === 'mine') {
         setFab(true, function () { openNoteEditorH5(null); });
-        loadMyNotesH5();
     } else {
         setFab(false);
-        loadPublicNotesH5();
     }
+    renderRecentH5();
+    loadNotesH5();
 }
 
 function noteVisBadge(v) {
@@ -638,40 +683,77 @@ function noteVisBadge(v) {
         : '<span class="h5-badge" style="background:rgba(67,233,123,.15);color:#43e97b">公开</span>';
 }
 
-function loadMyNotesH5() {
+/** 命中标记：标题命中/正文命中/仅标题（Q1：他人正文不入库，仅标题可搜） */
+function noteHitBadge(n) {
+    var b = '';
+    if (n.titleMatched) b = '<span class="h5-badge" style="background:rgba(67,233,123,.15);color:#43e97b">标题命中</span>';
+    else if (n.contentMatched) b = '<span class="h5-badge" style="background:rgba(255,193,7,.15);color:#e0a800">正文命中</span>';
+    if (n.contentSearchable === false) b += '<span class="h5-badge" style="background:rgba(255,255,255,.08);color:var(--text-9)">仅标题</span>';
+    return b;
+}
+
+function noteTagsRow(tags) {
+    if (!tags || !tags.length) return '';
+    return '<div style="margin-top:4px">' + tags.slice(0, 4).map(function (t) {
+        return '<span class="h5-badge" style="background:rgba(167,139,250,.12);color:#a78bfa;margin-right:4px">' + esc(t) + '</span>';
+    }).join('') + '</div>';
+}
+
+/** 统一检索：scope=mine|public，标题+正文（服务端 Q1 权限） */
+function loadNotesH5() {
+    var kw = ($('#noteSearchInput').val() || '').trim();
     loading(true);
-    api({ url: 'note/list', type: 'GET' }).done(function (res) {
+    api({ url: 'note/search?scope=' + noteScope + '&field=all' + (kw ? '&keyword=' + encodeURIComponent(kw) : ''), type: 'GET' })
+    .done(function (res) {
         loading(false);
         var list = (res.errorCode === '000000' && res.body) || [];
+        if (!list.length) {
+            $('#noteList').html('<div class="h5-empty">' + (kw ? '未找到相关笔记' : (noteScope === 'mine' ? '暂无笔记，点击右下角 ＋ 新增' : '暂无他人公开笔记')) + '</div>');
+            return;
+        }
         var html = '';
-        if (!list.length) html = '<div class="h5-empty">暂无笔记，点击右下角 ＋ 新增</div>';
-        list.forEach(function (t) {
-            html += '<div class="h5-card note-item-h5" data-name="' + esc(t.name) + '" style="cursor:pointer">' +
+        list.forEach(function (n) {
+            var isMine = noteScope === 'mine' || n.ownerId === H5State.userId;
+            html += '<div class="h5-card note-item-h5" data-owner="' + n.ownerId + '" data-name="' + esc(n.name) + '" style="cursor:pointer">' +
                 '<div class="h5-card-row"><div style="flex:1;min-width:0">' +
-                '<div class="h5-card-title">' + esc(t.name) + '</div>' +
-                '<div class="h5-card-sub">' + esc(t.category || '未分类') + ' · ' + esc(t.updateTime || '') + '</div></div>' +
-                noteVisBadge(t.visibility) + '</div></div>';
+                '<div class="h5-card-title">' + esc(n.name) + '</div>' +
+                '<div class="h5-card-sub">' + (isMine ? esc(n.category || '未分类') : esc(n.ownerName || '') + (n.category ? ' · ' + esc(n.category) : '')) + ' · ' + esc(n.updateTime || '') + '</div>' +
+                (n.preview ? '<div class="h5-card-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(n.preview) + '</div>' : '') +
+                noteTagsRow(n.tags) + '</div>' +
+                '<div>' + (isMine ? noteVisBadge(n.visibility) : '') + noteHitBadge(n) + '</div></div></div>';
         });
         $('#noteList').html(html);
     }).fail(function () { loading(false); $('#noteList').html('<div class="h5-empty">加载失败</div>'); });
 }
 
-function loadPublicNotesH5() {
-    var kw = $('#noteSearchInput').val().trim();
-    loading(true);
-    api({ url: 'note/search' + (kw ? '?keyword=' + encodeURIComponent(kw) : ''), type: 'GET' }).done(function (res) {
-        loading(false);
-        var list = (res.errorCode === '000000' && res.body) || [];
-        if (!list.length) { $('#noteList').html('<div class="h5-empty">' + (kw ? '未找到相关公共笔记' : '暂无公共笔记') + '</div>'); return; }
-        var html = '';
-        list.forEach(function (t) {
-            html += '<div class="h5-card note-item-h5" data-owner="' + t.ownerId + '" data-name="' + esc(t.name) + '" style="cursor:pointer">' +
-                '<div class="h5-card-row"><div style="flex:1;min-width:0">' +
-                '<div class="h5-card-title">' + esc(t.name) + '</div>' +
-                '<div class="h5-card-sub">' + esc(t.ownerName || '') + (t.category ? ' · ' + esc(t.category) : '') + '</div></div></div></div>';
-        });
-        $('#noteList').html(html);
-    }).fail(function () { loading(false); $('#noteList').html('<div class="h5-empty">搜索失败</div>'); });
+/* ---------------- 最近浏览（R8，localStorage） ---------------- */
+
+var RECENT_KEY_H5 = 'wxydNoteRecent'; /* 与桌面版共用 key，跨端同步体验 */
+
+function pushRecentH5(ownerId, name) {
+    try {
+        var arr = [];
+        try { arr = JSON.parse(localStorage.getItem(RECENT_KEY_H5)) || []; } catch (e) {}
+        if (!Array.isArray(arr)) arr = [];
+        arr = arr.filter(function (r) { return !(String(r.ownerId) === String(ownerId) && r.name === name); });
+        arr.unshift({ ownerId: ownerId, name: name, time: Date.now() });
+        localStorage.setItem(RECENT_KEY_H5, JSON.stringify(arr.slice(0, 10)));
+    } catch (e) { /* 忽略存储异常 */ }
+    renderRecentH5();
+}
+
+function renderRecentH5() {
+    var $box = $('#noteRecentBox');
+    if (!$box.length) return;
+    var arr = [];
+    try { arr = JSON.parse(localStorage.getItem(RECENT_KEY_H5)) || []; } catch (e) {}
+    if (noteScope !== 'mine' || !Array.isArray(arr) || !arr.length) { $box.hide().empty(); return; }
+    var html = '<div class="h5-card-sub" style="margin-bottom:4px">🕘 最近浏览</div>';
+    arr.slice(0, 5).forEach(function (r) {
+        html += '<div class="h5-card note-recent-item-h5" data-owner="' + esc(r.ownerId) + '" data-name="' + esc(r.name) + '" style="cursor:pointer;padding:8px 12px">' +
+            '<div class="h5-card-title" style="font-size:13.5px">' + esc(r.name) + '</div></div>';
+    });
+    $box.html(html).show();
 }
 
 function openNoteH5(ownerId, name, mine) {
@@ -680,23 +762,53 @@ function openNoteH5(ownerId, name, mine) {
         loading(false);
         if (res.errorCode !== '000000' || !res.body) { toast(res.errorMsg || '笔记不存在'); return; }
         var n = res.body;
+        pushRecentH5(ownerId, name);
+        /* R7 来源跳转：javaapi/xxx、shell/xxx 可在 H5 站内跳，dubbo 无资料页不渲染 */
+        var sourceHtml = '';
+        if (n.source) {
+            var sp = String(n.source).split('/');
+            var spUrl = null;
+            if (sp[0] === 'shell' && sp[1]) spUrl = "javascript:goH5Module('shell')";
+            else if (sp[0] === 'javaapi' && sp[1]) spUrl = "javascript:goH5Module('javaapi')";
+            if (spUrl) {
+                sourceHtml = '<div class="h5-card-sub" style="margin-top:6px;color:#38bdf8">参考：' +
+                    esc(sp[0] === 'shell' ? 'Shell 脚本' : 'Java API') + ' / ' + esc(sp[1]) +
+                    ' <a href="' + spUrl + '" style="color:#38bdf8">前往 →</a></div>';
+            }
+        }
         var html = '<div class="h5-section-title"><span class="h5-btn-ghost h5-btn-sm" id="noteBack">← 返回列表</span>' +
             (mine ? '<span class="h5-btn-ghost h5-btn-sm" id="noteEditBtn">编辑</span>' : '') +
+            '<a class="h5-btn-ghost h5-btn-sm" style="text-decoration:none;color:#38bdf8" href="note/export?ownerId=' + ownerId + '&name=' + encodeURIComponent(name) + '" target="_blank" rel="noopener">导出</a>' +
             (mine ? '<span class="h5-btn-ghost h5-btn-sm" id="noteDelBtn" style="color:#f5576c">删除</span>' : '') + '</div>' +
             '<div class="h5-card"><div class="h5-card-row"><div style="flex:1;min-width:0">' +
             '<div class="h5-card-title" style="font-size:17px">' + esc(n.name) + '</div>' +
-            '<div class="h5-card-sub">' + esc(n.ownerName || '') + (n.category ? ' · ' + esc(n.category) : '') + ' · ' + esc(n.updateTime || '') + '</div></div>' +
+            '<div class="h5-card-sub">' + esc(n.ownerName || '') + (n.category ? ' · ' + esc(n.category) : '') + ' · ' + esc(n.updateTime || '') + '</div>' +
+            sourceHtml + '</div>' +
             (mine ? noteVisBadge(n.visibility) : '') + '</div>' +
+            (n.tags && n.tags.length ? '<div style="margin-top:8px">' + noteTagsRow(n.tags) + '</div>' : '') +
+            '<div id="noteBacklinksH5"></div>' +
             '<div class="h5-md" style="margin-top:6px">' + mdToHtml(n.content) + '</div></div>';
         $('#noteListWrap').hide();
         $('#noteDetailWrap').show().html(html);
-        $('#noteBack').one('click', function () { $('#noteDetailWrap').hide(); $('#noteListWrap').show(); });
+        /* R7 反向链接 */
+        api({ url: 'note/backlinks?name=' + encodeURIComponent(name), type: 'GET' }).done(function (br) {
+            var bl = (br && br.body) || [];
+            if (bl.length) {
+                var bh = '<div class="h5-card-sub" style="margin-top:8px">🔗 被 ' + bl.length + ' 篇笔记引用：</div>';
+                bl.forEach(function (b) {
+                    bh += '<a href="javascript:;" class="note-backlink-h5" data-owner="' + b.ownerId + '" data-name="' + esc(b.name) + '" ' +
+                        'style="display:inline-block;margin:3px 8px 0 0;color:#a78bfa;font-size:13px">' + esc(b.name) + '</a>';
+                });
+                $('#noteBacklinksH5').html(bh);
+            }
+        });
+        $('#noteBack').one('click', function () { $('#noteDetailWrap').hide(); $('#noteListWrap').show(); renderRecentH5(); });
         if (mine) {
             $('#noteEditBtn').one('click', function () { openNoteEditorH5(n); });
             $('#noteDelBtn').one('click', function () {
                 confirm('确定删除笔记「' + n.name + '」？不可恢复。', function () {
                     postJSON('note/delete', { name: n.name }).done(function (r) {
-                        if (r.errorCode === '000000') { toast('已删除'); closeDetailH5(); loadMyNotesH5(); }
+                        if (r.errorCode === '000000') { toast('已删除'); closeDetailH5(); loadNotesH5(); }
                         else toast(r.errorMsg || '删除失败');
                     });
                 });
@@ -705,9 +817,26 @@ function openNoteH5(ownerId, name, mine) {
     }).fail(function () { loading(false); toast('加载失败'); });
 }
 
+/** H5 站内模块跳转（来源「前往 →」用）；notes 页面栈较浅，直接回首页再进目标模块 */
+function goH5Module(name) {
+    try { goPage(name); } catch (e) { toast('跳转失败'); }
+}
+
+/** 一键沉淀（R2，供 shell/javaapi/dubbo H5 详情调用） */
+function saveFromSourceH5(sourceKey, sourceTitle, sourceCategory, content, cb) {
+    if (!content || !content.trim()) { cb && cb(false, '摘录内容为空'); return; }
+    postJSON('note/saveFromSource', {
+        sourceKey: sourceKey, sourceTitle: sourceTitle,
+        sourceCategory: sourceCategory, content: content
+    }).done(function (res) {
+        if (res.errorCode === '000000') cb && cb(true, (res.body && res.body.name) || '');
+        else cb && cb(false, res.errorMsg || '保存失败');
+    }).fail(function () { cb && cb(false, '保存失败'); });
+}
+
 function closeDetailH5() { $('#noteDetailWrap').hide(); $('#noteListWrap').show(); }
 
-/** 新增/编辑笔记（底部抽屉表单） */
+/** 新增/编辑笔记（底部抽屉表单，v2：含标签；编辑时保留 source 断链保护） */
 function openNoteEditorH5(note) {
     var isEdit = !!note;
     openSheet('<div class="h5-sheet-head"><h3>' + (isEdit ? '编辑笔记' : '新增笔记') + '</h3></div>' +
@@ -716,6 +845,7 @@ function openNoteEditorH5(note) {
         '<div class="h5-field"><label>可见性</label><select class="h5-select" id="ntVis">' +
         '<option value="public"' + (isEdit && note.visibility === 'private' ? '' : ' selected') + '>公共</option>' +
         '<option value="private"' + (isEdit && note.visibility === 'private' ? ' selected' : '') + '>私有</option></select></div>' +
+        '<div class="h5-field"><label>标签（逗号分隔）</label><input class="h5-input" id="ntTags" maxlength="200" value="' + esc(note && note.tags ? note.tags.join(', ') : '') + '"></div>' +
         '<div class="h5-field"><label>正文（markdown）</label><textarea class="h5-textarea" id="ntBody" style="min-height:200px;font-family:ui-monospace,monospace">' + esc(note && note.content || '') + '</textarea></div>' +
         '<button class="h5-btn h5-btn-block" id="ntPreviewBtn">预览</button>' +
         '<div class="h5-md" id="ntPreview" style="display:none;margin:10px 0"></div>' +
@@ -731,16 +861,20 @@ function openNoteEditorH5(note) {
             category: $('#ntCategory').val().trim(),
             visibility: $('#ntVis').val(),
             content: $('#ntBody').val(),
+            tags: $('#ntTags').val().split(/[,，]/).map(function (s) { return s.trim(); })
+                     .filter(function (s) { return !!s; }),
             oldName: isEdit ? note.name : ''
         };
+        /* 编辑时保留来源，避免一次保存把 R3 断链 */
+        if (isEdit && note.source) body.source = note.source;
         if (!body.name) { toast('请输入标题'); return; }
         loading(true);
         postJSON('note/save', body).done(function (res) {
             loading(false);
             if (res.errorCode === '000000') {
                 closeSheet();
-                if (noteMode === 'mine') { loadMyNotesH5(); openNoteH5(H5State.userId, res.body, true); }
-                else loadPublicNotesH5();
+                loadNotesH5();
+                openNoteH5(H5State.userId, res.body, true);
                 toast('保存成功');
             } else toast(res.errorMsg || '保存失败');
         }).fail(function () { loading(false); toast('保存失败'); });

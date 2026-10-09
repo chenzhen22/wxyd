@@ -1,6 +1,8 @@
 package com.cyz.config;
 
 import com.cyz.mapper.mysqlMapper.MysqlMapper;
+import com.cyz.mapper.mysqlMapper.NoteIndexMapper;
+import com.cyz.note.service.NoteDataService;
 import com.cyz.pojo.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,12 @@ public class DataInitializer implements ApplicationRunner {
 
     @Autowired
     private MysqlMapper mysqlMapper;
+
+    @Autowired
+    private NoteIndexMapper noteIndexMapper;
+
+    @Autowired
+    private NoteDataService noteDataService;
 
     @Autowired
     private Sm4KeyHolder sm4KeyHolder;
@@ -36,6 +44,7 @@ public class DataInitializer implements ApplicationRunner {
         ensureEmailColumn();
         ensureGiteeLoginColumn();
         ensureNoteIndexTable();
+        ensureNoteIndexPopulated();
         int count = mysqlMapper.countUsers();
         if (count > 0) {
             log.info("[INIT] users 表已有 {} 个用户，跳过超管播种", count);
@@ -188,6 +197,32 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] 已自动执行 V11 迁移：创建 note_index 笔记检索索引表");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V11 迁移失败（请手动执行 sql/V11__note_index.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 索引为空但磁盘有笔记时自动重建（对应 V11 note_index 的升级体验修复）。
+     * <p>
+     * 背景：v2 笔记列表/检索改走 note_index 索引，升级部署后若不手动执行
+     * POST /note/rebuildIndex，老用户的笔记列表会显示为空 —— 看起来像"笔记丢了"，
+     * 实际 md 文件完好。故启动时自检：索引空但笔记目录存在文件 → 自动重建一次。
+     * 索引非空则跳过（避免每次启动都全量扫描）。
+     */
+    private void ensureNoteIndexPopulated() {
+        try {
+            Integer cnt = noteIndexMapper.countAll();
+            if (cnt != null && cnt > 0) {
+                log.info("[INIT] note_index 已有 {} 行，跳过自动重建", cnt);
+                return;
+            }
+            int total = noteDataService.rebuildIndex();
+            if (total > 0) {
+                log.info("[INIT] 索引为空，已自动重建：共 {} 篇笔记入索引", total);
+            } else {
+                log.info("[INIT] 索引为空且笔记目录无文件，跳过重建（全新安装）");
+            }
+        } catch (Exception e) {
+            log.error("[INIT] 笔记索引自动重建失败（可手动执行 POST /note/rebuildIndex）：{}", e.getMessage());
         }
     }
 }

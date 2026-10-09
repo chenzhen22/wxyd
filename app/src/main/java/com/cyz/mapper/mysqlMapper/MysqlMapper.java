@@ -140,4 +140,9 @@ public interface MysqlMapper {
 	int deleteTransitByUser(@Param("groupId") Long groupId, @Param("toUserId") Long toUserId);
 
 	int deleteExpiredTransit();
+
+	// ===== scan_post（福利专区，只读 dataScan 抓取数据）=====
+	List<ScanPost> listWelfarePosts(@Param("offset") int offset, @Param("size") int size);
+
+	ScanPost queryWelfarePost(@Param("id") Long id);
 }

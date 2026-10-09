@@ -37,6 +37,7 @@ public class MenuServiceImpl implements MenuService {
 
     static {
         REGISTRY.put("userManage", "用户管理");
+        REGISTRY.put("welfare", "福利专区");
         REGISTRY.put("messageBoard", "留言板");
         REGISTRY.put("robotManage", "钉钉机器人");
         REGISTRY.put("groupChat", "群聊");

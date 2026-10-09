@@ -121,6 +121,7 @@
             <li class="menu-item" data-target="sqlTool" id="menuSqlTool" style="display:none;"><i>🗄️</i>SQL 查询</li>
             <li class="menu-item" data-target="dubboCall"><i>🔌</i>Dubbo调用</li>
             <li class="menu-item" data-target="archiveTool"><i>📦</i>归档下载</li>
+            <li class="menu-item" data-target="welfare"><i>🎁</i>福利专区</li>
             <li class="menu-item" data-target="menuManage" id="menuMenuManage" style="display:none;"><i>🧩</i>菜单管理</li>
         </ul>
     </aside>
@@ -557,6 +558,19 @@
             </div>
         </div>
 
+        <div class="module-box" id="welfare">
+            <div class="page-title">福利专区</div>
+            <div id="welfareList">
+                <div class="welfare-grid" id="welfareGrid"></div>
+                <div class="welfare-empty" id="welfareEmpty" style="display:none">暂无福利</div>
+                <div class="welfare-sentinel" id="welfareSentinel"><span class="welfare-loading">加载中…</span></div>
+            </div>
+            <div id="welfareDetail" style="display:none">
+                <button class="btn-main" id="welfareBackBtn">← 返回列表</button>
+                <div class="welfare-article" id="welfareArticle"></div>
+            </div>
+        </div>
+
         <div class="module-box" id="menuManage">
             <div class="page-title">菜单管理 <span class="admin-badge">仅管理员可见</span></div>
             <div id="menuManageBody"><!-- 由 Assets/js/menu-manage.js 渲染 --></div>
@@ -616,6 +630,8 @@
 
     </main>
 </div>
+<script src="Assets/js/welfare-md.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/welfare.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/menu-manage.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/group-chat.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/javaapi.js?v=3" type="text/javascript"></script>

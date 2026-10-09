@@ -106,6 +106,10 @@ $(function () {
         if ($(this).data("target") === "groupChat" && window.GroupChat) {
             GroupChat.mount($("#groupChatBody")[0]);
         }
+        // 福利专区模块懒加载
+        if ($(this).data("target") === "welfare" && window.Welfare) {
+            Welfare.init();
+        }
         // 菜单管理模块懒加载（仅管理员）
         if ($(this).data("target") === "menuManage" && window.MenuManage) {
             MenuManage.mount($("#menuManageBody")[0]);

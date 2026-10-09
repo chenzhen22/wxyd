@@ -202,7 +202,14 @@ function bootstrap() {
                 ['message', 'group'].forEach(function (t) {
                     $('#h5Tabbar .h5-tab[data-target="' + t + '"]').toggle(menuVisible(t));
                 });
-                goPage('home');
+                /* 分享链接：/api/h5.html?welfare=<id> 打开自动落在该帖详情 */
+                var share = location.search.match(/[?&]welfare=(\d+)/);
+                if (share && window.H5Welfare) {
+                    goPage('welfare');
+                    window.H5Welfare.openShared(share[1]);
+                } else {
+                    goPage('home');
+                }
             });
             api({ url: 'user/theme', type: 'GET' }).done(function (r) {
                 if (r.errorCode === '000000' && r.body) applyTheme(r.body);

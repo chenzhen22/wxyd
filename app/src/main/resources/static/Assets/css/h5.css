@@ -341,6 +341,12 @@ input, textarea, select, button { font-family: inherit; font-size: 14px; }
     flex: 1; font-size: 15px; font-weight: 600; color: var(--text-1);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.wf-fs-copy {
+    cursor: pointer; user-select: none; font-size: 17px;
+    width: 32px; height: 32px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--glass-2); border: 1px solid var(--border-2);
+}
 .wf-fs-body {
     flex: 1 1 auto;
     overflow-y: auto; -webkit-overflow-scrolling: touch;

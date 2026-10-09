@@ -5,12 +5,13 @@
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <title>小泽助手</title>
     <script>
-        /* 入口自动识别：手机浏览器 → H5 页，PC 浏览器 → 桌面版登录页 */
+            /* 入口自动识别：手机浏览器 → H5 页，PC 浏览器 → 桌面版登录页；携带查询参数（如 ?welfare=id 分享链接） */
         (function () {
             var ua = navigator.userAgent;
             var mobile = /android|iphone|ipod|ipad|windows phone|mobile/i.test(ua)
                 || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); /* iPadOS 13+ 伪装成 Mac UA */
-            location.replace(mobile ? "h5.html" : "login.html");
+            var qs = location.search || "";
+            location.replace(mobile ? "h5.html" + qs : "login.html" + qs);
         })();
     </script>
 </head>

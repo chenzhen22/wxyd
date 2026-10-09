@@ -144,11 +144,11 @@
             }
             html += '<div class="welfare-card" style="cursor:default">' +
                 '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
-                '<input id="radarKw" placeholder="关键词，如：VPS / 吃喝" style="flex:2;min-width:140px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff">' +
-                '<select id="radarCh" style="flex:1;min-width:100px;padding:6px;border-radius:8px;background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.15)">' +
+                '<input id="radarKw" class="note-editor-input" style="flex:2;min-width:140px;" placeholder="关键词，如：VPS / 吃喝">' +
+                '<select id="radarCh" class="note-editor-input" style="flex:1;min-width:110px;">' +
                 '<option value="dingtalk">钉钉推送</option><option value="email">邮件推送</option></select>' +
-                '<select id="radarRobot" style="flex:1;min-width:120px;padding:6px;border-radius:8px;background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.15);display:none"></select>' +
-                '<input id="radarEmail" placeholder="接收邮箱" style="flex:1;min-width:140px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;display:none">' +
+                '<select id="radarRobot" class="note-editor-input" style="flex:1;min-width:120px;display:none"></select>' +
+                '<input id="radarEmail" class="note-editor-input" style="flex:1;min-width:140px;display:none" placeholder="接收邮箱">' +
                 '<button class="btn-main" id="radarAdd" style="padding:6px 16px;">＋ 添加</button>' +
                 '</div></div>';
             $('#radarPanel').html(html);

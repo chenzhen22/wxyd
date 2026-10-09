@@ -7,6 +7,21 @@
 window.H5Modules = {};
 window.registerH5Module = function (name, fn) { window.H5Modules[name] = fn; };
 
+/* ---------------- 禁用左滑/右滑返回（浏览器手势导航） ----------------
+   手机浏览器在页面边缘滑动会触发 前进/后退，导致 H5 被意外切走。
+   方案：加载时推入一个守卫历史状态；无论用户怎么滑，popstate 一触发
+   就立刻再推入守卫状态，浏览器始终停留在本页（返回键/侧滑均不再离开）。 */
+(function () {
+    if (!window.history || !history.pushState) return;
+    var guard = function () {
+        try { history.pushState({ h5: 'guard' }, '', location.href); } catch (e) {}
+    };
+    guard();
+    window.addEventListener('popstate', guard);
+    /* bfcache 恢复（如从其他页返回）时补一次守卫，防止历史位被消耗 */
+    window.addEventListener('pageshow', function (e) { if (e.persisted) guard(); });
+})();
+
 var H5State = { userId: null, username: '', isAdmin: false, theme: 'dark', visibleKeys: null };
 
 /* ---------------- 菜单可见性（菜单管理配置） ---------------- */

@@ -29,6 +29,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/sql/**",
                         "/group/**",
                         "/menu/**",
+                        "/radar/**",
+                        "/patrol/**",
                         "/approveUser", "/rejectUser", "/deleteUser",
                         "/queryMessage", "/addMessage", "/delMessage"
                 );

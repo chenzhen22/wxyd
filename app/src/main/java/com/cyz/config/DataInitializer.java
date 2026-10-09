@@ -45,6 +45,7 @@ public class DataInitializer implements ApplicationRunner {
         ensureGiteeLoginColumn();
         ensureNoteIndexTable();
         ensureNoteIndexPopulated();
+        ensureRadarPatrolTables();
         int count = mysqlMapper.countUsers();
         if (count > 0) {
             log.info("[INIT] users 表已有 {} 个用户，跳过超管播种", count);
@@ -223,6 +224,56 @@ public class DataInitializer implements ApplicationRunner {
             }
         } catch (Exception e) {
             log.error("[INIT] 笔记索引自动重建失败（可手动执行 POST /note/rebuildIndex）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 幂等确保羊毛雷达/巡检日报三表存在（对应 sql/V12__radar_patrol.sql）。
+     */
+    private void ensureRadarPatrolTables() {
+        try {
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `radar_subscribe` (" +
+                    "`id` BIGINT NOT NULL AUTO_INCREMENT," +
+                    "`user_id` BIGINT NOT NULL COMMENT '订阅属主'," +
+                    "`keyword` VARCHAR(64) NOT NULL COMMENT '命中关键词（标题或摘要 LIKE）'," +
+                    "`channel` VARCHAR(10) NOT NULL COMMENT 'dingtalk | email'," +
+                    "`robot_id` BIGINT NULL COMMENT 'channel=dingtalk 时必填'," +
+                    "`email` VARCHAR(128) NULL COMMENT 'channel=email 时必填'," +
+                    "`last_post_id` BIGINT NOT NULL DEFAULT 0 COMMENT '已推送到的 scan_post.id'," +
+                    "`enabled` TINYINT NOT NULL DEFAULT 1 COMMENT '1=启用 0=暂停'," +
+                    "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "PRIMARY KEY (`id`)," +
+                    "UNIQUE KEY `uk_user_keyword_channel` (`user_id`,`keyword`,`channel`)," +
+                    "KEY `idx_user` (`user_id`)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='羊毛雷达订阅'");
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `patrol_asset` (" +
+                    "`id` BIGINT NOT NULL AUTO_INCREMENT," +
+                    "`user_id` BIGINT NOT NULL," +
+                    "`name` VARCHAR(64) NOT NULL COMMENT '资产展示名'," +
+                    "`asset_type` VARCHAR(10) NOT NULL COMMENT 'url | domain | server'," +
+                    "`target` VARCHAR(255) NOT NULL COMMENT 'url:完整URL / domain:域名 / server:host'," +
+                    "`port` INT NULL COMMENT 'server 的 SSH 端口，默认 22'," +
+                    "`ssh_user` VARCHAR(32) NULL," +
+                    "`ssh_password` VARCHAR(256) NULL COMMENT 'SSH 密码，SM4 密文'," +
+                    "`enabled` TINYINT NOT NULL DEFAULT 1," +
+                    "`last_status` VARCHAR(10) NULL COMMENT 'ok | warn | fail | unknown'," +
+                    "`last_detail` VARCHAR(1000) NULL," +
+                    "`last_check_time` DATETIME NULL," +
+                    "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "PRIMARY KEY (`id`),KEY `idx_user` (`user_id`)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检资产'");
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `patrol_setting` (" +
+                    "`user_id` BIGINT NOT NULL," +
+                    "`push_hour` TINYINT NOT NULL DEFAULT 8 COMMENT '日报推送小时（0-23）'," +
+                    "`channel` VARCHAR(10) NOT NULL COMMENT 'dingtalk | email'," +
+                    "`robot_id` BIGINT NULL," +
+                    "`email` VARCHAR(128) NULL," +
+                    "`enabled` TINYINT NOT NULL DEFAULT 1," +
+                    "PRIMARY KEY (`user_id`)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检日报推送设置'");
+            log.info("[INIT] 已自动执行 V12 迁移：radar_subscribe / patrol_asset / patrol_setting");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V12 迁移失败（请手动执行 sql/V12__radar_patrol.sql）：{}", e.getMessage());
         }
     }
 }

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cyz.mapper.mysqlMapper.RadarMapper">
+
+	<select id="listByUser" resultType="com.cyz.radar.model.RadarSubscribe">
+		select `id`,`user_id`,`keyword`,`channel`,`robot_id`,`email`,
+		       `last_post_id`,`enabled`,date_format(`create_time`,'%Y-%m-%d %H:%i') as `create_time`
+		from `radar_subscribe` where `user_id`=#{userId} order by `id` desc
+	</select>
+
+	<select id="getById" resultType="com.cyz.radar.model.RadarSubscribe">
+		select `id`,`user_id`,`keyword`,`channel`,`robot_id`,`email`,
+		       `last_post_id`,`enabled`,date_format(`create_time`,'%Y-%m-%d %H:%i') as `create_time`
+		from `radar_subscribe` where `id`=#{id}
+	</select>
+
+	<insert id="insert" parameterType="com.cyz.radar.model.RadarSubscribe" useGeneratedKeys="true" keyProperty="id">
+		insert into `radar_subscribe`
+		(`user_id`,`keyword`,`channel`,`robot_id`,`email`,`last_post_id`,`enabled`)
+		values (#{userId},#{keyword},#{channel},#{robotId},#{email},#{lastPostId},#{enabled})
+	</insert>
+
+	<!-- 双重限定：id 归属校验在 SQL 层兜底，杜绝改他の人的订阅 -->
+	<delete id="delete">
+		delete from `radar_subscribe` where `id`=#{id} and `user_id`=#{userId}
+	</delete>
+
+	<update id="updateEnabled">
+		update `radar_subscribe` set `enabled`=#{enabled} where `id`=#{id} and `user_id`=#{userId}
+	</update>
+
+	<select id="countByUser" resultType="Integer">
+		select count(1) from `radar_subscribe` where `user_id`=#{userId}
+	</select>
+
+	<update id="updateLastPostId">
+		update `radar_subscribe` set `last_post_id`=#{lastPostId} where `id`=#{id}
+	</update>
+
+	<select id="listEnabled" resultType="com.cyz.radar.model.RadarSubscribe">
+		select `id`,`user_id`,`keyword`,`channel`,`robot_id`,`email`,`last_post_id`,`enabled`
+		from `radar_subscribe` where `enabled`=1
+	</select>
+
+	<select id="selectMaxPostId" resultType="java.lang.Long">
+		select max(`id`) from `scan_post`
+	</select>
+
+	<!-- 增量命中：新帖且标题/正文含关键词；summary 由 content_md 派生（scan_post 无 summary 列），
+	     只取展示所需列（不含原站链接/作者/统计） -->
+	<select id="findHits" resultType="java.util.HashMap">
+		select `id`,`title`,substring(`content_md`, 1, 120) as `summary`,
+		       date_format(`published_at`,'%Y-%m-%d %H:%i') as `publishedAt`
+		from `scan_post`
+		where `id` &gt; #{lastPostId}
+		  and (`title` like concat('%',#{keyword},'%') or `content_md` like concat('%',#{keyword},'%'))
+		order by `id` asc
+		limit #{limit}
+	</select>
+
+</mapper>

@@ -140,7 +140,9 @@
         state.loading = false;
         state.done = false;
         $page.html(
-            '<div class="h5-section-title">🎁 福利专区</div>' +
+            '<div class="h5-section-title">🎁 福利专区' +
+            '<span class="h5-btn-ghost h5-btn-sm" id="wfRadarBtn" style="float:right">📡 雷达</span></div>' +
+            '<div id="wfRadarBox" style="display:none;margin-bottom:10px"></div>' +
             '<div id="wfList"></div>' +
             '<div class="h5-empty" id="wfEmpty" style="display:none">暂无福利</div>' +
             '<div class="wf-loading-more" id="wfLoading" style="display:none">加载中…</div>'
@@ -149,11 +151,80 @@
         $page.off('click').on('click', '.welfare-card', function () {
             showDetail($(this).data('id'));
         });
+        $page.on('click', '#wfRadarBtn', openRadarSheet);
         /* .h5-main 是滚动容器：滚到底部自动加载（仅当本页可见时） */
         $('.h5-main').off('scroll.welfare').on('scroll.welfare', function () {
             if (!$page.hasClass('active') || state.loading || state.done) return;
             if (this.scrollHeight - this.scrollTop - this.clientHeight < 300) loadMore($page);
         });
+    }
+
+    /* ================= 羊毛雷达（H5 订阅管理，复用 desktop 同一套 /radar 接口） ================= */
+
+    function openRadarSheet() {
+        openSheet('<div class="h5-sheet-head"><h3>📡 羊毛雷达</h3></div>' +
+            '<div id="h5RadarList"><div class="h5-empty">加载中…</div></div>');
+        loadRadarH5();
+    }
+
+    function loadRadarH5() {
+        api({ url: 'radar/list', type: 'GET' }).done(function (res) {
+            var list = (res.errorCode === '000000' && res.body) || [];
+            var html = '<div class="h5-card-sub" style="margin-bottom:8px">关键词命中新帖时自动推送（每小时检查，最多 10 条）</div>';
+            list.forEach(function (s) {
+                var ch = s.channel === 'dingtalk' ? '钉钉' : '邮箱';
+                var target = s.channel === 'dingtalk' ? ('机器人#' + s.robotId) : s.email;
+                html += '<div class="h5-card"><div class="h5-card-row"><div style="flex:1;min-width:0">' +
+                    '<div class="h5-card-title">🔍 ' + esc(s.keyword) + '</div>' +
+                    '<div class="h5-card-sub">→ ' + ch + ' · ' + esc(target) + (s.enabled ? '' : ' · 已暂停') + '</div></div>' +
+                    '<div>' +
+                    '<button class="h5-btn h5-btn-sm" data-op="toggle" data-id="' + s.id + '" data-on="' + s.enabled + '">' + (s.enabled ? '暂停' : '启用') + '</button>' +
+                    ' <button class="h5-btn h5-btn-sm" data-op="test" data-id="' + s.id + '">测试</button>' +
+                    ' <button class="h5-btn-danger h5-btn-sm" data-op="del" data-id="' + s.id + '">删</button>' +
+                    '</div></div></div>';
+            });
+            html += '<div class="h5-field"><label>关键词</label><input class="h5-input" id="h5RadarKw" maxlength="64" placeholder="如：VPS / 吃喝"></div>' +
+                '<div class="h5-field"><label>推送通道</label><select class="h5-select" id="h5RadarCh">' +
+                '<option value="dingtalk">钉钉推送</option><option value="email">邮件推送</option></select></div>' +
+                '<div class="h5-field" id="h5RadarRobotField"><label>钉钉机器人</label><select class="h5-select" id="h5RadarRobot"></select></div>' +
+                '<div class="h5-field" id="h5RadarEmailField" style="display:none"><label>接收邮箱</label><input class="h5-input" id="h5RadarEmail" placeholder="you@example.com"></div>' +
+                '<button class="h5-btn-primary h5-btn-block" id="h5RadarAdd">＋ 添加订阅</button>';
+            $('#h5RadarList').html(html);
+
+            api({ url: 'robot/list', type: 'GET' }).done(function (r) {
+                var robots = (r && r.body) || [];
+                $('#h5RadarRobot').html(robots.length
+                    ? robots.map(function (x) { return '<option value="' + x.id + '">' + esc(x.name || ('机器人#' + x.id)) + '</option>'; }).join('')
+                    : '<option value="">（请先到 PC 端「钉钉机器人」添加）</option>');
+            });
+            $('#h5RadarCh').off('change').on('change', function () {
+                var isDing = $(this).val() === 'dingtalk';
+                $('#h5RadarRobotField').toggle(isDing);
+                $('#h5RadarEmailField').toggle(!isDing);
+            });
+            $('#h5RadarList').off('click', '[data-op]').on('click', '[data-op]', function () {
+                var $b = $(this), op = $b.data('op'), id = $b.data('id');
+                if (op === 'del') {
+                    postJSON('radar/delete', { id: id }).done(function (r) { r.errorCode === '000000' ? loadRadarH5() : toast(r.errorMsg || '失败'); });
+                } else if (op === 'toggle') {
+                    postJSON('radar/toggle', { id: id, enabled: $b.data('on') ? false : true }).done(function (r) { r.errorCode === '000000' ? loadRadarH5() : toast(r.errorMsg || '失败'); });
+                } else if (op === 'test') {
+                    toast('测试推送中…');
+                    postJSON('radar/test', { id: id }).done(function (r) { r.errorCode === '000000' ? toast(r.body) : toast(r.errorMsg || '失败'); });
+                }
+            });
+            $('#h5RadarAdd').off('click').on('click', function () {
+                var kw = $('#h5RadarKw').val().trim();
+                if (!kw) { toast('请输入关键词'); return; }
+                var payload = { keyword: kw, channel: $('#h5RadarCh').val() };
+                if (payload.channel === 'dingtalk') payload.robotId = $('#h5RadarRobot').val();
+                else payload.email = $('#h5RadarEmail').val().trim();
+                postJSON('radar/add', payload).done(function (r) {
+                    if (r.errorCode === '000000') { loadRadarH5(); toast('已添加'); }
+                    else toast(r.errorMsg || '添加失败');
+                });
+            });
+        }).fail(function () { $('#h5RadarList').html('<div class="h5-empty">加载失败</div>'); });
     }
 
     window.registerH5Module('welfare', renderWelfare);

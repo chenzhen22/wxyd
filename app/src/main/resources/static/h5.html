@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover,interactive-widget=resizes-content" name="viewport">
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <!-- O4 PWA：manifest 与 SW 用相对路径，自动适配 context-path /api -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="favicon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a1a2e">
     <title>小泽助手 · H5</title>
 <link href="Assets/css/admin.css?v=20261009" rel="stylesheet" type="text/css">
 <link href="Assets/css/h5.css?v=8" rel="stylesheet" type="text/css">
@@ -148,5 +154,15 @@ window.addEventListener('pageshow', function (e) {
 <script src="Assets/js/h5-sqltool.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/h5-dubbo.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/h5-pdftool.js?v=1" type="text/javascript"></script>
+<script>
+    /* O4 PWA：Service Worker 注册（仅 HTTPS / localhost 生效，其余环境静默跳过） */
+    (function () {
+        if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+            try {
+                navigator.serviceWorker.register('./sw.js').catch(function () { /* 静默失败 */ });
+            } catch (e) { /* 静默失败 */ }
+        }
+    })();
+</script>
 </body>
 </html>

@@ -1,0 +1,25 @@
+{
+  "name": "小泽助手",
+  "short_name": "小泽助手",
+  "description": "运维场景垂直的全家桶自托管平台：知识库 / 巡检 / 福利雷达 / 工具箱",
+  "start_url": "./h5.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1a1a2e",
+  "background_color": "#1a1a2e",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

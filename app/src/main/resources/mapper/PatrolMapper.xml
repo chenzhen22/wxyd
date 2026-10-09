@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cyz.mapper.mysqlMapper.PatrolMapper">
+
+	<select id="listByUser" resultType="com.cyz.patrol.model.PatrolAsset">
+		select `id`,`user_id`,`name`,`asset_type`,`target`,`port`,`ssh_user`,`enabled`,
+		       `last_status`,`last_detail`,date_format(`last_check_time`,'%Y-%m-%d %H:%i') as `last_check_time`,
+		       date_format(`create_time`,'%Y-%m-%d %H:%i') as `create_time`
+		from `patrol_asset` where `user_id`=#{userId} order by `id` desc
+	</select>
+
+	<select id="listEnabledByUser" resultType="com.cyz.patrol.model.PatrolAsset">
+		select `id`,`user_id`,`name`,`asset_type`,`target`,`port`,`ssh_user`,`ssh_password`,`enabled`
+		from `patrol_asset` where `user_id`=#{userId} and `enabled`=1
+	</select>
+
+	<select id="getById" resultType="com.cyz.patrol.model.PatrolAsset">
+		select `id`,`user_id`,`name`,`asset_type`,`target`,`port`,`ssh_user`,`ssh_password`,`enabled`
+		from `patrol_asset` where `id`=#{id}
+	</select>
+
+	<insert id="insert" parameterType="com.cyz.patrol.model.PatrolAsset" useGeneratedKeys="true" keyProperty="id">
+		insert into `patrol_asset`
+		(`user_id`,`name`,`asset_type`,`target`,`port`,`ssh_user`,`ssh_password`,`enabled`)
+		values (#{userId},#{name},#{assetType},#{target},#{port},#{sshUser},#{sshPassword},#{enabled})
+	</insert>
+
+	<delete id="delete">
+		delete from `patrol_asset` where `id`=#{id} and `user_id`=#{userId}
+	</delete>
+
+	<update id="updateCheckResult">
+		update `patrol_asset`
+		set `last_status`=#{status},
+		    `last_detail`=#{detail},
+		    `last_check_time`=now()
+		where `id`=#{id}
+	</update>
+
+	<!-- 日报设置 -->
+	<select id="getSetting" resultType="java.util.HashMap">
+		select `user_id`,`push_hour`,`channel`,`robot_id`,`email`,`enabled`
+		from `patrol_setting` where `user_id`=#{userId}
+	</select>
+
+	<insert id="upsertSetting">
+		insert into `patrol_setting`
+		(`user_id`,`push_hour`,`channel`,`robot_id`,`email`,`enabled`)
+		values (#{userId},#{pushHour},#{channel},#{robotId},#{email},#{enabled})
+		on duplicate key update
+			`push_hour`=values(`push_hour`),
+			`channel`=values(`channel`),
+			`robot_id`=values(`robot_id`),
+			`email`=values(`email`),
+			`enabled`=values(`enabled`)
+	</insert>
+
+	<!-- 需要在当前小时推日报的用户；只取已配置完整通道的（robot_id / email 之一非空） -->
+	<select id="listUsersToPush" resultType="java.util.HashMap">
+		select `user_id`,`push_hour`,`channel`,`robot_id`,`email`
+		from `patrol_setting`
+		where `enabled`=1 and `push_hour`=#{hour}
+		  and ((`channel`='dingtalk' and `robot_id` is not null)
+		    or (`channel`='email' and `email` is not null and `email` &lt;&gt; ''))
+	</select>
+
+</mapper>

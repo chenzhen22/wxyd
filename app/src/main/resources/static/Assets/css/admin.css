@@ -2339,6 +2339,17 @@ select option { background: var(--select-bg); color: var(--select-fg); }
 }
 .note-export-all:hover, .note-export-one:hover { background: rgba(56, 189, 248, .16); }
 
+/* ---------- 巡检日报 ---------- */
+.patrol-status-legend { font-size: 12px; color: var(--text-9); margin-bottom: 10px; }
+.patrol-dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    vertical-align: -1px; margin-right: 2px;
+}
+.patrol-dot.ok { background: #43e97b; }
+.patrol-dot.warn { background: #e0a800; }
+.patrol-dot.fail { background: #f5576c; }
+.patrol-dot.unknown { background: #888780; }
+
 /* 资料页「存入笔记」按钮 */.btn-save-note {
     border: none; background: rgba(167, 139, 250, .16); color: #a78bfa;
     font-size: 11px; padding: 2px 9px; border-radius: 5px; cursor: pointer;

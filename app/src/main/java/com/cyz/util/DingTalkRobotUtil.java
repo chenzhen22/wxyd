@@ -71,6 +71,27 @@ public class DingTalkRobotUtil {
     }
 
     /**
+     * 发送 Markdown 消息（供羊毛雷达/巡检日报等系统推送使用）。
+     * @param config 机器人配置
+     * @param title 消息标题（会话列表中展示）
+     * @param markdown 正文，支持钉钉 markdown 子集（# 标题、- 列表、**加粗**、> 引用等）
+     * @return 钉钉响应 json
+     */
+    public static String sendMarkdownMsg(RobotConfig config, String title, String markdown) throws Exception {
+        Map<String, Object> mdMap = new HashMap<>();
+        mdMap.put("title", title);
+        mdMap.put("text", markdown);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("msgtype", "markdown");
+        body.put("markdown", mdMap);
+
+        String jsonBody = JSON.toJSONString(body);
+        String requestUrl = buildSignedUrl(config);
+        return doPost(requestUrl, jsonBody);
+    }
+
+    /**
      * 构建带timestamp和sign签名的完整URL
      */
     private static String buildSignedUrl(RobotConfig config) throws Exception {

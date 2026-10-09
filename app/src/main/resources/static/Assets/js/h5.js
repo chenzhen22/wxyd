@@ -263,6 +263,7 @@ function goPage(name) {
 var MODULE_ITEMS = [
     { name: 'user', ico: '👤', label: '用户管理', admin: true },
     { name: 'welfare', ico: '🎁', label: '福利专区' },
+    { name: 'patrol', ico: '🛡️', label: '巡检日报' },
     { name: 'robot', ico: '🤖', label: '钉钉机器人' },
     { name: 'notes', ico: '📝', label: '记忆笔记' },
     { name: 'share', ico: '📁', label: '文件共享' },

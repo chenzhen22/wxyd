@@ -102,6 +102,92 @@
         }
     }
 
+    /* ================= 羊毛雷达（订阅关键词 → 钉钉/邮件推送） ================= */
+
+    var radarLoaded = false;
+
+    function postJSON(url, body) {
+        return $.ajax({ url: url, type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ body: body }) });
+    }
+
+    function robotOptionsHtml(selected) {
+        return $.getJSON('robot/list').then(function (res) {
+            var list = (res && res.body) || [];
+            return list.map(function (r) {
+                return '<option value="' + r.id + '"' + (r.id === selected ? ' selected' : '') + '>' +
+                    esc(r.name || ('机器人 #' + r.id)) + '</option>';
+            }).join('');
+        }).then(function (html) { return html || '<option value="">（尚无机器人，请先到「钉钉机器人」添加）</option>'; });
+    }
+
+    function renderRadar() {
+        $.getJSON('radar/list').done(function (res) {
+            var list = (res && res.body) || [];
+            var html = '<div class="welfare-empty" style="text-align:left;padding:10px 4px">' +
+                '<b>📡 羊毛雷达</b> —— 关键词命中新帖时自动推送到你的钉钉/邮箱（每小时检查一次，最多 10 条）</div>';
+            if (list.length) {
+                html += list.map(function (s) {
+                    var ch = s.channel === 'dingtalk' ? '钉钉' : '邮箱';
+                    var target = s.channel === 'dingtalk' ? ('机器人#' + s.robotId) : s.email;
+                    return '<div class="welfare-card" style="cursor:default;display:flex;align-items:center;gap:8px">' +
+                        '<div style="flex:1;min-width:0">' +
+                        '<b>🔍 ' + esc(s.keyword) + '</b> <span class="welfare-date">→ ' + ch + ' · ' + esc(target) + '</span>' +
+                        '</div>' +
+                        '<button class="btn-main" data-radar="test" data-id="' + s.id + '" style="padding:3px 10px;font-size:12px;">测试</button>' +
+                        '<button class="btn-main" data-radar="toggle" data-id="' + s.id + '" data-on="' + s.enabled + '" style="padding:3px 10px;font-size:12px;">' + (s.enabled ? '暂停' : '启用') + '</button>' +
+                        '<button class="btn-main" data-radar="del" data-id="' + s.id + '" style="padding:3px 10px;font-size:12px;color:#f5576c;">删除</button>' +
+                        '</div>';
+                }).join('');
+            } else {
+                html += '<div class="welfare-empty">还没有订阅，添加一条关键词试试</div>';
+            }
+            html += '<div class="welfare-card" style="cursor:default">' +
+                '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+                '<input id="radarKw" placeholder="关键词，如：VPS / 吃喝" style="flex:2;min-width:140px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff">' +
+                '<select id="radarCh" style="flex:1;min-width:100px;padding:6px;border-radius:8px;background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.15)">' +
+                '<option value="dingtalk">钉钉推送</option><option value="email">邮件推送</option></select>' +
+                '<select id="radarRobot" style="flex:1;min-width:120px;padding:6px;border-radius:8px;background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.15);display:none"></select>' +
+                '<input id="radarEmail" placeholder="接收邮箱" style="flex:1;min-width:140px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;display:none">' +
+                '<button class="btn-main" id="radarAdd" style="padding:6px 16px;">＋ 添加</button>' +
+                '</div></div>';
+            $('#radarPanel').html(html);
+            bindRadar();
+        });
+    }
+
+    function bindRadar() {
+        $('#radarCh').off('change').on('change', function () {
+            var isDing = $(this).val() === 'dingtalk';
+            $('#radarRobot').toggle(isDing);
+            $('#radarEmail').toggle(!isDing);
+        });
+        robotOptionsHtml(null).then(function (html) { $('#radarRobot').html(html); });
+        $('#radarPanel').off('click', '[data-radar]').on('click', '[data-radar]', function () {
+            var op = $(this).data('radar');
+            var id = $(this).data('id');
+            if (op === 'del') {
+                postJSON('radar/delete', { id: id }).done(function (r) { r.errorCode === '000000' ? renderRadar() : msg(r.errorMsg || '删除失败'); });
+            } else if (op === 'toggle') {
+                postJSON('radar/toggle', { id: id, enabled: $(this).data('on') ? false : true }).done(function (r) { r.errorCode === '000000' ? renderRadar() : msg(r.errorMsg || '操作失败'); });
+            } else if (op === 'test') {
+                msg('测试推送中…');
+                postJSON('radar/test', { id: id }).done(function (r) { r.errorCode === '000000' ? msg(r.body) : msg(r.errorMsg || '测试失败'); });
+            }
+        });
+        $('#radarAdd').off('click').on('click', function () {
+            var kw = $('#radarKw').val().trim();
+            if (!kw) { msg('请输入关键词'); return; }
+            var payload = { keyword: kw, channel: $('#radarCh').val() };
+            if (payload.channel === 'dingtalk') payload.robotId = $('#radarRobot').val();
+            else payload.email = $('#radarEmail').val().trim();
+            postJSON('radar/add', payload).done(function (r) {
+                if (r.errorCode === '000000') { renderRadar(); }
+                else msg(r.errorMsg || '添加失败');
+            });
+        });
+    }
+
     window.Welfare = {
         init: function () {
             if (!$('#welfareGrid').length) return;
@@ -111,6 +197,14 @@
                 showDetail($(this).data('id'));
             });
             $('#welfareBackBtn').off('click').on('click', showList);
+            // 羊毛雷达入口（登录用户可见；未登录时整个 welfare 模块本就不可达）
+            $('#radarEntry').show();
+            $('#radarEntry').off('click').on('click', function () {
+                var $p = $('#radarPanel');
+                if ($p.is(':visible')) { $p.hide(); return; }
+                $p.show().html('<div class="welfare-empty">加载中…</div>');
+                renderRadar();
+            });
         }
     };
 })();

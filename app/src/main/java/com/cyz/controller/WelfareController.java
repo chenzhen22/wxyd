@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
+
 /**
  * 福利专区（只读 dataScan 抓取的 scan_post 帖子）。
  * 路径前缀 welfare（context-path /api），鉴权由 AuthInterceptor 的 /welfare/** 保障。
@@ -21,14 +23,15 @@ public class WelfareController implements CommController {
 
     /** 分页列表：[{id,title,summary,firstImage,publishedAt}] */
     @GetMapping("welfare/list")
-    public Result list(@RequestParam(defaultValue = "1") int page,
+    public Result list(HttpServletRequest request,
+                       @RequestParam(defaultValue = "1") int page,
                        @RequestParam(defaultValue = "20") int size) {
-        return welfareService.list(page, size);
+        return welfareService.list(request.getContextPath(), page, size);
     }
 
     /** 详情：{id,title,publishedAt,contentMd,images} */
     @GetMapping("welfare/detail")
-    public Result detail(@RequestParam Long id) {
-        return welfareService.detail(id);
+    public Result detail(HttpServletRequest request, @RequestParam Long id) {
+        return welfareService.detail(request.getContextPath(), id);
     }
 }

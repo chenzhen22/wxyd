@@ -7,7 +7,7 @@ import com.cyz.pojo.Result;
  */
 public interface WelfareService {
 
-    Result list(int page, int size);
+    Result list(String contextPath, int page, int size);
 
-    Result detail(Long id);
+    Result detail(String contextPath, Long id);
 }

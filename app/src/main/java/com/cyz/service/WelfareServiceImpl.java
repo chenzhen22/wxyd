@@ -38,7 +38,7 @@ public class WelfareServiceImpl implements WelfareService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
-    public Result list(int page, int size) {
+    public Result list(String contextPath, int page, int size) {
         Result result = Result.getInstance();
         if (page < 1) page = 1;
         if (size < 1 || size > 50) size = 20;
@@ -51,7 +51,7 @@ public class WelfareServiceImpl implements WelfareService {
                 row.put("title", p.getTitle());
                 row.put("summary", p.getSummary());
                 row.put("publishedAt", p.getPublishedAt());
-                row.put("firstImage", firstLocalImage(p.getImages()));
+                row.put("firstImage", firstLocalImage(contextPath, p.getImages()));
                 body.add(row);
             }
         }
@@ -60,7 +60,7 @@ public class WelfareServiceImpl implements WelfareService {
     }
 
     @Override
-    public Result detail(Long id) {
+    public Result detail(String contextPath, Long id) {
         Result result = Result.getInstance();
         if (id == null || id < 1) {
             return result.setErrorEnum(ErrorEnum.ERROR000015);
@@ -74,17 +74,19 @@ public class WelfareServiceImpl implements WelfareService {
         body.put("title", p.getTitle());
         body.put("publishedAt", p.getPublishedAt());
         body.put("contentMd", p.getContentMd());
-        body.put("images", localImages(p.getImages()));
+        body.put("images", localImages(contextPath, p.getImages()));
         result.setBody(body);
         return result;
     }
 
     /** 解析 images JSON，返回 [{url,webUrl,alt,width,height}]，仅含已落地本地的图 */
-    private List<Map<String, Object>> localImages(String imagesJson) {
+    private List<Map<String, Object>> localImages(String contextPath, String imagesJson) {
         List<Map<String, Object>> out = new ArrayList<>();
         String root = imageDir == null || imageDir.trim().isEmpty()
                 ? "/apps/shareFile/datascan" : imageDir.trim();
         if (!root.endsWith(File.separator)) root = root + File.separator;
+        // webUrl 必须带 context-path（应用部署在 /api 下），否则浏览器 404
+        String base = contextPath == null ? "" : contextPath;
         for (Map<String, Object> img : parseImages(imagesJson)) {
             Object lp = img.get("local_path");
             if (lp == null) continue;
@@ -93,7 +95,7 @@ public class WelfareServiceImpl implements WelfareService {
             Map<String, Object> row = new LinkedHashMap<>();
             // url 仅用于前端把 Markdown 里的远程图片地址替换成本地代理地址，页面不展示
             row.put("url", img.get("url"));
-            row.put("webUrl", "/welfare-img/" + localPath.substring(root.length()));
+            row.put("webUrl", base + "/welfare-img/" + localPath.substring(root.length()));
             Object alt = img.get("alt");
             if (alt != null) row.put("alt", alt);
             Object width = img.get("width");
@@ -106,8 +108,8 @@ public class WelfareServiceImpl implements WelfareService {
     }
 
     /** 列表首图：第一张已落地本地的图的代理地址 */
-    private String firstLocalImage(String imagesJson) {
-        for (Map<String, Object> img : localImages(imagesJson)) {
+    private String firstLocalImage(String contextPath, String imagesJson) {
+        for (Map<String, Object> img : localImages(contextPath, imagesJson)) {
             return String.valueOf(img.get("webUrl"));
         }
         return null;

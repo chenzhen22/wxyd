@@ -352,3 +352,12 @@ input, textarea, select, button { font-family: inherit; font-size: 14px; }
     overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: 14px 16px calc(24px + env(safe-area-inset-bottom));
 }
+
+/* ---------- 登录页背景图 ---------- */
+/* 覆盖默认渐变：照片铺满 + 深色压暗层，保证玻璃卡片与文字可读 */
+.h5-login-mask {
+    background:
+        linear-gradient(rgba(10, 8, 24, .55), rgba(10, 8, 24, .68)),
+        url('../images/login-bg.jpg') center / cover no-repeat;
+    background-attachment: scroll;
+}

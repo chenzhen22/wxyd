@@ -41,8 +41,13 @@
             $('body').append($fs);
             $fs.on('click', '#wfFsBack', function () {
                 $fs.removeClass('show');
+                var wasShare = !!state.shareId;
                 state.shareId = null;
                 try { history.pushState(null, '', urlWithWelfare(null)); } catch (e) {}
+                /* 访客（免登录分享链接）关闭详情后回到登录浮层，浏览其余功能需登录 */
+                if (wasShare && (!window.H5State || !H5State.username) && typeof showLogin === 'function') {
+                    showLogin();
+                }
             });
             $fs.on('click', '#wfFsCopy', function () {
                 var url = location.origin + urlWithWelfare(state.shareId);

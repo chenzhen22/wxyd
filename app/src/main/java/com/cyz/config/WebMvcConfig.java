@@ -29,18 +29,18 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/sql/**",
                         "/group/**",
                         "/menu/**",
-                        "/welfare/**",
-                        "/welfare-img/**",
                         "/approveUser", "/rejectUser", "/deleteUser",
                         "/queryMessage", "/addMessage", "/delMessage"
                 );
+        // 注意：/welfare/** 与 /welfare-img/** 不在拦截范围内——福利专区为公开只读
+        // 数据（分享链接免登录查看），不含任何用户数据。
     }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // 福利专区图片：dataScan 已把正文图片下载到本地（按 topic_id 建子目录），
-        // 这里映射出去，需登录（见上方拦截器）。ResourceHttpRequestHandler 会规范化
-        // 路径并拒绝 ../ 越界，不会读到映射目录之外。
+        // 福利专区图片：dataScan 已把正文图片下载到本地（按 topic_id 建子目录）。
+        // 公开访问（分享链接免登录），仅暴露该目录内容；
+        // ResourceHttpRequestHandler 会规范化路径并拒绝 ../ 越界，不会读到目录之外。
         String dir = welfareImageDir == null || welfareImageDir.trim().isEmpty()
                 ? "/apps/shareFile/datascan" : welfareImageDir.trim();
         if (!dir.endsWith("/")) dir = dir + "/";

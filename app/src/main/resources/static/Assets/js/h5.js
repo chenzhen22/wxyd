@@ -188,6 +188,20 @@ function doLogin() {
     });
 }
 
+/* 分享链接参数：/api/h5.html?welfare=<id>（免登录访客也可查看该帖） */
+function getShareWelfareId() {
+    var m = location.search.match(/[?&]welfare=(\d+)/);
+    return m ? m[1] : null;
+}
+
+/* 访客模式：未登录但带着分享链接打开 → 仅展示该帖详情，其余功能仍需登录 */
+function enterGuestShare() {
+    var id = getShareWelfareId();
+    if (!id || !window.H5Welfare) { showLogin(); return; }
+    hideLogin();
+    window.H5Welfare.openShared(id);
+}
+
 function bootstrap() {
     api({ url: 'user/info', type: 'GET' }).done(function (res) {
         if (res.errorCode === '000000' && res.body) {
@@ -203,10 +217,10 @@ function bootstrap() {
                     $('#h5Tabbar .h5-tab[data-target="' + t + '"]').toggle(menuVisible(t));
                 });
                 /* 分享链接：/api/h5.html?welfare=<id> 打开自动落在该帖详情 */
-                var share = location.search.match(/[?&]welfare=(\d+)/);
+                var share = getShareWelfareId();
                 if (share && window.H5Welfare) {
                     goPage('welfare');
-                    window.H5Welfare.openShared(share[1]);
+                    window.H5Welfare.openShared(share);
                 } else {
                     goPage('home');
                 }
@@ -214,8 +228,10 @@ function bootstrap() {
             api({ url: 'user/theme', type: 'GET' }).done(function (r) {
                 if (r.errorCode === '000000' && r.body) applyTheme(r.body);
             });
+        } else if (getShareWelfareId()) {
+            enterGuestShare();
         } else showLogin();
-    }); /* 401 由全局 ajaxError 统一弹出登录 */
+    }); /* 401 由全局 ajaxError 统一弹出登录（带分享链接时进访客模式） */
 }
 
 function doLogout() {
@@ -1094,7 +1110,9 @@ $(function () {
     $(document).ajaxError(function (ev, jqXHR) {
         if (jqXHR && jqXHR.status === 401) {
             H5State.username = ''; H5State.isAdmin = false;
-            showLogin();
+            /* 带分享链接打开时进访客模式（免登录看该帖），否则弹登录 */
+            if (getShareWelfareId() && window.H5Welfare) enterGuestShare();
+            else showLogin();
         }
     });
 

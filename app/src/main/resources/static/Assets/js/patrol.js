@@ -80,6 +80,12 @@ var Patrol = (function () {
         });
     }
 
+    function syncPatrolChannelFields() {
+        var isDing = $('#patrolChannel').val() === 'dingtalk';
+        $('#patrolRobot').toggle(isDing);
+        $('#patrolEmail').toggle(!isDing);
+    }
+
     function runNow() {
         $('#patrolRunNow').text('巡检中…');
         $.ajax({
@@ -111,10 +117,10 @@ var Patrol = (function () {
             $('#patrolServerFields').toggle($(this).val() === 'server');
         });
         $('#patrolChannel').on('change', function () {
-            var isDing = $(this).val() === 'dingtalk';
-            $('#patrolRobot').toggle(isDing);
-            $('#patrolEmail').toggle(!isDing);
+            syncPatrolChannelFields();
         });
+        // 初始渲染按当前通道显隐（修复：默认钉钉但机器人下拉藏着）
+        syncPatrolChannelFields();
 
         $('#patrolAddBtn').off('click').on('click', function () {
             var payload = {

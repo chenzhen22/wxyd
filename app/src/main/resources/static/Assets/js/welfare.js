@@ -158,11 +158,12 @@
 
     function bindRadar() {
         $('#radarCh').off('change').on('change', function () {
-            var isDing = $(this).val() === 'dingtalk';
-            $('#radarRobot').toggle(isDing);
-            $('#radarEmail').toggle(!isDing);
+            syncRadarChannelFields();
         });
-        robotOptionsHtml(null).then(function (html) { $('#radarRobot').html(html); });
+        robotOptionsHtml(null).then(function (html) {
+            $('#radarRobot').html(html);
+            syncRadarChannelFields(); // 初始渲染也要按当前通道显隐（修复：默认钉钉但机器人下拉藏着）
+        });
         $('#radarPanel').off('click', '[data-radar]').on('click', '[data-radar]', function () {
             var op = $(this).data('radar');
             var id = $(this).data('id');
@@ -186,6 +187,13 @@
                 else msg(r.errorMsg || '添加失败');
             });
         });
+    }
+
+    /** 按当前通道显隐机器人/邮箱字段（初次渲染与切换共用，修复初始隐藏 bug） */
+    function syncRadarChannelFields() {
+        var isDing = $('#radarCh').val() === 'dingtalk';
+        $('#radarRobot').toggle(isDing);
+        $('#radarEmail').toggle(!isDing);
     }
 
     window.Welfare = {

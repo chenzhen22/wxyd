@@ -51,12 +51,46 @@ public class PushService {
             String secret = sm4KeyHolder.decrypt(robot.getSecret());
             DingTalkRobotUtil.RobotConfig config = new DingTalkRobotUtil.RobotConfig(accessToken, secret);
             String resp = DingTalkRobotUtil.sendMarkdownMsg(config, title, markdown);
-            log.info("[PUSH] 钉钉推送完成：user={} robot={} resp={}", userId, robotId, resp);
+            // 钉钉 HTTP 恒 200，业务结果在 errcode：≠0 = 被拒（关键词不匹配/频率限制/ IP 白名单等）
+            // 不解析会把失败误报为成功 —— 用户"看到成功但群里没消息"就是这么来的
+            String fail = parseDingtalkError(resp);
+            if (fail != null) {
+                log.warn("[PUSH] 钉钉拒绝：user={} robot={} resp={}", userId, robotId, resp);
+                return fail;
+            }
+            log.info("[PUSH] 钉钉推送完成：user={} robot={}", userId, robotId);
             return null;
         } catch (Exception e) {
             log.error("[PUSH] 钉钉推送失败：user={} robot={}", userId, robotId, e);
             return e.getMessage();
         }
+    }
+
+    /** 解析钉钉响应，errcode≠0 时返回可读失败原因；响应不可解析视为失败（保守） */
+    private String parseDingtalkError(String resp) {
+        if (resp == null || resp.isEmpty()) return "钉钉无响应";
+        try {
+            com.alibaba.fastjson2.JSONObject json = com.alibaba.fastjson2.JSON.parseObject(resp);
+            if (json == null) return "钉钉响应不可解析";
+            int errcode = json.getIntValue("errcode", -1);
+            if (errcode == 0) return null;
+            String errmsg = json.getString("errmsg");
+            String hint;
+            if (errmsg != null && errmsg.toLowerCase().contains("keywords")) {
+                hint = "（机器人安全设置含「自定义关键词」，推送内容未包含；请调整机器人关键词或在钉钉后台改为「加签」）";
+            } else if (errmsg != null && errmsg.toLowerCase().contains("ip")) {
+                hint = "（机器人开了 IP 白名单，需把服务器出口 IP 加入白名单）";
+            } else {
+                hint = "";
+            }
+            return "errcode=" + errcode + " " + (errmsg == null ? "未知错误" : errmsg) + hint;
+        } catch (Exception e) {
+            return "钉钉响应解析失败：" + brief(resp);
+        }
+    }
+
+    private static String brief(String s) {
+        return s.length() > 150 ? s.substring(0, 150) : s;
     }
 
     /**

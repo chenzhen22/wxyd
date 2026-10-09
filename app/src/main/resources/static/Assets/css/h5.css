@@ -319,3 +319,30 @@ input, textarea, select, button { font-family: inherit; font-size: 14px; }
 }
 .wf-body pre.wf-code code { background: none; padding: 0; }
 .wf-body hr { border: none; border-top: 1px solid var(--border-2); margin: 12px 0; }
+
+/* ---------- 福利专区：全屏详情 ---------- */
+.wf-fullscreen {
+    position: fixed; inset: 0; z-index: 70; display: none;
+    flex-direction: column;
+    background: var(--bg-gradient);
+    background-attachment: fixed;
+}
+.wf-fullscreen.show { display: flex; }
+.wf-fs-head {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 12px;
+    padding: calc(env(safe-area-inset-top) + 12px) 14px 12px;
+    background: var(--glass-3);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border-2);
+}
+.wf-fs-back { cursor: pointer; color: var(--accent); font-size: 15px; white-space: nowrap; user-select: none; }
+.wf-fs-head-title {
+    flex: 1; font-size: 15px; font-weight: 600; color: var(--text-1);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wf-fs-body {
+    flex: 1 1 auto;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 14px 16px calc(24px + env(safe-area-inset-bottom));
+}

@@ -2,13 +2,33 @@
    福利专区（H5 移动端）
    数据：/api/welfare/list、/api/welfare/detail（只读 dataScan 抓取的 scan_post）
    注册：registerH5Module('welfare', renderWelfare)
-   依赖：h5.js 的 esc / api / toast / loading / openSheet / closeSheet
+   依赖：h5.js 的 esc / api / toast / loading
          Assets/js/welfare-md.js 的 window.WelfareMd
+   详情：全屏覆盖层展示（非底部抽屉）
    ============================================================ */
 (function () {
 
     var PAGE_SIZE = 20;
     var state = { page: 0, loading: false, done: false };
+
+    /* ---- 全屏详情覆盖层 ---- */
+    function ensureFullscreen() {
+        var $fs = $('#wfFullscreen');
+        if (!$fs.length) {
+            $fs = $(
+                '<div class="wf-fullscreen" id="wfFullscreen">' +
+                '<div class="wf-fs-head">' +
+                '<span class="wf-fs-back" id="wfFsBack">‹ 返回</span>' +
+                '<div class="wf-fs-head-title">福利详情</div>' +
+                '</div>' +
+                '<div class="wf-fs-body" id="wfFsBody"></div>' +
+                '</div>'
+            );
+            $('body').append($fs);
+            $fs.on('click', '#wfFsBack', function () { $fs.removeClass('show'); });
+        }
+        return $fs;
+    }
 
     function showDetail(id) {
         loading(true);
@@ -23,11 +43,14 @@
             (b.images || []).forEach(function (img) {
                 if (img.url && img.webUrl) urlMap[img.url] = img.webUrl;
             });
-            openSheet(
+            var $fs = ensureFullscreen();
+            $fs.find('#wfFsBody').html(
                 '<h3 class="wf-title">' + esc(b.title) + '</h3>' +
                 '<div class="wf-meta">' + esc(b.publishedAt || '') + '</div>' +
                 '<div class="wf-body">' + window.WelfareMd.render(b.contentMd, urlMap) + '</div>'
             );
+            $fs.addClass('show');
+            $fs.find('#wfFsBody').scrollTop(0);
         }).fail(function () {
             loading(false);
             toast('网络错误，请稍后重试');

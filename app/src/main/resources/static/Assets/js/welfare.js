@@ -125,7 +125,7 @@
         $.getJSON('radar/list').done(function (res) {
             var list = (res && res.body) || [];
             var html = '<div class="welfare-empty" style="text-align:left;padding:10px 4px">' +
-                '<b>📡 羊毛雷达</b> —— 关键词命中新帖时自动推送到你的钉钉/邮箱（每小时检查一次，最多 10 条）</div>';
+                '<b>📡 羊毛雷达</b> —— 关键词命中新帖时自动推送到你的钉钉/邮箱（每 5 分钟检查一次，只推新帖，最多 10 条）</div>';
             if (list.length) {
                 html += list.map(function (s) {
                     var ch = s.channel === 'dingtalk' ? '钉钉' : '邮箱';

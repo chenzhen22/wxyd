@@ -170,7 +170,7 @@
     function loadRadarH5() {
         api({ url: 'radar/list', type: 'GET' }).done(function (res) {
             var list = (res.errorCode === '000000' && res.body) || [];
-            var html = '<div class="h5-card-sub" style="margin-bottom:8px">关键词命中新帖时自动推送（每小时检查，最多 10 条）</div>';
+            var html = '<div class="h5-card-sub" style="margin-bottom:8px">关键词命中新帖时自动推送（每 5 分钟检查，只推新帖，最多 10 条）</div>';
             list.forEach(function (s) {
                 var ch = s.channel === 'dingtalk' ? '钉钉' : '邮箱';
                 var target = s.channel === 'dingtalk' ? ('机器人#' + s.robotId) : s.email;

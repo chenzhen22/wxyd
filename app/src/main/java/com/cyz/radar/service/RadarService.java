@@ -16,10 +16,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 羊毛雷达：订阅管理 + 每小时增量推送。
+ * 羊毛雷达：订阅管理 + 每 5 分钟增量推送。
  * <p>
  * 推送水位（last_post_id）语义：只有「整批推送成功」才推进水位；
  * 任一订阅推送失败保持原水位，下一轮自然重试（个人平台量小，不熔断）。
+ * 已推送的帖子水位只进不退，绝不重复推送。
  */
 @Service
 @Slf4j
@@ -124,7 +125,7 @@ public class RadarService {
 
     /* ---------------- 定时增量推送 ---------------- */
 
-    @Scheduled(cron = "0 10 * * * *") // 每小时第 10 分，错开 dataScan 整点抓取
+    @Scheduled(cron = "0 */5 * * * *") // 每 5 分钟增量检查（水位只进不退，不会重复推送）
     public void pushJob() {
         List<RadarSubscribe> subs = radarMapper.listEnabled();
         if (subs == null || subs.isEmpty()) {

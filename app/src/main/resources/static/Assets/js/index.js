@@ -332,7 +332,7 @@ $(function () {
                 if (t === "welcome" || t === "menuManage") return;
                 let visible = keys.indexOf(t) !== -1;
                 // SQL 查询入口额外要求管理员（保持原有 admin-only 语义）
-                if (t === "sqlTool") $(this).toggle(visible && isAdmin);
+                if (t === "sqlTool" || t === "patrol") $(this).toggle(visible && isAdmin);
                 else $(this).toggle(visible);
             });
         }, "json").fail(function () { /* 拉取失败保持现状（默认全可见） */ });

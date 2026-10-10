@@ -32,8 +32,8 @@ public class MenuServiceImpl implements MenuService {
 
     /** 可配置菜单注册表（key → 名称）；menuManage 为管理入口本身，固定管理员可见，不参与配置 */
     private static final Map<String, String> REGISTRY = new LinkedHashMap<>();
-    /** 仅管理员可见的菜单 */
-    private static final Set<String> ADMIN_ONLY = new HashSet<>(Arrays.asList("sqlTool", "menuManage"));
+    /** 仅管理员可见的菜单（巡检资产含 SSH 凭据，限管理员；产品决策 2026-10-10） */
+    private static final Set<String> ADMIN_ONLY = new HashSet<>(Arrays.asList("sqlTool", "menuManage", "patrol"));
 
     static {
         REGISTRY.put("userManage", "用户管理");

@@ -24,9 +24,19 @@ public class PatrolController {
     @Autowired
     private PatrolService patrolService;
 
+    /**
+     * 🔒 仅管理员可用（产品决策 2026-10-10）：巡检资产含 SSH 凭据等敏感信息。
+     * 菜单隐藏只是展示层，接口必须真拦截 —— 所有端点统一走此守卫。
+     */
+    private boolean notAdmin(HttpSession session) {
+        Integer role = (Integer) session.getAttribute("role");
+        return role == null || role != 0;
+    }
+
     @GetMapping("list")
     public Result list(HttpSession session) {
         Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
         result.setBody(patrolService.list(userId(session)));
         return result;
     }
@@ -34,6 +44,7 @@ public class PatrolController {
     @PostMapping("add")
     public Result add(@RequestBody(required = false) Result req, HttpSession session) {
         Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
         Map<String, Object> body = body(req);
         try {
             PatrolAsset a = patrolService.add(userId(session),
@@ -51,6 +62,7 @@ public class PatrolController {
     @PostMapping("delete")
     public Result delete(@RequestBody(required = false) Result req, HttpSession session) {
         Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
         Map<String, Object> body = body(req);
         if (!patrolService.delete(userId(session), longVal(body.get("id")))) {
             return result.setErrorEnum(ErrorEnum.ERROR000014);
@@ -62,6 +74,7 @@ public class PatrolController {
     @PostMapping("runNow")
     public Result runNow(HttpSession session) {
         Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
         result.setBody(patrolService.runForUser(userId(session)));
         return result;
     }
@@ -70,6 +83,7 @@ public class PatrolController {
     @PostMapping("testPush")
     public Result testPush(HttpSession session) {
         Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
         String err = patrolService.testPush(userId(session));
         if (err != null) {
             result.setErrorEnum(ErrorEnum.ERROR000015);
@@ -83,6 +97,7 @@ public class PatrolController {
     @GetMapping("setting")
     public Result setting(HttpSession session) {
         Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
         Map<String, Object> s = patrolService.getSetting(userId(session));
         result.setBody(s == null ? new HashMap<>() : s);
         return result;
@@ -91,6 +106,7 @@ public class PatrolController {
     @PostMapping("setting")
     public Result saveSetting(@RequestBody(required = false) Result req, HttpSession session) {
         Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
         Map<String, Object> body = body(req);
         try {
             patrolService.saveSetting(userId(session), intVal(body.get("pushHour")),

@@ -176,6 +176,18 @@ var Patrol = (function () {
                 success: function (res) { alterModal(res && res.errorCode === '000000' ? '设置已保存' : ((res && res.errorMsg) || '保存失败')); }
             });
         });
+        $('#patrolTestPush').off('click').on('click', function () {
+            alterModal('巡检并发送中…');
+            $.ajax({
+                url: 'patrol/testPush', type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({ body: {} }),
+                success: function (res) {
+                    if (res && res.errorCode === '000000') alterModal(res.body);
+                    else alterModal((res && res.errorMsg) || '测试失败');
+                },
+                error: function () { alterModal('测试失败'); }
+            });
+        });
     }
 
     return { init: init };

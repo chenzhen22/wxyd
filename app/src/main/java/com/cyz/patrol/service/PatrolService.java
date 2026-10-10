@@ -147,6 +147,39 @@ public class PatrolService {
         }
     }
 
+    /* ---------------- 测试推送 ---------------- */
+
+    /**
+     * 立即巡检并按当前日报设置推一条（不看 push_hour），用于配置后验证全链路。
+     * 无资产时返回提示而非沉默 —— 与定时任务"无资产不打扰"的静默语义区分开。
+     *
+     * @return null=推送成功；非 null=失败/不可推送原因
+     */
+    public String testPush(long userId) {
+        Map<String, Object> setting = patrolMapper.getSetting(userId);
+        if (setting == null) {
+            return "尚未保存日报设置（推送时间/通道）";
+        }
+        Number enabled = (Number) setting.get("enabled");
+        if (enabled == null || enabled.intValue() != 1) {
+            return "日报设置已停用";
+        }
+        String channel = (String) setting.get("channel");
+        PatrolAsset.PatrolReport report = runForUser(userId);
+        if (report.getResults().isEmpty()) {
+            return "没有任何巡检资产，先添加资产（URL/域名/服务器）再测试";
+        }
+        String md = report.toMarkdown();
+        if ("dingtalk".equals(channel)) {
+            Number robotId = (Number) setting.get("robot_id");
+            if (robotId == null) return "钉钉通道未绑定机器人";
+            return pushService.pushDingtalk(userId, robotId.longValue(), "巡检日报·测试", md);
+        }
+        String email = (String) setting.get("email");
+        return pushService.pushEmail(email, "巡检日报·测试：异常 " + report.getFailCount()
+                + " / 警告 " + report.getWarnCount(), md.replaceAll("### ", "").replaceAll("\\*\\*", ""));
+    }
+
     /* ---------------- 设置 ---------------- */
 
     public Map<String, Object> getSetting(long userId) {

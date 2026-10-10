@@ -66,6 +66,20 @@ public class PatrolController {
         return result;
     }
 
+    /** 测试推送：立即巡检 + 按当前设置推一条日报（不看推送时间），验证全链路 */
+    @PostMapping("testPush")
+    public Result testPush(HttpSession session) {
+        Result result = Result.getInstance();
+        String err = patrolService.testPush(userId(session));
+        if (err != null) {
+            result.setErrorEnum(ErrorEnum.ERROR000015);
+            result.setErrorMsg(err);
+        } else {
+            result.setBody("推送成功，请查收");
+        }
+        return result;
+    }
+
     @GetMapping("setting")
     public Result setting(HttpSession session) {
         Result result = Result.getInstance();

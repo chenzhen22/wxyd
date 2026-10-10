@@ -99,7 +99,8 @@
             '<option value="dingtalk">钉钉推送</option><option value="email">邮件推送</option></select></div>' +
             '<div class="h5-field" id="ptRobotField"><label>钉钉机器人</label><select class="h5-select" id="ptRobot"></select></div>' +
             '<div class="h5-field" id="ptEmailField" style="display:none"><label>接收邮箱</label><input class="h5-input" id="ptEmail"></div>' +
-            '<button class="h5-btn-primary h5-btn-block" id="ptAdd">保存</button>');
+            '<button class="h5-btn-primary h5-btn-block" id="ptAdd">保存</button>' +
+            '<button class="h5-btn h5-btn-block" id="ptTestPush" style="color:#38bdf8">发送测试日报</button>');
         api({ url: 'robot/list', type: 'GET' }).done(function (r) {
             var robots = (r && r.body) || [];
             $('#ptRobot').html(robots.length
@@ -138,6 +139,12 @@
                 pushHour: payload.pushHour, channel: payload.channel,
                 robotId: payload.robotId, email: payload.email
             });
+        });
+        $('#ptTestPush').off('click').on('click', function () {
+            toast('巡检并发送中…');
+            postJSON('patrol/testPush', {}).done(function (res) {
+                res.errorCode === '000000' ? toast(res.body) : toast(res.errorMsg || '测试失败');
+            }).fail(function () { toast('测试失败'); });
         });
     }
 

@@ -14,6 +14,9 @@ server:
 spring:
   application:
     name: wxyd
+  task:
+    scheduling:
+      pool-size: 2  # 雷达(每小时第10分)与巡检日报(每小时整点)共用调度器，避免单线程互相饿死
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver

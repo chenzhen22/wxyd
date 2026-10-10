@@ -127,7 +127,10 @@ public class RadarService {
     @Scheduled(cron = "0 10 * * * *") // 每小时第 10 分，错开 dataScan 整点抓取
     public void pushJob() {
         List<RadarSubscribe> subs = radarMapper.listEnabled();
-        if (subs == null || subs.isEmpty()) return;
+        if (subs == null || subs.isEmpty()) {
+            log.info("[RADAR] tick：无启用订阅，跳过");
+            return;
+        }
         int pushed = 0, failed = 0;
         for (RadarSubscribe s : subs) {
             try {

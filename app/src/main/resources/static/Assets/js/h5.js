@@ -22,21 +22,15 @@ window.registerH5Module = function (name, fn) { window.H5Modules[name] = fn; };
     window.addEventListener('pageshow', function (e) { if (e.persisted) guard(); });
 })();
 
-var H5State = { userId: null, username: '', isAdmin: false, theme: 'dark', visibleKeys: null };
+var H5State = { userId: null, username: '', isAdmin: false, theme: 'dark', menus: [], visibleKeys: null, currentPage: null };
 
-/* ---------------- 菜单可见性（菜单管理配置） ---------------- */
-/* H5 模块名 → 服务端菜单 key；home/profile 固定可见 */
-var MENU_KEY_MAP = {
-    user: 'userManage', robot: 'robotManage', notes: 'note', share: 'shareFile',
-    shell: 'shellScript', javaapi: 'javaApi', sql: 'sqlTool', dubbo: 'dubboCall',
-    archive: 'archiveTool', pdfTool: 'pdfTool', message: 'messageBoard', group: 'groupChat', menuManage: 'menuManage'
-};
-
+/* ---------------- 菜单可见性（menu/list 接口） ---------------- */
+/* H5State.menus 为 menu/list?platform=h5 的 body（按 sortNo 排序）；
+   visibleKeys 为其 key 派生列表；拉取失败置 null → 默认全部可见。home/profile 固定可见 */
 function menuVisible(name) {
     if (name === 'home' || name === 'profile') return true;
     if (!H5State.visibleKeys) return true; // 未拉取到配置时默认可见
-    var key = MENU_KEY_MAP[name] || name;
-    return H5State.visibleKeys.indexOf(key) !== -1;
+    return H5State.visibleKeys.indexOf(name) !== -1;
 }
 
 /* ---------------- 通用工具 ---------------- */
@@ -209,9 +203,16 @@ function bootstrap() {
             H5State.username = res.body.username || '';
             H5State.isAdmin = !!res.body.isAdmin;
             hideLogin();
-            /* 先拉取菜单可见性配置再进首页（菜单管理功能） */
-            api({ url: 'menu/visible', type: 'GET' }).always(function (mv) {
-                H5State.visibleKeys = (mv && mv.errorCode === '000000' && mv.body) || null;
+            /* 先拉取菜单列表（menu/list）再进首页（菜单管理功能） */
+            api({ url: 'menu/list?platform=h5', type: 'GET' }).always(function (mv) {
+                if (mv && mv.errorCode === '000000' && mv.body) {
+                    H5State.menus = mv.body;
+                    H5State.visibleKeys = mv.body.map(function (m) { return m.key; });
+                } else {
+                    /* 拉取失败：回退默认全可见语义 */
+                    H5State.menus = null;
+                    H5State.visibleKeys = null;
+                }
                 /* 底部 tab 按配置显隐 */
                 ['message', 'group'].forEach(function (t) {
                     $('#h5Tabbar .h5-tab[data-target="' + t + '"]').toggle(menuVisible(t));
@@ -222,7 +223,7 @@ function bootstrap() {
                     goPage('welfare');
                     window.H5Welfare.openShared(share);
                 } else {
-                    goPage('home');
+                    goPage(currentHashKey() || 'home');
                 }
             });
             api({ url: 'user/theme', type: 'GET' }).done(function (r) {
@@ -247,6 +248,7 @@ function goPage(name) {
     if (!H5State.username && name !== 'home') { showLogin(); return; }
     /* 菜单管理配置：被隐藏的模块回到首页 */
     if (!menuVisible(name)) { name = 'home'; }
+    H5State.currentPage = name;
     $('.h5-page').removeClass('active');
     $('#page-' + name).addClass('active');
     $('#h5Tabbar .h5-tab').removeClass('active');
@@ -256,38 +258,40 @@ function goPage(name) {
     if (r) r($('#page-' + name));
     else if (window.H5Modules[name]) window.H5Modules[name]($('#page-' + name));
     $('.h5-main').scrollTop(0);
+    /* 同步 hash（hashchange 回调按 currentPage 去重，不会回环） */
+    var target = '#/' + name;
+    if (location.hash !== target) location.hash = target;
 }
+
+/** 解析当前 hash 为页面 key：#/welfare → welfare；无 hash → null */
+function currentHashKey() {
+    var h = (location.hash || '').replace(/^#\/?/, '');
+    return h || null;
+}
+
+/* hash 路由：深度链接 / 浏览器前进后退时同步页面；
+   goPage 内部改 hash 触发的 hashchange 因 key === currentPage 被忽略，避免循环 */
+window.addEventListener('hashchange', function () {
+    var key = currentHashKey();
+    if (key && key !== H5State.currentPage) goPage(key);
+});
 
 /* ---------------- 首页 ---------------- */
 
-var MODULE_ITEMS = [
-    { name: 'user', ico: '👤', label: '用户管理', admin: true },
-    { name: 'welfare', ico: '🎁', label: '福利专区' },
-    { name: 'patrol', ico: '🛡️', label: '巡检日报', admin: true },
-    { name: 'robot', ico: '🤖', label: '钉钉机器人' },
-    { name: 'notes', ico: '📝', label: '记忆笔记' },
-    { name: 'share', ico: '📁', label: '文件共享' },
-    { name: 'shell', ico: '🐚', label: 'Shell脚本' },
-    { name: 'javaapi', ico: '☕', label: 'Java API' },
-    { name: 'sql', ico: '🗄️', label: 'SQL查询', admin: true },
-    { name: 'dubbo', ico: '🔌', label: 'Dubbo调用' },
-    { name: 'archive', ico: '📦', label: '归档下载' },
-    { name: 'pdfTool', ico: '📑', label: '证据材料整理' },
-    { name: 'menuManage', ico: '🧩', label: '菜单管理', admin: true }
-];
-
 function renderHome() {
-    var items = MODULE_ITEMS.filter(function (m) {
-        return (!m.admin || H5State.isAdmin) && menuVisible(m.name);
+    /* 数据驱动：menu/list 结果（已按 sortNo 排序、服务端已过滤权限/管理员项）；
+       hashUrl 为空的行（message/group）是底部 tab，不出卡片 */
+    var items = (H5State.menus || []).filter(function (m) {
+        return m.hashUrl && menuVisible(m.key);
     });
     var html = '<div class="h5-section-title">你好，' + esc(H5State.username) + ' 👋</div>' +
         '<div class="h5-alert h5-alert-info">点击下方模块卡片进入对应功能</div>' +
         '<div class="h5-grid">';
     items.forEach(function (m) {
-        html += '<div class="h5-grid-item" data-mod="' + m.name + '">' +
-            '<div class="h5-grid-ico">' + m.ico + '</div>' +
-            '<div class="h5-grid-name">' + m.label + '</div>' +
-            (m.admin ? '<div class="h5-grid-badge">管理员</div>' : '') + '</div>';
+        html += '<div class="h5-grid-item" data-mod="' + esc(m.key) + '">' +
+            '<div class="h5-grid-ico">' + esc(m.icon || '•') + '</div>' +
+            '<div class="h5-grid-name">' + esc(m.name) + '</div>' +
+            (Number(m.adminOnly) === 1 ? '<div class="h5-grid-badge">管理员</div>' : '') + '</div>';
     });
     html += '</div>';
     $('#page-home').html(html);

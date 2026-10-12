@@ -357,12 +357,25 @@ public class DataInitializer implements ApplicationRunner {
         }
     }
 
+    /** menu_config 表是否存在（全新安装可能尚未执行 V6__menu_config.sql） */
+    private boolean menuConfigTableExists() {
+        Integer cnt = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.TABLES " +
+                        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='menu_config'",
+                Integer.class);
+        return cnt != null && cnt > 0;
+    }
+
     /**
      * 幂等升级 menu_config 增加 platform 维度（旧表仅按 menu_key 唯一，h5/desktop 共用一行配置）。
      * 列与唯一键各自独立检查、独立执行：若上次升级在两条 ALTER 之间中断（已加列但唯一键仍是 uk_menu_key），
      * 整体跳过会导致 ON DUPLICATE KEY 仍按 menu_key 判重 —— h5 保存会覆盖 desktop 行。
      */
     private void ensureMenuConfigPlatform() {
+        if (!menuConfigTableExists()) {
+            log.info("[INIT] menu_config 表不存在（全新安装未执行 V6），跳过 platform 升级与权限迁移");
+            return;
+        }
         try {
             Integer cnt = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM information_schema.COLUMNS " +
@@ -445,6 +458,10 @@ public class DataInitializer implements ApplicationRunner {
                         Integer.parseInt(row[5]), Integer.parseInt(row[6]), Integer.parseInt(row[7]));
             }
             ensureMenuConfigPlatform();
+            if (!menuConfigTableExists()) {
+                // 全新安装未执行 V6：无存量权限可迁移（跳过提示已在 ensureMenuConfigPlatform 打印）
+                return;
+            }
             Map<String, Map<String, Object>> configs = new HashMap<>();
             for (Map<String, Object> c : mysqlMapper.listMenuConfigs()) {
                 configs.put(c.get("menuKey") + "|" + c.get("platform"), c);

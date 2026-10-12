@@ -135,6 +135,21 @@ public interface MysqlMapper {
 
 	int upsertMenuConfig(@Param("menuKey") String menuKey, @Param("visible") Integer visible, @Param("userIds") String userIds);
 
+	// ===== menu_item =====
+	List<Map<String, Object>> listMenuItems();
+
+	int insertMenuItem(@Param("menuKey") String menuKey, @Param("platform") String platform,
+			@Param("name") String name, @Param("icon") String icon, @Param("hashUrl") String hashUrl,
+			@Param("sortNo") Integer sortNo, @Param("adminOnly") Integer adminOnly, @Param("fixed") Integer fixed);
+
+	int updateMenuItem(@Param("menuKey") String menuKey, @Param("platform") String platform,
+			@Param("name") String name, @Param("icon") String icon, @Param("hashUrl") String hashUrl,
+			@Param("sortNo") Integer sortNo, @Param("adminOnly") Integer adminOnly);
+
+	int deleteMenuItem(@Param("menuKey") String menuKey, @Param("platform") String platform);
+
+	int deleteMenuConfig(@Param("menuKey") String menuKey);
+
 	int deleteTransitByIds(@Param("ids") List<Long> ids);
 
 	int deleteTransitByUser(@Param("groupId") Long groupId, @Param("toUserId") Long toUserId);

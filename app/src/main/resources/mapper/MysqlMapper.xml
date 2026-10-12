@@ -308,6 +308,32 @@
 		on duplicate key update `visible`=#{visible}, `user_ids`=#{userIds}
 	</insert>
 
+	<!-- ===== menu_item ===== -->
+	<select id="listMenuItems" resultType="java.util.HashMap">
+		select `menu_key` as menuKey, `platform`, `name`, `icon`, `hash_url` as hashUrl,
+		       `sort_no` as sortNo, `admin_only` as adminOnly, `fixed`
+		from `menu_item`
+	</select>
+
+	<insert id="insertMenuItem">
+		insert into `menu_item` (`menu_key`,`platform`,`name`,`icon`,`hash_url`,`sort_no`,`admin_only`,`fixed`)
+		values (#{menuKey},#{platform},#{name},#{icon},#{hashUrl},#{sortNo},#{adminOnly},#{fixed})
+	</insert>
+
+	<update id="updateMenuItem">
+		update `menu_item` set `name`=#{name}, `icon`=#{icon}, `hash_url`=#{hashUrl},
+		       `sort_no`=#{sortNo}, `admin_only`=#{adminOnly}
+		where `menu_key`=#{menuKey} and `platform`=#{platform}
+	</update>
+
+	<delete id="deleteMenuItem">
+		delete from `menu_item` where `menu_key`=#{menuKey} and `platform`=#{platform}
+	</delete>
+
+	<delete id="deleteMenuConfig">
+		delete from `menu_config` where `menu_key`=#{menuKey}
+	</delete>
+
 	<delete id="deleteTransitByIds">
 		delete from `group_msg_transit` where `id` in
 		<foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>

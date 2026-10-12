@@ -128,6 +128,11 @@ $(function () {
         if (target === "menuManage" && window.MenuManage) {
             MenuManage.mount($("#menuManageBody")[0]);
         }
+        // 各菜单数据懒加载：进入页面不预加载，点到才请求
+        if (target === "messageBoard") loadMsg('');
+        if (target === "robotManage") loadRobots();
+        if (target === "userManage") loadUsers();
+        if (target === "sqlTool" && window.initSqlTool) initSqlTool(); // 内部 initialized 幂等
         // 同步 hash（#/target），支持刷新/分享深链接与浏览器前进后退
         if (("#/" + target) !== location.hash) location.hash = "#/" + target;
     }
@@ -267,7 +272,6 @@ $(function () {
             }
         });
     });
-    loadRobots();
 
     // ===================== 设置昵称 =====================
     $("#btnSaveNick").click(function () {
@@ -295,12 +299,10 @@ $(function () {
 
     // ===================== 用户管理 =====================
     $("#btnRefreshUser").click(loadUsers);
-    loadUsers();
 
     // ===================== 留言板 - 调用公共分页 =====================
     let msgPage = 1;
     const msgSize = 10;
-    loadMsg('');
     $("#openAddMsg").click(function() {
         $("#msgModal").show()
     });
@@ -325,13 +327,8 @@ $(function () {
         renderMsg(msgPage, msgSize);
     });
 
-    // ===================== SQL 查询初始化（仅管理员）=====================
-    $.get("user/info", function (res) {
-        let info = (res && res.body) || {};
-        if (info.isAdmin && window.initSqlTool) window.initSqlTool();
-    }, "json");
-
     // ===================== 菜单渲染 + hash 路由 =====================
+    // （SQL 查询初始化已并入 showPage 的 sqlTool 懒加载分支，进页不再请求 user/info）
     let menuKeys = [];
 
     // 解析 location.hash → 菜单 key（如 "#/welfare" → "welfare"）

@@ -322,6 +322,7 @@
         });
         $c.on('change', '.mm-mode', function () {
             var key = $(this).data('key');
+            if (!state.pending[key]) return; // 平台切换加载窗口期，旧行已失效
             state.pending[key].mode = $(this).val();
             $c.find('.mm-usersum[data-key="' + key + '"]').html(summaryText(key));
             // 名单模式变化时展开/收起选择器
@@ -334,6 +335,7 @@
         });
         $c.on('change', '.mm-user-cb', function () {
             var key = $(this).data('key');
+            if (!state.pending[key]) return; // 平台切换加载窗口期，旧行已失效
             var id = String($(this).val());
             if (this.checked) state.pending[key].ids.add(id);
             else state.pending[key].ids.delete(id);

@@ -300,11 +300,11 @@
 
 	<!-- ===== menu_config ===== -->
 	<select id="listMenuConfigs" resultType="java.util.HashMap">
-		select `menu_key` as menuKey, `visible`, `user_ids` as userIds from `menu_config`
+		select `menu_key` as menuKey, `platform`, `visible`, `user_ids` as userIds from `menu_config`
 	</select>
 
 	<insert id="upsertMenuConfig">
-		insert into `menu_config` (`menu_key`,`visible`,`user_ids`) values (#{menuKey},#{visible},#{userIds})
+		insert into `menu_config` (`menu_key`,`platform`,`visible`,`user_ids`) values (#{menuKey},#{platform},#{visible},#{userIds})
 		on duplicate key update `visible`=#{visible}, `user_ids`=#{userIds}
 	</insert>
 
@@ -331,7 +331,7 @@
 	</delete>
 
 	<delete id="deleteMenuConfig">
-		delete from `menu_config` where `menu_key`=#{menuKey}
+		delete from `menu_config` where `menu_key`=#{menuKey} and `platform`=#{platform}
 	</delete>
 
 	<delete id="deleteTransitByIds">

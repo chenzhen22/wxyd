@@ -337,6 +337,31 @@ public class DataInitializer implements ApplicationRunner {
     };
 
     /**
+     * 幂等升级 menu_config 增加 platform 维度（旧表仅按 menu_key 唯一，h5/desktop 共用一行配置）：
+     * 加列后 DEFAULT 'desktop' 把存量行回填视为桌面配置，唯一键重建为 (menu_key, platform)。
+     * 失败仅记录提示，不阻断启动（请手动执行 sql/V13__menu_item.sql 的升级段）。
+     */
+    private void ensureMenuConfigPlatform() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='menu_config' AND COLUMN_NAME='platform'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) {
+                log.info("[INIT] menu_config.platform 列已存在，跳过升级");
+                return;
+            }
+            jdbcTemplate.execute("ALTER TABLE `menu_config` " +
+                    "ADD COLUMN `platform` VARCHAR(10) NOT NULL DEFAULT 'desktop' COMMENT 'h5 | desktop，旧数据视为桌面' AFTER `menu_key`");
+            jdbcTemplate.execute("ALTER TABLE `menu_config` " +
+                    "DROP INDEX `uk_menu_key`, ADD UNIQUE KEY `uk_key_platform` (`menu_key`, `platform`)");
+            log.info("[INIT] 已自动升级 menu_config：增加 platform 列，唯一键重建为 (menu_key, platform)");
+        } catch (Exception e) {
+            log.error("[INIT] menu_config platform 升级失败（请手动执行 sql/V13__menu_item.sql 升级段）：{}", e.getMessage());
+        }
+    }
+
+    /**
      * 幂等确保菜单注册表存在（对应 sql/V13__menu_item.sql）：
      * 1. 自检建表；2. INSERT IGNORE 幂等补种（保留已有运营改动）；3. 存量 menu_config 权限迁移到 H5 key。
      * 失败仅记录提示，不阻断启动（菜单读取可回退 MenuServiceImpl 内置注册表）。
@@ -373,9 +398,10 @@ public class DataInitializer implements ApplicationRunner {
                         row[0], row[1], row[2], row[3], row[4],
                         Integer.parseInt(row[5]), Integer.parseInt(row[6]), Integer.parseInt(row[7]));
             }
+            ensureMenuConfigPlatform();
             Map<String, Map<String, Object>> configs = new HashMap<>();
             for (Map<String, Object> c : mysqlMapper.listMenuConfigs()) {
-                configs.put((String) c.get("menuKey"), c);
+                configs.put(c.get("menuKey") + "|" + c.get("platform"), c);
             }
             int copied = 0;
             Set<String> itemKeys = new HashSet<>();
@@ -383,8 +409,9 @@ public class DataInitializer implements ApplicationRunner {
                 itemKeys.add(item.get("menuKey") + "|" + item.get("platform"));
             }
             for (String[] pair : MENU_KEY_MIGRATION) {
-                Map<String, Object> src = configs.get(pair[0]);
-                if (src == null || configs.containsKey(pair[1])) {
+                // 旧 menu_config 不带 platform，升级后存量行被回填为 desktop
+                Map<String, Object> src = configs.get(pair[0] + "|desktop");
+                if (src == null || configs.containsKey(pair[1] + "|h5")) {
                     continue;
                 }
                 // 防止删除后重启被迁移逻辑复活：若目标 h5 菜单项已被运营删除（menu_item 无该行），
@@ -392,7 +419,7 @@ public class DataInitializer implements ApplicationRunner {
                 if (!itemKeys.contains(pair[1] + "|h5")) {
                     continue;
                 }
-                mysqlMapper.upsertMenuConfig(pair[1], ((Number) src.get("visible")).intValue(),
+                mysqlMapper.upsertMenuConfig(pair[1], "h5", ((Number) src.get("visible")).intValue(),
                         (String) src.get("userIds"));
                 copied++;
             }

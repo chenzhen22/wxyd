@@ -50,7 +50,7 @@ public class MenuServiceImpl implements MenuService {
                 if (((Number) item.get("adminOnly")).intValue() == 1) {
                     return true; // 仅管理员可见
                 }
-                Map<String, Object> cfg = cfgMap.get(item.get("key"));
+                Map<String, Object> cfg = cfgMap.get(item.get("key") + "|" + platform);
                 if (cfg == null) return false; // 未配置默认可见
                 int visible = ((Number) cfg.get("visible")).intValue();
                 Set<Long> ids = parseIds(String.valueOf(cfg.get("userIds")));
@@ -92,7 +92,7 @@ public class MenuServiceImpl implements MenuService {
         List<Map<String, Object>> list = new ArrayList<>();
         for (Map<String, Object> item : loadItems(platform)) {
             Map<String, Object> row = new LinkedHashMap<>(item);
-            Map<String, Object> cfg = cfgMap.get(item.get("key"));
+            Map<String, Object> cfg = cfgMap.get(item.get("key") + "|" + platform);
             row.put("visible", cfg == null ? 1 : ((Number) cfg.get("visible")).intValue());
             row.put("userIds", cfg == null ? "" : String.valueOf(cfg.get("userIds")));
             list.add(row);
@@ -113,7 +113,7 @@ public class MenuServiceImpl implements MenuService {
         if (ids == null) {
             return result.setErrorEnum(ErrorEnum.ERROR000015);
         }
-        mysqlMapper.upsertMenuConfig(menuKey, visible, ids);
+        mysqlMapper.upsertMenuConfig(menuKey, platform, visible, ids);
         log.info("菜单配置更新：user={} menu={} visible={} userIds={}", userId, menuKey, visible, ids);
         return result;
     }
@@ -167,7 +167,7 @@ public class MenuServiceImpl implements MenuService {
             // 结构性入口禁止删除
             return result.setErrorEnum(ErrorEnum.ERROR000015);
         }
-        mysqlMapper.deleteMenuConfig(menuKey);
+        mysqlMapper.deleteMenuConfig(menuKey, platform);
         mysqlMapper.deleteMenuItem(menuKey, platform);
         log.info("菜单项删除：user={} platform={} key={}", userId, platform, menuKey);
         return result;
@@ -211,12 +211,13 @@ public class MenuServiceImpl implements MenuService {
         return null;
     }
 
+    /** 按 menuKey|platform 键控加载权限配置（同一功能在 h5/desktop 各一行，互不共享） */
     private Map<String, Map<String, Object>> loadConfigMap() {
         Map<String, Map<String, Object>> map = new HashMap<>();
         List<Map<String, Object>> rows = mysqlMapper.listMenuConfigs();
         if (rows != null) {
             for (Map<String, Object> row : rows) {
-                map.put(String.valueOf(row.get("menuKey")), row);
+                map.put(row.get("menuKey") + "|" + row.get("platform"), row);
             }
         }
         return map;

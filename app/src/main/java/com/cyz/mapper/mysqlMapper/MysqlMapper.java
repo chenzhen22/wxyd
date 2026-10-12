@@ -133,7 +133,8 @@ public interface MysqlMapper {
 	// ===== menu_config =====
 	List<Map<String, Object>> listMenuConfigs();
 
-	int upsertMenuConfig(@Param("menuKey") String menuKey, @Param("visible") Integer visible, @Param("userIds") String userIds);
+	int upsertMenuConfig(@Param("menuKey") String menuKey, @Param("platform") String platform,
+			@Param("visible") Integer visible, @Param("userIds") String userIds);
 
 	// ===== menu_item =====
 	List<Map<String, Object>> listMenuItems();
@@ -148,7 +149,7 @@ public interface MysqlMapper {
 
 	int deleteMenuItem(@Param("menuKey") String menuKey, @Param("platform") String platform);
 
-	int deleteMenuConfig(@Param("menuKey") String menuKey);
+	int deleteMenuConfig(@Param("menuKey") String menuKey, @Param("platform") String platform);
 
 	int deleteTransitByIds(@Param("ids") List<Long> ids);
 

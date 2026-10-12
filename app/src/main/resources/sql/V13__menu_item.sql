@@ -19,3 +19,9 @@ CREATE TABLE IF NOT EXISTS `menu_item` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='菜单注册表';
 
 -- seed 数据由 DataInitializer 启动自检幂等补种（项目惯例），也可参照 DataInitializer 中 MENU_SEED 常量手工 INSERT。
+
+-- 旧 menu_config 表升级（V6 建表时未含 platform，本文件未部署过的全新库可跳过）：
+-- 增加 platform 维度，同一功能在 h5/desktop 各一行配置；
+-- DEFAULT 'desktop' 会把存量行回填为桌面配置，之后唯一键改为 (menu_key, platform)。
+ALTER TABLE `menu_config` ADD COLUMN `platform` VARCHAR(10) NOT NULL DEFAULT 'desktop' COMMENT 'h5 | desktop，旧数据视为桌面' AFTER `menu_key`;
+ALTER TABLE `menu_config` DROP INDEX `uk_menu_key`, ADD UNIQUE KEY `uk_key_platform` (`menu_key`, `platform`);

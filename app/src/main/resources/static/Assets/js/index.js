@@ -302,7 +302,6 @@ $(function () {
     const msgSize = 10;
     loadMsg('');
     $("#openAddMsg").click(function() {
-        console.log(111)
         $("#msgModal").show()
     });
     $("#lookMsgByAll").click(() => loadMsg(''));

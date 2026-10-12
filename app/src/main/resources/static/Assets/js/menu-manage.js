@@ -279,8 +279,9 @@
 
     function bindDesktop($c) {
         $c.on('click', '.mm-plat', function () {
+            // 切换前关闭旧平台编辑区，防止加载窗口期以新平台+旧 key 误提交
+            $c.find('.mm-edit, #mmAddRow').hide();
             switchPlatform($(this).data('plat'), function () {
-                $c.find('#mmAddRow').hide();
                 applyPlatBtns($c);
                 reloadDesktop($c);
             });
@@ -459,6 +460,8 @@
             });
             $page.off('click', '.mm-plat').on('click', '.mm-plat', function () {
                 var $btn = $(this);
+                // 切换前关闭旧平台编辑弹层，防止以新平台+旧 key 误建菜单
+                if (typeof closeSheet === 'function') closeSheet();
                 switchPlatform($btn.data('plat'), function () {
                     applyPlatBtns($page);
                     reloadH5();

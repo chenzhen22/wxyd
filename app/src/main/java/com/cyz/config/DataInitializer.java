@@ -12,6 +12,9 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Component
 @Slf4j
 public class DataInitializer implements ApplicationRunner {
@@ -46,6 +49,7 @@ public class DataInitializer implements ApplicationRunner {
         ensureNoteIndexTable();
         ensureNoteIndexPopulated();
         ensureRadarPatrolTables();
+        ensureMenuItems();
         int count = mysqlMapper.countUsers();
         if (count > 0) {
             log.info("[INIT] users 表已有 {} 个用户，跳过超管播种", count);
@@ -274,6 +278,118 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] 已自动执行 V12 迁移：radar_subscribe / patrol_asset / patrol_setting");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V12 迁移失败（请手动执行 sql/V12__radar_patrol.sql）：{}", e.getMessage());
+        }
+    }
+
+    /** menu_item seed：{menuKey, platform, name, icon, hashUrl, sortNo, adminOnly, fixed}，desktop 在前 */
+    private static final String[][] MENU_SEED = {
+            {"userManage", "desktop", "用户管理", "👤", "#/userManage", "10", "0", "0"},
+            {"messageBoard", "desktop", "留言板", "💬", "#/messageBoard", "20", "0", "0"},
+            {"robotManage", "desktop", "钉钉机器人", "🤖", "#/robotManage", "30", "0", "0"},
+            {"groupChat", "desktop", "群聊", "👥", "#/groupChat", "40", "0", "0"},
+            {"javaApi", "desktop", "Java8-API", "☕", "#/javaApi", "50", "0", "0"},
+            {"shellScript", "desktop", "Shell脚本", "🐚", "#/shellScript", "60", "0", "0"},
+            {"note", "desktop", "记忆笔记", "📝", "#/note", "70", "0", "0"},
+            {"shareFile", "desktop", "文件共享", "📁", "#/shareFile", "80", "0", "0"},
+            {"pdfTool", "desktop", "证据材料整理", "📑", "#/pdfTool", "90", "0", "0"},
+            {"sqlTool", "desktop", "SQL 查询", "🗄️", "#/sqlTool", "100", "1", "0"},
+            {"dubboCall", "desktop", "Dubbo调用", "🔌", "#/dubboCall", "110", "0", "0"},
+            {"archiveTool", "desktop", "归档下载", "📦", "#/archiveTool", "120", "0", "0"},
+            {"welfare", "desktop", "福利专区", "🎁", "#/welfare", "130", "0", "0"},
+            {"patrol", "desktop", "巡检日报", "🛡️", "#/patrol", "140", "1", "0"},
+            {"menuManage", "desktop", "菜单管理", "🧩", "#/menuManage", "150", "1", "1"},
+            {"message", "h5", "留言板", "💬", "", "10", "0", "1"},
+            {"group", "h5", "群聊", "👥", "", "20", "0", "1"},
+            {"user", "h5", "用户管理", "👤", "#/user", "110", "1", "0"},
+            {"welfare", "h5", "福利专区", "🎁", "#/welfare", "120", "0", "0"},
+            {"patrol", "h5", "巡检日报", "🛡️", "#/patrol", "130", "1", "0"},
+            {"robot", "h5", "钉钉机器人", "🤖", "#/robot", "140", "0", "0"},
+            {"notes", "h5", "记忆笔记", "📝", "#/notes", "150", "0", "0"},
+            {"share", "h5", "文件共享", "📁", "#/share", "160", "0", "0"},
+            {"shell", "h5", "Shell脚本", "🐚", "#/shell", "170", "0", "0"},
+            {"javaapi", "h5", "Java API", "☕", "#/javaapi", "180", "0", "0"},
+            {"sql", "h5", "SQL查询", "🗄️", "#/sql", "190", "1", "0"},
+            {"dubbo", "h5", "Dubbo调用", "🔌", "#/dubbo", "200", "0", "0"},
+            {"archive", "h5", "归档下载", "📦", "#/archive", "210", "0", "0"},
+            {"pdfTool", "h5", "证据材料整理", "📑", "#/pdfTool", "220", "0", "0"},
+            {"menuManage", "h5", "菜单管理", "🧩", "#/menuManage", "230", "1", "1"},
+    };
+
+    /** 存量 menu_config 迁移映射：旧 desktop key → H5 key（旧 menu_config 用 desktop key 两端共用） */
+    private static final String[][] MENU_KEY_MIGRATION = {
+            {"userManage", "user"},
+            {"messageBoard", "message"},
+            {"robotManage", "robot"},
+            {"groupChat", "group"},
+            {"javaApi", "javaapi"},
+            {"shellScript", "shell"},
+            {"note", "notes"},
+            {"shareFile", "share"},
+            {"sqlTool", "sql"},
+            {"dubboCall", "dubbo"},
+            {"archiveTool", "archive"},
+            {"welfare", "welfare"},
+            {"patrol", "patrol"},
+            {"pdfTool", "pdfTool"},
+            {"menuManage", "menuManage"},
+    };
+
+    /**
+     * 幂等确保菜单注册表存在（对应 sql/V13__menu_item.sql）：
+     * 1. 自检建表；2. INSERT IGNORE 幂等补种（保留已有运营改动）；3. 存量 menu_config 权限迁移到 H5 key。
+     * 失败仅记录提示，不阻断启动（菜单读取可回退 MenuServiceImpl 内置注册表）。
+     */
+    private void ensureMenuItems() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.TABLES " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='menu_item'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) {
+                log.info("[INIT] menu_item 表已存在，跳过 V13 建表");
+            } else {
+                jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `menu_item` (" +
+                        "`id` BIGINT NOT NULL AUTO_INCREMENT," +
+                        "`menu_key` VARCHAR(50) NOT NULL COMMENT '前端模块名/路由名'," +
+                        "`platform` VARCHAR(10) NOT NULL COMMENT 'h5 | desktop'," +
+                        "`name` VARCHAR(50) NOT NULL COMMENT '显示名'," +
+                        "`icon` VARCHAR(20) NOT NULL DEFAULT '' COMMENT 'emoji 图标'," +
+                        "`hash_url` VARCHAR(100) NOT NULL DEFAULT '' COMMENT 'hash 路由如 #/welfare；空=固定tab入口'," +
+                        "`sort_no` INT NOT NULL DEFAULT 0," +
+                        "`admin_only` TINYINT NOT NULL DEFAULT 0 COMMENT '1=仅管理员可见'," +
+                        "`fixed` TINYINT NOT NULL DEFAULT 0 COMMENT '1=结构性入口，菜单管理页禁止删除'," +
+                        "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                        "PRIMARY KEY (`id`)," +
+                        "UNIQUE KEY `uk_key_platform` (`menu_key`,`platform`)" +
+                        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='菜单注册表'");
+                log.info("[INIT] 已自动执行 V13 迁移：创建 menu_item 菜单注册表");
+            }
+            for (String[] row : MENU_SEED) {
+                jdbcTemplate.update("INSERT IGNORE INTO menu_item " +
+                                "(`menu_key`,`platform`,`name`,`icon`,`hash_url`,`sort_no`,`admin_only`,`fixed`) " +
+                                "VALUES (?,?,?,?,?,?,?,?)",
+                        row[0], row[1], row[2], row[3], row[4],
+                        Integer.parseInt(row[5]), Integer.parseInt(row[6]), Integer.parseInt(row[7]));
+            }
+            Map<String, Map<String, Object>> configs = new HashMap<>();
+            for (Map<String, Object> c : mysqlMapper.listMenuConfigs()) {
+                configs.put((String) c.get("menuKey"), c);
+            }
+            int copied = 0;
+            for (String[] pair : MENU_KEY_MIGRATION) {
+                Map<String, Object> src = configs.get(pair[0]);
+                if (src == null || configs.containsKey(pair[1])) {
+                    continue;
+                }
+                mysqlMapper.upsertMenuConfig(pair[1], ((Number) src.get("visible")).intValue(),
+                        (String) src.get("userIds"));
+                copied++;
+            }
+            if (copied > 0) {
+                log.info("[INIT] 已迁移 {} 条 menu_config 到 H5 key", copied);
+            }
+        } catch (Exception e) {
+            log.error("[INIT] menu_item 建表/seed 失败（请手动执行 sql/V13__menu_item.sql）：{}", e.getMessage());
         }
     }
 }

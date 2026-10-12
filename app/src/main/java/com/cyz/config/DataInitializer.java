@@ -13,7 +13,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 @Slf4j
@@ -376,9 +378,18 @@ public class DataInitializer implements ApplicationRunner {
                 configs.put((String) c.get("menuKey"), c);
             }
             int copied = 0;
+            Set<String> itemKeys = new HashSet<>();
+            for (Map<String, Object> item : mysqlMapper.listMenuItems()) {
+                itemKeys.add(item.get("menuKey") + "|" + item.get("platform"));
+            }
             for (String[] pair : MENU_KEY_MIGRATION) {
                 Map<String, Object> src = configs.get(pair[0]);
                 if (src == null || configs.containsKey(pair[1])) {
+                    continue;
+                }
+                // 防止删除后重启被迁移逻辑复活：若目标 h5 菜单项已被运营删除（menu_item 无该行），
+                // 跳过拷贝，否则会把旧 desktop 配置拷回并生成孤儿 menu_config 行
+                if (!itemKeys.contains(pair[1] + "|h5")) {
                     continue;
                 }
                 mysqlMapper.upsertMenuConfig(pair[1], ((Number) src.get("visible")).intValue(),

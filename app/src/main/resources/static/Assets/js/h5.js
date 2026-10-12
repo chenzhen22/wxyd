@@ -248,6 +248,8 @@ function goPage(name) {
     if (!H5State.username && name !== 'home') { showLogin(); return; }
     /* 菜单管理配置：被隐藏的模块回到首页 */
     if (!menuVisible(name)) { name = 'home'; }
+    /* 手输未知 hash 兜底（菜单拉取失败时 menuVisible 默认放行，页面不存在则回首页） */
+    if ($('#page-' + name).length === 0) { name = 'home'; }
     H5State.currentPage = name;
     $('.h5-page').removeClass('active');
     $('#page-' + name).addClass('active');
@@ -269,7 +271,7 @@ function currentHashKey() {
     return h || null;
 }
 
-/* hash 路由：深度链接 / 浏览器前进后退时同步页面；
+/* hash 路由：深度链接与 hash 导航（popstate 守卫为兼容旧版保留，会清空前进栈）；
    goPage 内部改 hash 触发的 hashchange 因 key === currentPage 被忽略，避免循环 */
 window.addEventListener('hashchange', function () {
     var key = currentHashKey();

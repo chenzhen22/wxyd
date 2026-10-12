@@ -132,8 +132,8 @@ $(function () {
         if (("#/" + target) !== location.hash) location.hash = "#/" + target;
     }
 
-    // 侧栏为动态渲染，用事件委托绑定点击
-    $("#menuList").on("click", ".menu-item", function () {
+    // 侧栏为动态渲染，用事件委托绑定点击；绑定在 class 上，兼容旧缓存 HTML（老 HTML 无 #menuList id）
+    $(".menu-list").on("click", ".menu-item", function () {
         showPage($(this).data("target"));
     });
 

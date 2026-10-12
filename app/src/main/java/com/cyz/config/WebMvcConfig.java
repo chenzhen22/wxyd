@@ -2,9 +2,11 @@ package com.cyz.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
-import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -14,18 +16,21 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Autowired
     private AuthInterceptor authInterceptor;
 
+    @Autowired
+    private com.cyz.filter.DoSuffixFilter doSuffixFilter;
+
     /** dataScan 图片落地目录（福利专区 /welfare-img/** 静态映射） */
     @Value("${wxyd.welfare.image-dir:/apps/shareFile/datascan}")
     private String welfareImageDir;
 
-    /**
-     * 开启后缀模式匹配：所有接口同时接受 .do 后缀（如 /user/list.do 等价 /user/list），
-     * 前端统一以 .do 请求后端；遗留外部入口 tbphx.do 为字面映射，不受影响。
-     * 拦截器路径模式（/user/** 等）对带后缀的路径同样命中，鉴权行为不变。
-     */
-    @Override
-    public void configurePathMatch(PathMatchConfigurer configurer) {
-        configurer.setUseSuffixPatternMatch(true);
+    /** .do 后缀过滤器注册为最高优先级，先于一切组件剥掉 .do 再进入 MVC */
+    @Bean
+    public FilterRegistrationBean<com.cyz.filter.DoSuffixFilter> doSuffixFilterRegistration() {
+        FilterRegistrationBean<com.cyz.filter.DoSuffixFilter> reg = new FilterRegistrationBean<>(doSuffixFilter);
+        reg.addUrlPatterns("/*");
+        reg.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        reg.setName("doSuffixFilter");
+        return reg;
     }
 
     @Override

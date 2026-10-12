@@ -72,59 +72,74 @@ $(function () {
         });
     });
 
-    // 菜单切换
-    $(".menu-item").click(function () {
+    // HTML 转义（菜单名/图标可在菜单管理中编辑，防 XSS）
+    function escHtml(s) {
+        return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    let currentPage = null;
+
+    // 切换到指定模块（侧栏点击 / hash 路由共用入口）
+    function showPage(target) {
+        // 模块盒子不存在（如非管理员的 sqlTool）→ 忽略
+        if (!target || $("#" + target).length === 0) return;
+        currentPage = target;
         $(".menu-item").removeClass("active");
-        $(this).addClass("active");
+        $("#menuList [data-target='" + target + "']").addClass("active");
         $(".module-box").removeClass("active");
-        $("#" + $(this).data("target")).addClass("active");
+        $("#" + target).addClass("active");
         // Java8 API 模块懒加载
-        if ($(this).data("target") === "javaApi" && window.JavaApi) {
+        if (target === "javaApi" && window.JavaApi) {
             JavaApi.init();
         }
         // Shell 脚本学习模块懒加载
-        if ($(this).data("target") === "shellScript" && window.ShellScript) {
+        if (target === "shellScript" && window.ShellScript) {
             ShellScript.init();
         }
         // 记忆笔记模块懒加载
-        if ($(this).data("target") === "note" && window.Note) {
+        if (target === "note" && window.Note) {
             Note.init();
         }
         // 报文归档下载模块懒加载
-        if ($(this).data("target") === "archiveTool" && window.Archive) {
+        if (target === "archiveTool" && window.Archive) {
             Archive.init();
         }
         // 文件共享模块懒加载
-        if ($(this).data("target") === "shareFile" && window.ShareFile) {
+        if (target === "shareFile" && window.ShareFile) {
             ShareFile.init();
         }
         // 证据材料整理模块懒加载
-        if ($(this).data("target") === "pdfTool" && window.PdfTool) {
+        if (target === "pdfTool" && window.PdfTool) {
             PdfTool.init();
         }
         // 群聊模块懒加载
-        if ($(this).data("target") === "groupChat" && window.GroupChat) {
+        if (target === "groupChat" && window.GroupChat) {
             GroupChat.mount($("#groupChatBody")[0]);
         }
         // 福利专区模块懒加载
-        if ($(this).data("target") === "welfare" && window.Welfare) {
+        if (target === "welfare" && window.Welfare) {
             Welfare.init();
         }
         // 巡检日报模块懒加载
-        if ($(this).data("target") === "patrol" && window.Patrol) {
+        if (target === "patrol" && window.Patrol) {
             Patrol.init();
         }
         // 菜单管理模块懒加载（仅管理员）
-        if ($(this).data("target") === "menuManage" && window.MenuManage) {
+        if (target === "menuManage" && window.MenuManage) {
             MenuManage.mount($("#menuManageBody")[0]);
         }
+        // 同步 hash（#/target），支持刷新/分享深链接与浏览器前进后退
+        if (("#/" + target) !== location.hash) location.hash = "#/" + target;
+    }
+
+    // 侧栏为动态渲染，用事件委托绑定点击
+    $("#menuList").on("click", ".menu-item", function () {
+        showPage($(this).data("target"));
     });
 
+    // 点击欢迎页任意处 → 进入留言板
     $("#welcome").click(function () {
-        $(".menu-item").removeClass("active");
-        $(".module-box").removeClass("active");
-        $("#messageBoard").addClass("active");
-        $(".menu-list").children().eq(3).addClass("active");
+        showPage("messageBoard");
     });
 
     // 关闭弹窗
@@ -311,32 +326,49 @@ $(function () {
         renderMsg(msgPage, msgSize);
     });
 
-    // ===================== SQL 查询（仅管理员可见）=====================
+    // ===================== SQL 查询初始化（仅管理员）=====================
     $.get("user/info", function (res) {
         let info = (res && res.body) || {};
-        if (info.isAdmin) {
-            $("#menuSqlTool").show();
-            $("#menuMenuManage").show();
-            if (window.initSqlTool) window.initSqlTool();
-        }
-        applyMenuVisibility(info.isAdmin);
+        if (info.isAdmin && window.initSqlTool) window.initSqlTool();
     }, "json");
 
-    // ===================== 菜单可见性过滤（菜单管理配置）=====================
-    // 服务端返回当前用户可见的菜单 key；管理员返回全部。首页/我的/菜单管理入口不参与过滤。
-    function applyMenuVisibility(isAdmin) {
-        $.get("menu/visible", function (res) {
-            let keys = (res && res.body) || [];
-            $(".menu-item").each(function () {
-                let t = $(this).data("target");
-                if (t === "welcome" || t === "menuManage") return;
-                let visible = keys.indexOf(t) !== -1;
-                // SQL 查询入口额外要求管理员（保持原有 admin-only 语义）
-                if (t === "sqlTool" || t === "patrol") $(this).toggle(visible && isAdmin);
-                else $(this).toggle(visible);
-            });
-        }, "json").fail(function () { /* 拉取失败保持现状（默认全可见） */ });
+    // ===================== 菜单渲染 + hash 路由 =====================
+    let menuKeys = [];
+
+    // 解析 location.hash → 菜单 key（如 "#/welfare" → "welfare"）
+    function parseHash() {
+        return location.hash.replace(/^#\/?/, "") || null;
     }
+
+    // 渲染侧栏：首项固定为首页，其余来自 menu/list（管理员项已由服务端过滤）
+    function renderMenu(menus) {
+        let list = menus || [];
+        menuKeys = $.map(list, function (m) { return m.key; });
+        let html = '<li class="menu-item active" data-target="welcome"><i>🏠</i>首页</li>';
+        for (let i = 0; i < list.length; i++) {
+            let m = list[i];
+            html += '<li class="menu-item" data-target="' + escHtml(m.key) + '"><i>' + escHtml(m.icon || '•') + '</i>' + escHtml(m.name) + '</li>';
+        }
+        $("#menuList").html(html);
+    }
+
+    // 拉取当前用户可见菜单并渲染；成功后按 hash 深链接定位
+    $.get("menu/list?platform=desktop", function (res) {
+        renderMenu((res && res.body) || []);
+        let key = parseHash();
+        if (key && (key === "welcome" || menuKeys.indexOf(key) !== -1)) {
+            showPage(key);
+        }
+    }, "json").fail(function () {
+        renderMenu([]); // 拉取失败：仅保留首页，页面仍可用
+    });
+
+    // 浏览器前进/后退、手动改 hash → 路由（未知 key 忽略）
+    window.addEventListener("hashchange", function () {
+        let key = parseHash();
+        if (!key || key === currentPage) return;
+        if (key === "welcome" || menuKeys.indexOf(key) !== -1) showPage(key);
+    });
 });
 
 // 退出登录：销毁会话并跳转登录页

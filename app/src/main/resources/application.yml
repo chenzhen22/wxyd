@@ -16,8 +16,10 @@ spring:
     name: wxyd
   mvc:
     pathmatch:
-      # 接口接受 .do 后缀（前端统一 /xxx.do 请求）；Boot 2.2 自动配置默认关闭，
-      # 必须用属性开启，WebMvcConfig 里的 configurePathMatch 会被自动配置覆盖
+      # 接口接受 .do 后缀（前端统一 /xxx.do 请求）。
+      # 注意：运行时为 Boot 2.7，默认 PathPatternParser 不支持后缀匹配，
+      # 必须切回 ant_path_matcher 才能与 use-suffix-pattern 兼容，否则启动失败
+      matching-strategy: ant_path_matcher
       use-suffix-pattern: true
   task:
     scheduling:

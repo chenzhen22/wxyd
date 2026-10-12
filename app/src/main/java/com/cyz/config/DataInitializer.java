@@ -337,9 +337,30 @@ public class DataInitializer implements ApplicationRunner {
     };
 
     /**
-     * 幂等升级 menu_config 增加 platform 维度（旧表仅按 menu_key 唯一，h5/desktop 共用一行配置）：
-     * 加列后 DEFAULT 'desktop' 把存量行回填视为桌面配置，唯一键重建为 (menu_key, platform)。
-     * 失败仅记录提示，不阻断启动（请手动执行 sql/V13__menu_item.sql 的升级段）。
+     * V13 未发布前的开发库兜底：幂等给 menu_item 补 deleted 列（软删除，防止删除后重启被 seed/迁移复活）。
+     */
+    private void ensureMenuItemDeletedColumn() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='menu_item' AND COLUMN_NAME='deleted'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) {
+                log.info("[INIT] menu_item.deleted 列已存在，跳过补列");
+                return;
+            }
+            jdbcTemplate.execute("ALTER TABLE `menu_item` " +
+                    "ADD COLUMN `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '1=已软删除，列表不显示且不被 seed/迁移复活' AFTER `fixed`");
+            log.info("[INIT] 已自动升级 menu_item：增加 deleted 列");
+        } catch (Exception e) {
+            log.error("[INIT] menu_item 补 deleted 列失败（请手动执行 sql/V13__menu_item.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 幂等升级 menu_config 增加 platform 维度（旧表仅按 menu_key 唯一，h5/desktop 共用一行配置）。
+     * 列与唯一键各自独立检查、独立执行：若上次升级在两条 ALTER 之间中断（已加列但唯一键仍是 uk_menu_key），
+     * 整体跳过会导致 ON DUPLICATE KEY 仍按 menu_key 判重 —— h5 保存会覆盖 desktop 行。
      */
     private void ensureMenuConfigPlatform() {
         try {
@@ -348,23 +369,46 @@ public class DataInitializer implements ApplicationRunner {
                             "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='menu_config' AND COLUMN_NAME='platform'",
                     Integer.class);
             if (cnt != null && cnt > 0) {
-                log.info("[INIT] menu_config.platform 列已存在，跳过升级");
+                log.info("[INIT] menu_config.platform 列已存在，跳过补列");
+            } else {
+                jdbcTemplate.execute("ALTER TABLE `menu_config` " +
+                        "ADD COLUMN `platform` VARCHAR(10) NOT NULL DEFAULT 'desktop' COMMENT 'h5 | desktop，旧数据视为桌面' AFTER `menu_key`");
+                log.info("[INIT] 已自动升级 menu_config：增加 platform 列");
+            }
+        } catch (Exception e) {
+            log.error("[INIT] menu_config 补 platform 列失败（请手动执行 sql/V13__menu_item.sql 升级段）：{}", e.getMessage());
+        }
+        try {
+            Integer idx = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.STATISTICS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='menu_config' AND INDEX_NAME='uk_key_platform'",
+                    Integer.class);
+            if (idx != null && idx > 0) {
+                log.info("[INIT] menu_config 唯一键 uk_key_platform 已存在，跳过索引升级");
                 return;
             }
-            jdbcTemplate.execute("ALTER TABLE `menu_config` " +
-                    "ADD COLUMN `platform` VARCHAR(10) NOT NULL DEFAULT 'desktop' COMMENT 'h5 | desktop，旧数据视为桌面' AFTER `menu_key`");
-            jdbcTemplate.execute("ALTER TABLE `menu_config` " +
-                    "DROP INDEX `uk_menu_key`, ADD UNIQUE KEY `uk_key_platform` (`menu_key`, `platform`)");
-            log.info("[INIT] 已自动升级 menu_config：增加 platform 列，唯一键重建为 (menu_key, platform)");
+            Integer oldIdx = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.STATISTICS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='menu_config' AND INDEX_NAME='uk_menu_key'",
+                    Integer.class);
+            if (oldIdx != null && oldIdx > 0) {
+                jdbcTemplate.execute("ALTER TABLE `menu_config` " +
+                        "DROP INDEX `uk_menu_key`, ADD UNIQUE KEY `uk_key_platform` (`menu_key`, `platform`)");
+            } else {
+                jdbcTemplate.execute("ALTER TABLE `menu_config` " +
+                        "ADD UNIQUE KEY `uk_key_platform` (`menu_key`, `platform`)");
+            }
+            log.info("[INIT] 已自动升级 menu_config：唯一键重建为 (menu_key, platform)");
         } catch (Exception e) {
-            log.error("[INIT] menu_config platform 升级失败（请手动执行 sql/V13__menu_item.sql 升级段）：{}", e.getMessage());
+            log.error("[INIT] menu_config 唯一键升级失败（请手动执行 sql/V13__menu_item.sql 升级段）：{}", e.getMessage());
         }
     }
 
     /**
      * 幂等确保菜单注册表存在（对应 sql/V13__menu_item.sql）：
-     * 1. 自检建表；2. INSERT IGNORE 幂等补种（保留已有运营改动）；3. 存量 menu_config 权限迁移到 H5 key。
-     * 失败仅记录提示，不阻断启动（菜单读取可回退 MenuServiceImpl 内置注册表）。
+     * 1. 自检建表；2. 补 deleted 列兜底旧开发库；3. INSERT IGNORE 幂等补种（保留已有运营改动，软删行不受影响）；
+     * 4. menu_config 升级 platform 维度；5. 存量 menu_config 权限迁移到 H5 key（仅当目标 h5 行存在且未软删）。
+     * 失败仅记录提示，不阻断启动（菜单读取直接走 menu_item 表）。
      */
     private void ensureMenuItems() {
         try {
@@ -385,12 +429,14 @@ public class DataInitializer implements ApplicationRunner {
                         "`sort_no` INT NOT NULL DEFAULT 0," +
                         "`admin_only` TINYINT NOT NULL DEFAULT 0 COMMENT '1=仅管理员可见'," +
                         "`fixed` TINYINT NOT NULL DEFAULT 0 COMMENT '1=结构性入口，菜单管理页禁止删除'," +
+                        "`deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '1=已软删除，列表不显示且不被 seed/迁移复活'," +
                         "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                         "PRIMARY KEY (`id`)," +
                         "UNIQUE KEY `uk_key_platform` (`menu_key`,`platform`)" +
                         ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='菜单注册表'");
                 log.info("[INIT] 已自动执行 V13 迁移：创建 menu_item 菜单注册表");
             }
+            ensureMenuItemDeletedColumn();
             for (String[] row : MENU_SEED) {
                 jdbcTemplate.update("INSERT IGNORE INTO menu_item " +
                                 "(`menu_key`,`platform`,`name`,`icon`,`hash_url`,`sort_no`,`admin_only`,`fixed`) " +
@@ -414,8 +460,8 @@ public class DataInitializer implements ApplicationRunner {
                 if (src == null || configs.containsKey(pair[1] + "|h5")) {
                     continue;
                 }
-                // 防止删除后重启被迁移逻辑复活：若目标 h5 菜单项已被运营删除（menu_item 无该行），
-                // 跳过拷贝，否则会把旧 desktop 配置拷回并生成孤儿 menu_config 行
+                // 防止删除后重启被迁移逻辑复活：listMenuItems 已过滤 deleted=1，
+                // 目标 h5 菜单项无行或已软删时跳过拷贝，否则会把旧 desktop 配置拷回并生成孤儿 menu_config 行
                 if (!itemKeys.contains(pair[1] + "|h5")) {
                     continue;
                 }

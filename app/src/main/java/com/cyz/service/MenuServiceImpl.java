@@ -5,6 +5,7 @@ import com.cyz.mapper.mysqlMapper.MysqlMapper;
 import com.cyz.pojo.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.ArrayList;
@@ -125,7 +126,11 @@ public class MenuServiceImpl implements MenuService {
         if (!validPlatform(platform) || menuKey == null || !menuKey.matches("\\w{1,50}")) {
             return result.setErrorEnum(ErrorEnum.ERROR000015);
         }
-        if (name == null || name.trim().isEmpty() || name.length() > 50) {
+        if (name == null || name.trim().isEmpty()) {
+            return result.setErrorEnum(ErrorEnum.ERROR000015);
+        }
+        String nameVal = name.trim();
+        if (nameVal.length() > 50) {
             return result.setErrorEnum(ErrorEnum.ERROR000015);
         }
         String iconVal = icon == null ? "" : icon;
@@ -133,6 +138,9 @@ public class MenuServiceImpl implements MenuService {
             return result.setErrorEnum(ErrorEnum.ERROR000015);
         }
         String hashUrlVal = hashUrl == null ? "" : hashUrl;
+        if (hashUrlVal.length() > 100) {
+            return result.setErrorEnum(ErrorEnum.ERROR000015);
+        }
         if (!hashUrlVal.isEmpty() && !hashUrlVal.startsWith("#/")) {
             return result.setErrorEnum(ErrorEnum.ERROR000015);
         }
@@ -144,16 +152,13 @@ public class MenuServiceImpl implements MenuService {
         if (adminOnlyVal != 0 && adminOnlyVal != 1) {
             return result.setErrorEnum(ErrorEnum.ERROR000015);
         }
-        if (findItem(platform, menuKey) != null) {
-            mysqlMapper.updateMenuItem(menuKey, platform, name, iconVal, hashUrlVal, sortNoVal, adminOnlyVal);
-        } else {
-            mysqlMapper.insertMenuItem(menuKey, platform, name, iconVal, hashUrlVal, sortNoVal, adminOnlyVal, 0);
-        }
+        mysqlMapper.upsertMenuItem(menuKey, platform, nameVal, iconVal, hashUrlVal, sortNoVal, adminOnlyVal);
         log.info("菜单项保存：user={} platform={} key={}", userId, platform, menuKey);
         return result;
     }
 
     @Override
+    @Transactional
     public Result deleteItem(Long userId, String platform, String menuKey) {
         Result result = Result.getInstance();
         if (!validPlatform(platform) || menuKey == null) {
@@ -165,10 +170,11 @@ public class MenuServiceImpl implements MenuService {
         }
         if (((Number) item.get("fixed")).intValue() == 1) {
             // 结构性入口禁止删除
-            return result.setErrorEnum(ErrorEnum.ERROR000015);
+            return result.setErrorEnum(ErrorEnum.ERROR000014);
         }
         mysqlMapper.deleteMenuConfig(menuKey, platform);
-        mysqlMapper.deleteMenuItem(menuKey, platform);
+        // 软删除：保留行占住 (menu_key, platform)，防止重启被 seed/迁移逻辑复活
+        mysqlMapper.markMenuItemDeleted(menuKey, platform);
         log.info("菜单项删除：user={} platform={} key={}", userId, platform, menuKey);
         return result;
     }

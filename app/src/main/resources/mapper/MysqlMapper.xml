@@ -313,22 +313,21 @@
 		select `menu_key` as menuKey, `platform`, `name`, `icon`, `hash_url` as hashUrl,
 		       `sort_no` as sortNo, `admin_only` as adminOnly, `fixed`
 		from `menu_item`
+		where `deleted`=0
 	</select>
 
-	<insert id="insertMenuItem">
+	<!-- 存在则更新并复活软删行，否则插入（唯一键 menu_key+platform，消除 saveItem 先查后写的竞态） -->
+	<insert id="upsertMenuItem">
 		insert into `menu_item` (`menu_key`,`platform`,`name`,`icon`,`hash_url`,`sort_no`,`admin_only`,`fixed`)
-		values (#{menuKey},#{platform},#{name},#{icon},#{hashUrl},#{sortNo},#{adminOnly},#{fixed})
+		values (#{menuKey},#{platform},#{name},#{icon},#{hashUrl},#{sortNo},#{adminOnly},0)
+		on duplicate key update `name`=#{name}, `icon`=#{icon}, `hash_url`=#{hashUrl},
+		       `sort_no`=#{sortNo}, `admin_only`=#{adminOnly}, `deleted`=0
 	</insert>
 
-	<update id="updateMenuItem">
-		update `menu_item` set `name`=#{name}, `icon`=#{icon}, `hash_url`=#{hashUrl},
-		       `sort_no`=#{sortNo}, `admin_only`=#{adminOnly}
-		where `menu_key`=#{menuKey} and `platform`=#{platform}
+	<!-- 软删除：保留行占住 (menu_key, platform)，防止重启被 seed/迁移逻辑复活 -->
+	<update id="markMenuItemDeleted">
+		update `menu_item` set `deleted`=1 where `menu_key`=#{menuKey} and `platform`=#{platform}
 	</update>
-
-	<delete id="deleteMenuItem">
-		delete from `menu_item` where `menu_key`=#{menuKey} and `platform`=#{platform}
-	</delete>
 
 	<delete id="deleteMenuConfig">
 		delete from `menu_config` where `menu_key`=#{menuKey} and `platform`=#{platform}

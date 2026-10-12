@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS `menu_item` (
   `sort_no`    INT NOT NULL DEFAULT 0,
   `admin_only` TINYINT NOT NULL DEFAULT 0 COMMENT '1=仅管理员可见',
   `fixed`      TINYINT NOT NULL DEFAULT 0 COMMENT '1=结构性入口，菜单管理页禁止删除',
+  `deleted`    TINYINT NOT NULL DEFAULT 0 COMMENT '1=已软删除，列表不显示且不被 seed/迁移复活',
   `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_key_platform` (`menu_key`, `platform`)
@@ -25,3 +26,6 @@ CREATE TABLE IF NOT EXISTS `menu_item` (
 -- DEFAULT 'desktop' 会把存量行回填为桌面配置，之后唯一键改为 (menu_key, platform)。
 ALTER TABLE `menu_config` ADD COLUMN `platform` VARCHAR(10) NOT NULL DEFAULT 'desktop' COMMENT 'h5 | desktop，旧数据视为桌面' AFTER `menu_key`;
 ALTER TABLE `menu_config` DROP INDEX `uk_menu_key`, ADD UNIQUE KEY `uk_key_platform` (`menu_key`, `platform`);
+
+-- 旧开发库若在 deleted 列加入前建过 menu_item，需补列（DataInitializer 启动自检也会自动补齐，全新库跳过）：
+-- ALTER TABLE `menu_item` ADD COLUMN `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '1=已软删除，列表不显示且不被 seed/迁移复活' AFTER `fixed`;

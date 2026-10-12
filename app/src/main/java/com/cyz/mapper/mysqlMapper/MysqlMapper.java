@@ -139,15 +139,11 @@ public interface MysqlMapper {
 	// ===== menu_item =====
 	List<Map<String, Object>> listMenuItems();
 
-	int insertMenuItem(@Param("menuKey") String menuKey, @Param("platform") String platform,
-			@Param("name") String name, @Param("icon") String icon, @Param("hashUrl") String hashUrl,
-			@Param("sortNo") Integer sortNo, @Param("adminOnly") Integer adminOnly, @Param("fixed") Integer fixed);
-
-	int updateMenuItem(@Param("menuKey") String menuKey, @Param("platform") String platform,
+	int upsertMenuItem(@Param("menuKey") String menuKey, @Param("platform") String platform,
 			@Param("name") String name, @Param("icon") String icon, @Param("hashUrl") String hashUrl,
 			@Param("sortNo") Integer sortNo, @Param("adminOnly") Integer adminOnly);
 
-	int deleteMenuItem(@Param("menuKey") String menuKey, @Param("platform") String platform);
+	int markMenuItemDeleted(@Param("menuKey") String menuKey, @Param("platform") String platform);
 
 	int deleteMenuConfig(@Param("menuKey") String menuKey, @Param("platform") String platform);
 

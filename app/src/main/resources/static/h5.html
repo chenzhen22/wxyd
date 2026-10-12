@@ -120,8 +120,8 @@
         <div class="h5-login-err" id="h5LoginErr"></div>
         <button class="h5-btn-primary h5-btn-block" id="h5LoginBtn">登 录</button>
         <div class="h5-oauth-row">
-            <a class="h5-btn-github" id="h5GithubBtn" href="/api/oauth/github?redirect=/api/h5.html" onclick="showH5LoginOverlay('正在跳转 GitHub 授权…')">GitHub 登录</a>
-            <a class="h5-btn-gitee" href="/api/oauth/gitee?redirect=/api/h5.html" onclick="showH5LoginOverlay('正在跳转 Gitee 授权…')">Gitee 登录</a>
+            <a class="h5-btn-github" id="h5GithubBtn" href="/api/oauth/github.do?redirect=/api/h5.html" onclick="showH5LoginOverlay('正在跳转 GitHub 授权…')">GitHub 登录</a>
+            <a class="h5-btn-gitee" href="/api/oauth/gitee.do?redirect=/api/h5.html" onclick="showH5LoginOverlay('正在跳转 Gitee 授权…')">Gitee 登录</a>
         </div>
         <div class="h5-login-foot"><a href="forgot.html">忘记密码？</a>&nbsp;·&nbsp;还没有账号？<a href="register.html">注册新用户</a></div>
     </div>
@@ -135,6 +135,7 @@
 </div>
 
 <script src="Assets/js/jquery-3.7.1.min.js" type="text/javascript"></script>
+<script src="Assets/js/api-suffix.js?v=1" type="text/javascript"></script>
 <script>
 function showH5LoginOverlay(text) {
     document.getElementById('h5LoginOverlayText').textContent = text || '正在登录…';
@@ -145,14 +146,14 @@ window.addEventListener('pageshow', function (e) {
     if (e.persisted) document.getElementById('h5LoginOverlay').classList.remove('show');
 });
 </script>
-<script src="Assets/js/h5.js?v=12" type="text/javascript"></script>
+<script src="Assets/js/h5.js?v=13" type="text/javascript"></script>
 <script src="Assets/js/welfare-md.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/h5-welfare.js?v=7" type="text/javascript"></script>
 <script src="Assets/js/h5-patrol.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/menu-manage.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/group-chat.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/h5-javaapi.js?v=3" type="text/javascript"></script>
-<script src="Assets/js/h5-sqltool.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/h5-sqltool.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/h5-dubbo.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/h5-pdftool.js?v=1" type="text/javascript"></script>
 <script>

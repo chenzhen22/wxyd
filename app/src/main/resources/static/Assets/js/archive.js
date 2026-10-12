@@ -111,7 +111,7 @@ var Archive = (function () {
         $("#loadingMsg").text("正在获取并下载归档文件…");
         var t0 = Date.now();
 
-        fetch('archive/fetch', {
+        fetch('archive/fetch.do', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {

@@ -1009,7 +1009,7 @@ function doArchiveFetch() {
     loading(true);
     var steps = $('#arcSteps').html('<li class="active">抓取页面并解析…</li>');
     $('#arcError').hide();
-    fetch('archive/fetch', {
+    fetch('archive/fetch.do', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         credentials: 'same-origin',

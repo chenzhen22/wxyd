@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -16,6 +17,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
     /** dataScan 图片落地目录（福利专区 /welfare-img/** 静态映射） */
     @Value("${wxyd.welfare.image-dir:/apps/shareFile/datascan}")
     private String welfareImageDir;
+
+    /**
+     * 开启后缀模式匹配：所有接口同时接受 .do 后缀（如 /user/list.do 等价 /user/list），
+     * 前端统一以 .do 请求后端；遗留外部入口 tbphx.do 为字面映射，不受影响。
+     * 拦截器路径模式（/user/** 等）对带后缀的路径同样命中，鉴权行为不变。
+     */
+    @Override
+    public void configurePathMatch(PathMatchConfigurer configurer) {
+        configurer.setUseSuffixPatternMatch(true);
+    }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {

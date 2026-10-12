@@ -227,7 +227,7 @@
 
     function exportData(type) {
         if (!hasResult || !currentSql) { showError('请先执行查询'); return; }
-        var url = 'sql/export?type=' + type + '&sql=' + encodeURIComponent(currentSql);
+        var url = 'sql/export.do?type=' + type + '&sql=' + encodeURIComponent(currentSql);
         var a = document.createElement('a');
         a.href = url; a.download = 'query_result.' + type;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);

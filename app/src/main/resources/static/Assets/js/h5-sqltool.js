@@ -89,7 +89,7 @@ registerH5Module('sql', function ($page) {
         var sql = $('#sqlInput').val().trim();
         if (!sql) { toast('SQL 不能为空'); return; }
         var a = document.createElement('a');
-        a.href = 'sql/export?type=' + type + '&sql=' + encodeURIComponent(sql);
+        a.href = 'sql/export.do?type=' + type + '&sql=' + encodeURIComponent(sql);
         document.body.appendChild(a);
         a.click();
         a.remove();

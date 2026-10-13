@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.cyz.mapper.mysqlMapper.LoginLogMapper">
+
+	<insert id="insert" parameterType="com.cyz.pojo.LoginLog">
+		insert into `login_log` (`user_id`,`username`,`event`,`channel`,`ip`,`detail`)
+		values (#{userId},#{username},#{event},#{channel},#{ip},#{detail})
+	</insert>
+
+	<select id="list" resultType="com.cyz.pojo.LoginLog">
+		select `id`,`user_id` as userId,`username`,`event`,`channel`,`ip`,`detail`,
+		       date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime
+		from `login_log`
+		<where>
+			<if test="userId != null">
+				`user_id` = #{userId}
+			</if>
+			<if test="usernameLike != null and usernameLike != ''">
+				and `username` like concat('%',#{usernameLike},'%')
+			</if>
+		</where>
+		order by `id` desc limit 200
+	</select>
+
+	<delete id="deleteOlderThanDays">
+		delete from `login_log` where `create_time` &lt; date_sub(now(), interval #{days} day)
+	</delete>
+
+</mapper>

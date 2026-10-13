@@ -1,7 +1,10 @@
 package com.cyz.controller;
 
+import com.cyz.pojo.LoginLog;
 import com.cyz.pojo.User;
 import com.cyz.service.AuthService;
+import com.cyz.service.LoginLogService;
+import com.cyz.util.CommUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -79,12 +82,14 @@ public class OAuthController implements CommController {
     private String contextPath;
 
     private final AuthService authService;
+    private final LoginLogService loginLogService;
     private final RestTemplate restTemplate;
     /** Gitee 为国内站点，可直连，不走 GitHub 代理 */
     private final RestTemplate giteeRestTemplate;
 
-    public OAuthController(AuthService authService) {
+    public OAuthController(AuthService authService, LoginLogService loginLogService) {
         this.authService = authService;
+        this.loginLogService = loginLogService;
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(10000);
         factory.setReadTimeout(15000);
@@ -173,7 +178,7 @@ public class OAuthController implements CommController {
     @GetMapping("github/callback")
     public void githubCallback(@RequestParam(value = "code", required = false) String code,
                                @RequestParam(value = "state", required = false) String state,
-                               HttpSession session, HttpServletResponse response) throws IOException {
+                               HttpSession session, HttpServletRequest request, HttpServletResponse response) throws IOException {
         String savedState = (String) session.getAttribute(SESSION_STATE);
         String redirect = (String) session.getAttribute(SESSION_REDIRECT);
         session.removeAttribute(SESSION_STATE);
@@ -201,6 +206,8 @@ public class OAuthController implements CommController {
             session.setAttribute("userId", u.getId());
             session.setAttribute("username", u.getUsername());
             session.setAttribute("role", u.getRole());
+            loginLogService.record(u.getId(), u.getUsername(), LoginLog.EVENT_LOGIN_SUCCESS,
+                    LoginLog.CHANNEL_GITHUB, CommUtils.getClientIp(request), "GitHub: " + login);
             response.sendRedirect(safeRedirectTarget(redirect != null ? redirect : "/api/"));
         } catch (Exception e) {
             boolean network = e instanceof java.net.ConnectException
@@ -273,7 +280,7 @@ public class OAuthController implements CommController {
     @GetMapping("gitee/callback")
     public void giteeCallback(@RequestParam(value = "code", required = false) String code,
                               @RequestParam(value = "state", required = false) String state,
-                              HttpSession session, HttpServletResponse response) throws IOException {
+                              HttpSession session, HttpServletRequest request, HttpServletResponse response) throws IOException {
         String savedState = (String) session.getAttribute(GITEE_SESSION_STATE);
         String redirect = (String) session.getAttribute(GITEE_SESSION_REDIRECT);
         session.removeAttribute(GITEE_SESSION_STATE);
@@ -301,6 +308,8 @@ public class OAuthController implements CommController {
             session.setAttribute("userId", u.getId());
             session.setAttribute("username", u.getUsername());
             session.setAttribute("role", u.getRole());
+            loginLogService.record(u.getId(), u.getUsername(), LoginLog.EVENT_LOGIN_SUCCESS,
+                    LoginLog.CHANNEL_GITEE, CommUtils.getClientIp(request), "Gitee: " + login);
             response.sendRedirect(safeRedirectTarget(redirect != null ? redirect : "/api/"));
         } catch (Exception e) {
             boolean network = e instanceof java.net.ConnectException

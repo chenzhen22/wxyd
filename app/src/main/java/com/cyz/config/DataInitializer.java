@@ -51,6 +51,7 @@ public class DataInitializer implements ApplicationRunner {
         ensureNoteIndexTable();
         ensureNoteIndexPopulated();
         ensureRadarPatrolTables();
+        ensureLoginLogTable();
         ensureMenuItems();
         int count = mysqlMapper.countUsers();
         if (count > 0) {
@@ -305,6 +306,7 @@ public class DataInitializer implements ApplicationRunner {
             {"user", "h5", "用户管理", "👤", "#/user", "110", "1", "0"},
             {"welfare", "h5", "福利专区", "🎁", "#/welfare", "120", "0", "0"},
             {"patrol", "h5", "巡检日报", "🛡️", "#/patrol", "130", "1", "0"},
+            {"loginlog", "h5", "登录日志", "📜", "#/loginlog", "135", "0", "0"},
             {"robot", "h5", "钉钉机器人", "🤖", "#/robot", "140", "0", "0"},
             {"notes", "h5", "记忆笔记", "📝", "#/notes", "150", "0", "0"},
             {"share", "h5", "文件共享", "📁", "#/share", "160", "0", "0"},
@@ -414,6 +416,40 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] 已自动升级 menu_config：唯一键重建为 (menu_key, platform)");
         } catch (Exception e) {
             log.error("[INIT] menu_config 唯一键升级失败（请手动执行 sql/V13__menu_item.sql 升级段）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 幂等确保登录日志表存在（对应 sql/V14__login_log.sql）。
+     * 部署环境无 mysql 客户端，故启动时自检建表；已存在则跳过。
+     * 失败仅记录提示，不阻断启动（登录日志写入本身也是尽力而为）。
+     */
+    private void ensureLoginLogTable() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.TABLES " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='login_log'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) {
+                log.info("[INIT] login_log 表已存在，跳过 V14 建表");
+                return;
+            }
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `login_log` (" +
+                    "`id` BIGINT NOT NULL AUTO_INCREMENT," +
+                    "`user_id` BIGINT NULL COMMENT '登录用户 id；失败尝试且用户不存在时为 NULL'," +
+                    "`username` VARCHAR(64) NOT NULL COMMENT '尝试登录的用户名/邮箱，OAuth 为登录名'," +
+                    "`event` VARCHAR(20) NOT NULL COMMENT 'login_success | login_fail | logout'," +
+                    "`channel` VARCHAR(20) NOT NULL COMMENT 'password | github | gitee | email'," +
+                    "`ip` VARCHAR(64) NULL COMMENT '客户端 IP'," +
+                    "`detail` VARCHAR(255) NULL COMMENT '失败原因等补充信息'," +
+                    "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "PRIMARY KEY (`id`)," +
+                    "KEY `idx_user_id` (`user_id`)," +
+                    "KEY `idx_create_time` (`create_time`)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='登录日志（保留 90 天）'");
+            log.info("[INIT] 已自动执行 V14 迁移：创建 login_log 登录日志表");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V14 迁移失败（请手动执行 sql/V14__login_log.sql）：{}", e.getMessage());
         }
     }
 

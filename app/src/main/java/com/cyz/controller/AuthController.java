@@ -1,14 +1,18 @@
 package com.cyz.controller;
 
+import com.cyz.pojo.LoginLog;
 import com.cyz.pojo.Result;
 import com.cyz.pojo.User;
 import com.cyz.service.AuthService;
 import com.cyz.service.EmailRegisterService;
+import com.cyz.service.LoginLogService;
 import com.cyz.service.PasswordResetService;
+import com.cyz.util.CommUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import java.util.Collections;
 import java.util.Map;
@@ -25,6 +29,9 @@ public class AuthController implements CommController {
 
     @Autowired
     private PasswordResetService passwordResetService;
+
+    @Autowired
+    private LoginLogService loginLogService;
 
     @ResponseBody
     @RequestMapping("register")
@@ -46,24 +53,31 @@ public class AuthController implements CommController {
 
     @ResponseBody
     @RequestMapping("login")
-    public Result login(@RequestBody Result result, HttpSession session) {
+    public Result login(@RequestBody Result result, HttpSession session, HttpServletRequest request) {
         Map<String, Object> map = (Map<String, Object>) result.getBody();
         String username = (String) map.get("username");
         String password = (String) map.get("password");
         result = Result.getInstance();
+        String ip = CommUtils.getClientIp(request);
         try {
             User u = authService.login(username, password);
             if (u.getStatus() != null && u.getStatus() == 1) {
+                loginLogService.record(u.getId(), username, LoginLog.EVENT_LOGIN_FAIL,
+                        LoginLog.CHANNEL_PASSWORD, ip, "账号待审批");
                 result.setErrorCode("000003");
                 result.setErrorMsg("账号待审批，请联系管理员");
                 return result;
             }
             if (u.getStatus() != null && u.getStatus() == 2) {
+                loginLogService.record(u.getId(), username, LoginLog.EVENT_LOGIN_FAIL,
+                        LoginLog.CHANNEL_PASSWORD, ip, "账号已被拒绝");
                 result.setErrorCode("000003");
                 result.setErrorMsg("账号已被拒绝");
                 return result;
             }
             if (u.getStatus() != null && u.getStatus() == 3) {
+                loginLogService.record(u.getId(), username, LoginLog.EVENT_LOGIN_FAIL,
+                        LoginLog.CHANNEL_PASSWORD, ip, "账号已被暂停");
                 result.setErrorCode("000003");
                 result.setErrorMsg("账号已被暂停，请联系管理员");
                 return result;
@@ -71,8 +85,12 @@ public class AuthController implements CommController {
             session.setAttribute("userId", u.getId());
             session.setAttribute("username", u.getUsername());
             session.setAttribute("role", u.getRole());
+            loginLogService.record(u.getId(), u.getUsername(), LoginLog.EVENT_LOGIN_SUCCESS,
+                    LoginLog.CHANNEL_PASSWORD, ip, null);
             result.setBody(u);
         } catch (IllegalArgumentException e) {
+            loginLogService.record(null, username, LoginLog.EVENT_LOGIN_FAIL,
+                    LoginLog.CHANNEL_PASSWORD, ip, e.getMessage());
             result.setErrorCode("000003");
             result.setErrorMsg(e.getMessage());
         }
@@ -81,7 +99,13 @@ public class AuthController implements CommController {
 
     @ResponseBody
     @RequestMapping("logout")
-    public Result logout(HttpSession session) {
+    public Result logout(HttpSession session, HttpServletRequest request) {
+        Long uid = (Long) session.getAttribute("userId");
+        String username = (String) session.getAttribute("username");
+        if (uid != null) {
+            loginLogService.record(uid, username, LoginLog.EVENT_LOGOUT,
+                    LoginLog.CHANNEL_PASSWORD, CommUtils.getClientIp(request), null);
+        }
         session.invalidate();
         return Result.getInstance();
     }
@@ -126,7 +150,7 @@ public class AuthController implements CommController {
     /** 完成注册：设置密码与用户名（选填，自动生成），成功即登录 */
     @ResponseBody
     @RequestMapping("register/email/complete")
-    public Result completeRegister(@RequestBody Result req, HttpSession session) {
+    public Result completeRegister(@RequestBody Result req, HttpSession session, HttpServletRequest request) {
         Map<String, Object> map = (Map<String, Object>) req.getBody();
         String token = (String) map.get("registerToken");
         String password = (String) map.get("password");
@@ -137,6 +161,8 @@ public class AuthController implements CommController {
             session.setAttribute("userId", u.getId());
             session.setAttribute("username", u.getUsername());
             session.setAttribute("role", u.getRole());
+            loginLogService.record(u.getId(), u.getUsername(), LoginLog.EVENT_LOGIN_SUCCESS,
+                    LoginLog.CHANNEL_EMAIL, CommUtils.getClientIp(request), "邮箱注册完成自动登录");
             result.setBody(u);
         } catch (IllegalArgumentException | IllegalStateException e) {
             result.setErrorCode("000003");

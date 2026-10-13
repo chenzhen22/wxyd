@@ -15,6 +15,9 @@
 			<if test="userId != null">
 				`user_id` = #{userId}
 			</if>
+			<if test="event != null and event != ''">
+				and `event` = #{event}
+			</if>
 			<if test="usernameLike != null and usernameLike != ''">
 				and `username` like concat('%',#{usernameLike},'%')
 			</if>

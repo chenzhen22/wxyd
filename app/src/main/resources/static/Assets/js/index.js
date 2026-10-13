@@ -124,6 +124,10 @@ $(function () {
         if (target === "patrol" && window.Patrol) {
             Patrol.init();
         }
+        // 登录日志模块懒加载
+        if (target === "loginLog" && window.LoginLog) {
+            LoginLog.init();
+        }
         // 菜单管理模块懒加载（仅管理员）
         if (target === "menuManage" && window.MenuManage) {
             MenuManage.mount($("#menuManageBody")[0]);

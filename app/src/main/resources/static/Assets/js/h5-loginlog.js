@@ -21,6 +21,13 @@
         $page.html(
             '<div class="h5-section-title">📜 登录日志' +
             '<div><span class="h5-btn-ghost h5-btn-sm" id="h5LlRefresh">↻ 刷新</span></div></div>' +
+            '<div style="display:flex;gap:6px;margin-bottom:8px">' +
+            '<select class="h5-select" id="h5LlEvent" style="width:auto;flex:1">' +
+            '<option value="">全部状态</option>' +
+            '<option value="login_success">登录成功</option>' +
+            '<option value="login_fail">登录失败</option>' +
+            '<option value="logout">登出</option>' +
+            '</select></div>' +
             '<div id="h5LlSearchWrap" style="display:none;margin-bottom:8px">' +
             '<input class="h5-input" id="h5LlKeyword" placeholder="按用户名/邮箱搜索" style="flex:1">' +
             '<span class="h5-btn-ghost h5-btn-sm" id="h5LlSearch">搜索</span>' +
@@ -37,11 +44,17 @@
             loadList($('#h5LlKeyword').val() || '');
         }).on('keydown', '#h5LlKeyword', function (e) {
             if (e.key === 'Enter') loadList($('#h5LlKeyword').val() || '');
+        }).off('change', '#h5LlEvent').on('change', '#h5LlEvent', function () {
+            loadList($('#h5LlKeyword').val() || '');
         });
     }
 
     function loadList(keyword) {
-        var qs = keyword ? ('?username=' + encodeURIComponent(keyword)) : '';
+        var params = [];
+        if (keyword) params.push('username=' + encodeURIComponent(keyword));
+        var ev = $('#h5LlEvent').val();
+        if (ev) params.push('event=' + encodeURIComponent(ev));
+        var qs = params.length ? ('?' + params.join('&')) : '';
         api({ url: 'loginLog/list' + qs, type: 'GET' }).done(function (res) {
             var list = (res.errorCode === '000000' && res.body) || [];
             if (!list.length) {

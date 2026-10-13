@@ -17,6 +17,10 @@ public class LoginLog {
     public static final String CHANNEL_GITEE = "gitee";
     public static final String CHANNEL_EMAIL = "email";
 
+    /** 合法事件类型（查询接口按此白名单校验） */
+    public static final java.util.Set<String> ALLOWED_EVENTS = new java.util.HashSet<>(
+            java.util.Arrays.asList(EVENT_LOGIN_SUCCESS, EVENT_LOGIN_FAIL, EVENT_LOGOUT));
+
     private Long id;
     /** 登录用户 id；失败尝试且用户不存在时为 null */
     private Long userId;

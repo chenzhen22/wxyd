@@ -43,10 +43,10 @@ public class LoginLogService {
     }
 
     /**
-     * 查询最新 200 条：userId 非空只查该用户；usernameLike 非空按用户名模糊过滤。
+     * 查询最新 200 条：userId 非空只查该用户；event 非空只查该事件类型；usernameLike 非空按用户名模糊过滤。
      */
-    public List<LoginLog> list(Long userId, String usernameLike) {
-        return loginLogMapper.list(userId, usernameLike);
+    public List<LoginLog> list(Long userId, String event, String usernameLike) {
+        return loginLogMapper.list(userId, event, usernameLike);
     }
 
     /** 每日 4 点清理超过保留期的登录日志 */

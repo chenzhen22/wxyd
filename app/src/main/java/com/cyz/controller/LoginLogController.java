@@ -24,15 +24,20 @@ public class LoginLogController implements CommController {
     @ResponseBody
     @RequestMapping("loginLog/list")
     public Result list(@RequestParam(value = "username", required = false) String username,
+                       @RequestParam(value = "event", required = false) String event,
                        HttpSession session) {
         Result result = Result.getInstance();
         Integer role = (Integer) session.getAttribute("role");
         Long uid = (Long) session.getAttribute("userId");
         boolean isAdmin = role != null && role == 0;
+        // 事件类型白名单校验，非法值视为不过滤
+        if (!LoginLog.ALLOWED_EVENTS.contains(event)) {
+            event = null;
+        }
         // 普通用户强制只看自己；仅管理员允许 username 关键字过滤
         Long userId = isAdmin ? null : uid;
         String keyword = isAdmin ? username : null;
-        List<LoginLog> logs = loginLogService.list(userId, keyword);
+        List<LoginLog> logs = loginLogService.list(userId, event, keyword);
         result.setBody(logs);
         return result;
     }

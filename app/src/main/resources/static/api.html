@@ -604,6 +604,27 @@
             </div>
         </div>
 
+        <div class="module-box" id="loginLog">
+            <div class="page-title">登录日志 <span class="admin-badge">管理员可查全部 · 普通用户仅本人</span></div>
+            <div class="tool-bar">
+                <select id="llEvent" style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">
+                    <option value="">全部状态</option>
+                    <option value="login_success">登录成功</option>
+                    <option value="login_fail">登录失败</option>
+                    <option value="logout">登出</option>
+                </select>
+                <input type="text" id="llKeyword" placeholder="用户名/邮箱（仅管理员）" style="width:220px;display:none;">
+                <button class="btn-main" id="llSearch">查询</button>
+                <button class="btn-main" id="llRefresh">刷新</button>
+            </div>
+            <table class="data-table">
+                <thead><tr><th width="6%">序号</th><th width="18%">用户名</th><th width="12%">事件</th><th width="10%">渠道</th><th width="14%">IP</th><th width="18%">时间</th><th width="22%">详情</th></tr></thead>
+                <tbody id="llTableBody">
+                    <tr><td colspan="99" style="text-align:center;color:#999;">加载中…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
         <div class="module-box" id="sqlTool">
             <div class="page-title">SQL 查询 <span class="admin-badge">仅管理员</span></div>
 
@@ -666,6 +687,7 @@
 <script src="Assets/js/shellscript.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/note.js?v=5" type="text/javascript"></script>
 <script src="Assets/js/patrol.js?v=3" type="text/javascript"></script>
+<script src="Assets/js/loginlog.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/dubbo.js?v=5" type="text/javascript"></script>
 <script src="Assets/js/archive.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/sqltool.js?v=3" type="text/javascript"></script>

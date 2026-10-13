@@ -38,14 +38,16 @@
         if (window.H5State && H5State.isAdmin) $('#h5LlSearchWrap').show();
         loadList('');
 
+        /* 事件筛选：直接绑定在 select 上（不经委托），change 即重查 */
+        $('#h5LlEvent').off('change').on('change', function () {
+            loadList($('#h5LlKeyword').val() || '');
+        });
         $page.off('click').on('click', '#h5LlRefresh', function () {
             loadList($('#h5LlKeyword').val() || '');
         }).on('click', '#h5LlSearch', function () {
             loadList($('#h5LlKeyword').val() || '');
         }).on('keydown', '#h5LlKeyword', function (e) {
             if (e.key === 'Enter') loadList($('#h5LlKeyword').val() || '');
-        }).off('change', '#h5LlEvent').on('change', '#h5LlEvent', function () {
-            loadList($('#h5LlKeyword').val() || '');
         });
     }
 

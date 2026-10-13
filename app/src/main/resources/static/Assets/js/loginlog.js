@@ -55,14 +55,13 @@ var LoginLog = (function () {
     function init() {
         if (loaded || !$('#llTableBody').length) return;
         loaded = true;
-        // 是否管理员决定是否展示用户名搜索框（服务端同样做了权限限定）
+        loadList();
+        // 是否管理员决定是否展示用户名搜索框（服务端同样做了权限限定）；
+        // 列表加载不依赖此请求，失败也不影响展示
         $.getJSON('user/info', function (res) {
             var info = (res && res.body) || {};
             isAdmin = !!info.isAdmin;
-            if (isAdmin) $('#llKeyword').show();
-            loadList();
-        }).fail(function () {
-            loadList();
+            $('#llKeyword').toggle(isAdmin);
         });
 
         $('#llEvent').off('change').on('change', loadList);

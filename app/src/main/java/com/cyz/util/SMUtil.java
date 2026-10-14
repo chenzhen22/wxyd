@@ -3,6 +3,7 @@ package com.cyz.util;
 import org.bouncycastle.asn1.gm.GMNamedCurves;
 import org.bouncycastle.asn1.x9.X9ECParameters;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
+import org.bouncycastle.crypto.digests.SM3Digest;
 import org.bouncycastle.crypto.engines.SM2Engine;
 import org.bouncycastle.crypto.engines.SM4Engine;
 import org.bouncycastle.crypto.generators.ECKeyPairGenerator;
@@ -37,6 +38,9 @@ import java.util.Arrays;
  *   <li>{@link #generateSM2KeyPair()} 生成 SM2 密钥对</li>
  *   <li>{@link #generateSM4Key()} 生成 SM4 密钥</li>
  * </ol>
+ *
+ * <p>另提供 sm3（摘要）与 sm4EcbEncrypt/sm4EcbDecrypt（ECB 模式，无 IV），
+ * 供「SM4 加签」场景使用：sign = SM4-ECB(SM3(原文))，接收方解密比对摘要即完成验签。
  *
  * <p><b>密钥格式约定：</b>
  * <ul>
@@ -188,6 +192,100 @@ public class SMUtil {
         } catch (Exception e) {
             throw new RuntimeException("SM4 解密失败: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 国密 SM3 摘要。
+     *
+     * @param data 摘要原文（UTF-8）
+     * @return 摘要 HEX（32 字节，64 字符）
+     */
+    public static String sm3(String data) {
+        SM3Digest digest = new SM3Digest();
+        byte[] msg = data == null ? new byte[0] : data.getBytes(StandardCharsets.UTF_8);
+        digest.update(msg, 0, msg.length);
+        byte[] out = new byte[digest.getDigestSize()];
+        digest.doFinal(out, 0);
+        return toHex(out);
+    }
+
+    /**
+     * 国密 SM4 加密（ECB + PKCS7，无 IV）。
+     * 用于「SM4 加签」场景：对 SM3 摘要做对称加密，接收方解密比对摘要即完成验签。
+     *
+     * @param keyHex    16 字节密钥 HEX（32 字符）
+     * @param plainText 明文（UTF-8）
+     * @return 密文 HEX
+     */
+    public static String sm4EcbEncrypt(String keyHex, String plainText) {
+        try {
+            byte[] key = fromHex(keyHex);
+            checkSM4Key(key);
+            SM4Engine engine = new SM4Engine();
+            engine.init(true, new KeyParameter(key));
+            byte[] data = plainText.getBytes(StandardCharsets.UTF_8);
+            byte[] padded = pkcs7Pad(data, SM4_BLOCK);
+            byte[] out = new byte[padded.length];
+            for (int off = 0; off < padded.length; off += SM4_BLOCK) {
+                engine.processBlock(padded, off, out, off);
+            }
+            return toHex(out);
+        } catch (Exception e) {
+            throw new RuntimeException("SM4-ECB 加密失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 国密 SM4 解密（ECB + PKCS7，无 IV）。
+     *
+     * @param keyHex    16 字节密钥 HEX（32 字符）
+     * @param cipherHex 密文 HEX（长度须为 16 字节的整数倍）
+     * @return 明文（UTF-8）
+     */
+    public static String sm4EcbDecrypt(String keyHex, String cipherHex) {
+        try {
+            byte[] key = fromHex(keyHex);
+            checkSM4Key(key);
+            byte[] data = fromHex(cipherHex);
+            if (data.length == 0 || data.length % SM4_BLOCK != 0) {
+                throw new IllegalArgumentException("SM4-ECB 密文长度必须为 16 字节的整数倍。");
+            }
+            SM4Engine engine = new SM4Engine();
+            engine.init(false, new KeyParameter(key));
+            byte[] out = new byte[data.length];
+            for (int off = 0; off < data.length; off += SM4_BLOCK) {
+                engine.processBlock(data, off, out, off);
+            }
+            return new String(pkcs7Unpad(out, SM4_BLOCK), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new RuntimeException("SM4-ECB 解密失败: " + e.getMessage(), e);
+        }
+    }
+
+    /** PKCS7 填充（blockSize 为分组字节数）。 */
+    private static byte[] pkcs7Pad(byte[] in, int blockSize) {
+        int padLen = blockSize - in.length % blockSize;
+        byte[] out = new byte[in.length + padLen];
+        System.arraycopy(in, 0, out, 0, in.length);
+        Arrays.fill(out, in.length, out.length, (byte) padLen);
+        return out;
+    }
+
+    /** PKCS7 去填充，填充值非法时抛异常。 */
+    private static byte[] pkcs7Unpad(byte[] in, int blockSize) {
+        if (in.length == 0 || in.length % blockSize != 0) {
+            throw new IllegalArgumentException("去填充失败：数据长度非法。");
+        }
+        int padLen = in[in.length - 1] & 0xff;
+        if (padLen < 1 || padLen > blockSize || padLen > in.length) {
+            throw new IllegalArgumentException("去填充失败：填充值非法。");
+        }
+        for (int i = in.length - padLen; i < in.length; i++) {
+            if ((in[i] & 0xff) != padLen) {
+                throw new IllegalArgumentException("去填充失败：填充校验不通过。");
+            }
+        }
+        return Arrays.copyOfRange(in, 0, in.length - padLen);
     }
 
     // ===================== 内部辅助 =====================

@@ -8,7 +8,7 @@
     <!-- 引入jQuery -->
     <script src="Assets/js/jquery-3.7.1.min.js" type="text/javascript"></script>
     <script src="Assets/js/api-suffix.js?v=1" type="text/javascript"></script>
-    <script src="Assets/js/index.js?v=10" type="text/javascript"></script>
+    <script src="Assets/js/index.js?v=11" type="text/javascript"></script>
     <link href="Assets/css/admin.css?v=20261009" rel="stylesheet" type="text/css">
     <!-- 进入页面前先套用已保存主题，避免闪烁 -->
     <script>
@@ -557,6 +557,32 @@
             </div>
         </div>
 
+        <div class="module-box" id="dayinfo">
+            <div class="page-title">金融日报 <span class="admin-badge" id="dayinfoSubBtn" style="cursor:pointer;">🔔 订阅提醒</span></div>
+            <div class="cert-card" id="dayinfoSubCard" style="display:none;">
+                <div class="cert-card-tit">🔔 日报订阅提醒 <span style="font-weight:400;color:var(--text-5);font-size:12px;">每天有新日报入库时通知你</span></div>
+                <div class="cert-form-row">
+                    <label>渠道：</label>
+                    <select id="dayinfoSubChannel" style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">
+                        <option value="dingtalk">钉钉机器人</option>
+                        <option value="email">邮件</option>
+                    </select>
+                    <select id="dayinfoSubRobot" style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"></select>
+                    <input type="text" id="dayinfoSubEmail" placeholder="接收邮箱" style="flex:1;display:none;">
+                </div>
+                <div class="cert-btn-group">
+                    <button class="btn-main" id="dayinfoSubSave">保存订阅</button>
+                    <button class="btn-main" id="dayinfoSubOff" style="background:var(--glass-3);color:var(--text-1);">暂停提醒</button>
+                </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+                <select id="dayinfoDateSel" style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"></select>
+                <span id="dayinfoMeta" style="color:var(--text-5);font-size:12px;"></span>
+            </div>
+            <div class="welfare-article" id="dayinfoArticle"><div class="welfare-empty">加载中…</div></div>
+            <div class="welfare-empty" id="dayinfoEmpty" style="display:none">暂无日报，等外部推送入库后即可查看</div>
+        </div>
+
         <div class="module-box" id="menuManage">
             <div class="page-title">菜单管理 <span class="admin-badge">仅管理员可见</span></div>
             <div id="menuManageBody"><!-- 由 Assets/js/menu-manage.js 渲染 --></div>
@@ -681,6 +707,7 @@
 </div>
 <script src="Assets/js/welfare-md.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/welfare.js?v=6" type="text/javascript"></script>
+<script src="Assets/js/dayinfo.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/menu-manage.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/group-chat.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/javaapi.js?v=3" type="text/javascript"></script>

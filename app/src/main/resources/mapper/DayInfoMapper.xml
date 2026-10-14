@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cyz.mapper.mysqlMapper.DayInfoMapper">
+
+	<sql id="cols">
+		`id`,`type`,date_format(`info_date`,'%Y-%m-%d') as `info_date`,`title`,`content`,
+		date_format(`create_time`,'%Y-%m-%d %H:%i') as `create_time`,
+		date_format(`update_time`,'%Y-%m-%d %H:%i') as `update_time`
+	</sql>
+
+	<select id="getByTypeAndDate" resultType="com.cyz.pojo.DayInfo">
+		select <include refid="cols"/> from `day_info`
+		where `type`=#{type} and `info_date`=#{infoDate}
+	</select>
+
+	<insert id="insert" parameterType="com.cyz.pojo.DayInfo" useGeneratedKeys="true" keyProperty="id">
+		insert into `day_info` (`type`,`info_date`,`title`,`content`)
+		values (#{type},#{infoDate},#{title},#{content})
+	</insert>
+
+	<update id="updateContent" parameterType="com.cyz.pojo.DayInfo">
+		update `day_info` set `title`=#{title}, `content`=#{content} where `id`=#{id}
+	</update>
+
+	<select id="listByType" resultType="com.cyz.pojo.DayInfo">
+		select <include refid="cols"/> from `day_info`
+		where `type`=#{type}
+		order by `info_date` desc
+		limit #{offset}, #{pageSize}
+	</select>
+
+	<select id="countByType" resultType="Integer">
+		select count(1) from `day_info` where `type`=#{type}
+	</select>
+
+	<select id="getById" resultType="com.cyz.pojo.DayInfo">
+		select <include refid="cols"/> from `day_info` where `id`=#{id}
+	</select>
+
+	<select id="getLatest" resultType="com.cyz.pojo.DayInfo">
+		select <include refid="cols"/> from `day_info`
+		where `type`=#{type}
+		order by `info_date` desc limit 1
+	</select>
+
+	<select id="getSubscribeByUser" resultType="com.cyz.pojo.DayInfoSubscribe">
+		select `id`,`user_id`,`channel`,`robot_id`,`email`,`enabled`,
+		       date_format(`create_time`,'%Y-%m-%d %H:%i') as `create_time`,
+		       date_format(`update_time`,'%Y-%m-%d %H:%i') as `update_time`
+		from `day_info_subscribe` where `user_id`=#{userId}
+	</select>
+
+	<insert id="upsertSubscribe" parameterType="com.cyz.pojo.DayInfoSubscribe">
+		insert into `day_info_subscribe` (`user_id`,`channel`,`robot_id`,`email`,`enabled`)
+		values (#{userId},#{channel},#{robotId},#{email},#{enabled})
+		on duplicate key update `channel`=values(`channel`),`robot_id`=values(`robot_id`),
+			`email`=values(`email`),`enabled`=values(`enabled`)
+	</insert>
+
+	<update id="updateSubscribeEnabled">
+		update `day_info_subscribe` set `enabled`=#{enabled} where `user_id`=#{userId}
+	</update>
+
+	<select id="listEnabledSubscribe" resultType="com.cyz.pojo.DayInfoSubscribe">
+		select `id`,`user_id`,`channel`,`robot_id`,`email`,`enabled`
+		from `day_info_subscribe` where `enabled`=1
+	</select>
+
+</mapper>

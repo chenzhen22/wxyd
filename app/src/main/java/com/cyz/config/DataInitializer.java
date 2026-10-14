@@ -52,6 +52,7 @@ public class DataInitializer implements ApplicationRunner {
         ensureNoteIndexPopulated();
         ensureRadarPatrolTables();
         ensureLoginLogTable();
+        ensureDayInfoTables();
         ensureMenuItems();
         int count = mysqlMapper.countUsers();
         if (count > 0) {
@@ -299,6 +300,7 @@ public class DataInitializer implements ApplicationRunner {
             {"dubboCall", "desktop", "Dubbo调用", "🔌", "#/dubboCall", "110", "0", "0"},
             {"archiveTool", "desktop", "归档下载", "📦", "#/archiveTool", "120", "0", "0"},
             {"welfare", "desktop", "福利专区", "🎁", "#/welfare", "130", "0", "0"},
+            {"dayinfo", "desktop", "金融日报", "📈", "#/dayinfo", "135", "0", "0"},
             {"patrol", "desktop", "巡检日报", "🛡️", "#/patrol", "140", "1", "0"},
             {"loginLog", "desktop", "登录日志", "📜", "#/loginLog", "145", "0", "0"},
             {"menuManage", "desktop", "菜单管理", "🧩", "#/menuManage", "150", "1", "1"},
@@ -306,6 +308,7 @@ public class DataInitializer implements ApplicationRunner {
             {"group", "h5", "群聊", "👥", "", "20", "0", "1"},
             {"user", "h5", "用户管理", "👤", "#/user", "110", "1", "0"},
             {"welfare", "h5", "福利专区", "🎁", "#/welfare", "120", "0", "0"},
+            {"dayinfo", "h5", "金融日报", "📈", "#/dayinfo", "125", "0", "0"},
             {"patrol", "h5", "巡检日报", "🛡️", "#/patrol", "130", "1", "0"},
             {"loginlog", "h5", "登录日志", "📜", "#/loginlog", "135", "0", "0"},
             {"robot", "h5", "钉钉机器人", "🤖", "#/robot", "140", "0", "0"},
@@ -417,6 +420,41 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] 已自动升级 menu_config：唯一键重建为 (menu_key, platform)");
         } catch (Exception e) {
             log.error("[INIT] menu_config 唯一键升级失败（请手动执行 sql/V13__menu_item.sql 升级段）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 幂等确保金融日报两表存在（对应 sql/V15__day_info.sql）：
+     * day_info 按 (type, info_date) 唯一，外部推送同日覆盖；day_info_subscribe 每用户一条订阅。
+     */
+    private void ensureDayInfoTables() {
+        try {
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `day_info` (" +
+                    "`id` BIGINT NOT NULL AUTO_INCREMENT," +
+                    "`type` VARCHAR(32) NOT NULL DEFAULT 'finance' COMMENT '日报类型，finance=金融日报'," +
+                    "`info_date` DATE NOT NULL COMMENT '日报所属日期（按 type+date 唯一）'," +
+                    "`title` VARCHAR(255) NOT NULL DEFAULT '' COMMENT '标题，默认「金融日报 YYYY-MM-DD」'," +
+                    "`content` MEDIUMTEXT COMMENT 'md 原文'," +
+                    "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "`update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+                    "PRIMARY KEY (`id`)," +
+                    "UNIQUE KEY `uk_type_date` (`type`,`info_date`)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='金融日报（外部加密推送，每日一条）'");
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `day_info_subscribe` (" +
+                    "`id` BIGINT NOT NULL AUTO_INCREMENT," +
+                    "`user_id` BIGINT NOT NULL COMMENT '订阅属主，一人一条'," +
+                    "`channel` VARCHAR(10) NOT NULL COMMENT 'dingtalk | email'," +
+                    "`robot_id` BIGINT NULL COMMENT 'channel=dingtalk 时必填'," +
+                    "`email` VARCHAR(128) NULL COMMENT 'channel=email 时必填'," +
+                    "`enabled` TINYINT NOT NULL DEFAULT 1 COMMENT '1=启用 0=暂停'," +
+                    "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "`update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+                    "PRIMARY KEY (`id`)," +
+                    "UNIQUE KEY `uk_user` (`user_id`)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='金融日报订阅提醒'");
+            log.info("[INIT] 已自动执行 V15 迁移：day_info / day_info_subscribe");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V15 迁移失败（请手动执行 sql/V15__day_info.sql）：{}", e.getMessage());
         }
     }
 

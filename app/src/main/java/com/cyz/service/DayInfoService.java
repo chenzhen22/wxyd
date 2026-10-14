@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -41,8 +42,8 @@ public class DayInfoService {
     /** 默认日报类型：type 为空视为金融日报 */
     private static final String TYPE_FINANCE = "finance";
 
-    /** 推送通知里 md 摘要截断长度 */
-    private static final int NOTIFY_SUMMARY_LEN = 200;
+    /** 钉钉 markdown 消息安全字节上限（官方上限约 20KB，留余量） */
+    private static final int DINGTALK_MD_MAX_BYTES = 18000;
 
     @Resource
     private DayInfoMapper dayInfoMapper;
@@ -286,19 +287,52 @@ public class DayInfoService {
         }
     }
 
-    /** 组装并推送一条订阅；@return null=成功，非 null=失败原因 */
+    /** 组装并推送一条订阅；@return null=成功，非 null=失败原因。钉钉/邮件均推送日报全文 */
     private String pushOne(DayInfoSubscribe s, DayInfo info) {
-        String summary = info.getContent() == null ? "" : info.getContent().replaceAll("[#*`>\\[\\]]", "");
-        if (summary.length() > NOTIFY_SUMMARY_LEN) {
-            summary = summary.substring(0, NOTIFY_SUMMARY_LEN) + "…";
-        }
-        String markdown = "### " + info.getTitle() + "\n\n"
-                + "「金融日报」已更新（" + info.getInfoDate() + "），登录平台查看完整内容。\n\n"
-                + "---\n\n" + summary;
         if ("dingtalk".equals(s.getChannel())) {
-            return pushService.pushDingtalk(s.getUserId(), s.getRobotId(), "金融日报：" + info.getInfoDate(), markdown);
+            String md = "### " + info.getTitle() + "\n\n"
+                    + "> 金融日报 " + info.getInfoDate() + " 推送，完整内容见平台「金融日报」页\n\n"
+                    + truncateBytes(info.getContent(), DINGTALK_MD_MAX_BYTES,
+                    "\n\n> 内容过长已截断，完整内容请登录平台查看");
+            return pushService.pushDingtalk(s.getUserId(), s.getRobotId(), "金融日报：" + info.getInfoDate(), md);
         }
-        return pushService.pushEmail(s.getEmail(), "金融日报（" + info.getInfoDate() + "）",
-                markdown.replaceAll("### ", "").replaceAll("\\*\\*", "").replaceAll("  \n", "\n"));
+        return pushService.pushEmail(s.getEmail(), info.getTitle() + "（" + info.getInfoDate() + "）",
+                mdToPlainText(info.getContent()));
+    }
+
+    /** 按 UTF-8 字节数安全截断（不截半个字符），超限时在尾部追加提示语 */
+    private static String truncateBytes(String s, int maxBytes, String suffix) {
+        String body = s == null ? "" : s;
+        byte[] sb = body.getBytes(StandardCharsets.UTF_8);
+        if (sb.length <= maxBytes) {
+            return body;
+        }
+        int end = maxBytes;
+        // 回退到完整 UTF-8 字符边界（跳过续字节 10xxxxxx）
+        while (end > 0 && (sb[end] & 0xC0) == 0x80) {
+            end--;
+        }
+        return new String(sb, 0, end, StandardCharsets.UTF_8) + suffix;
+    }
+
+    /** md 转可读纯文本（邮件用）：去标题井号/加粗斜体/引用/代码围栏/图片，链接只留文字 */
+    private static String mdToPlainText(String md) {
+        if (md == null || md.isEmpty()) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        for (String line : md.replace("\r\n", "\n").split("\n")) {
+            String l = line
+                    .replaceAll("!\\[[^\\]]*\\]\\([^)]*\\)", "")          // 图片丢弃
+                    .replaceAll("\\[([^\\]]*)\\]\\([^)]*\\)", "$1")       // 链接只留文字
+                    .replaceFirst("^\\s*#{1,6}\\s*", "")                  // 标题井号
+                    .replaceFirst("^\\s*>\\s?", "")                       // 引用标记
+                    .replaceFirst("^\\s*`{3,}.*$", "")                    // 代码围栏行
+                    .replaceAll("\\*\\*([^*]+)\\*\\*", "$1")              // 加粗
+                    .replaceAll("\\*([^*]+)\\*", "$1")                    // 斜体
+                    .replace("`", "");
+            out.append(l).append('\n');
+        }
+        return out.toString().replaceAll("\n{3,}", "\n\n").trim();
     }
 }

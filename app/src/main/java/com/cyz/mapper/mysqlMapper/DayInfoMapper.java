@@ -29,13 +29,21 @@ public interface DayInfoMapper {
 
     DayInfo getLatest(@Param("type") String type);
 
-    /* ---------------- 订阅 ---------------- */
+    /* ---------------- 订阅（一人多条：多个钉钉机器人 + 多个邮箱） ---------------- */
 
-    DayInfoSubscribe getSubscribeByUser(@Param("userId") Long userId);
+    List<DayInfoSubscribe> listByUser(@Param("userId") Long userId);
 
-    int upsertSubscribe(DayInfoSubscribe s);
+    DayInfoSubscribe getSubById(@Param("id") Long id);
 
-    int updateSubscribeEnabled(@Param("userId") Long userId, @Param("enabled") Integer enabled);
+    int insertSubscribe(DayInfoSubscribe s);
 
+    /** 双重限定：id 归属校验在 SQL 层兜底 */
+    int deleteSubscribe(@Param("id") Long id, @Param("userId") Long userId);
+
+    int updateSubscribeEnabled(@Param("id") Long id, @Param("userId") Long userId, @Param("enabled") Integer enabled);
+
+    int countByUser(@Param("userId") Long userId);
+
+    /** 全部启用中的订阅（新日报入库提醒用） */
     List<DayInfoSubscribe> listEnabledSubscribe();
 }

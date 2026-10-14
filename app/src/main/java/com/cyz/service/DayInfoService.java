@@ -206,14 +206,17 @@ public class DayInfoService {
         return dayInfoMapper.getLatest(normalizeType(type));
     }
 
-    /* ==================== 订阅（登录用户，一人一条） ==================== */
+    /* ==================== 订阅（登录用户，一人多条） ==================== */
 
-    public DayInfoSubscribe mySubscribe(long userId) {
-        return dayInfoMapper.getSubscribeByUser(userId);
+    public static final int MAX_SUBSCRIBE_PER_USER = 10;
+
+    /** 我的订阅列表（多个钉钉机器人 + 多个邮箱） */
+    public List<DayInfoSubscribe> mySubscribe(long userId) {
+        return dayInfoMapper.listByUser(userId);
     }
 
-    /** 保存订阅（upsert）；校验规则与羊毛雷达一致 */
-    public DayInfoSubscribe saveSubscribe(long userId, String channel, Long robotId, String email, Boolean enabled) {
+    /** 新增订阅；校验规则与羊毛雷达一致；robotId 归属在推送时由 PushService 校验 */
+    public DayInfoSubscribe addSubscribe(long userId, String channel, Long robotId, String email) {
         String ch = channel == null ? "" : channel.trim();
         if (!"dingtalk".equals(ch) && !"email".equals(ch)) {
             throw new IllegalArgumentException("channel 非法（dingtalk | email）");
@@ -232,14 +235,33 @@ public class DayInfoService {
             }
             s.setEmail(email.trim());
         }
-        s.setEnabled(Boolean.FALSE.equals(enabled) ? 0 : 1);
-        dayInfoMapper.upsertSubscribe(s);
-        return dayInfoMapper.getSubscribeByUser(userId);
+        if (dayInfoMapper.countByUser(userId) >= MAX_SUBSCRIBE_PER_USER) {
+            throw new IllegalStateException("订阅数已达上限（" + MAX_SUBSCRIBE_PER_USER + " 条）");
+        }
+        s.setEnabled(1);
+        dayInfoMapper.insertSubscribe(s);
+        return dayInfoMapper.getSubById(s.getId());
     }
 
-    /** 启用/暂停订阅；未订阅时返回 false */
-    public boolean toggleSubscribe(long userId, boolean enabled) {
-        return dayInfoMapper.updateSubscribeEnabled(userId, enabled ? 1 : 0) > 0;
+    public boolean deleteSubscribe(long userId, Long id) {
+        return id != null && dayInfoMapper.deleteSubscribe(id, userId) > 0;
+    }
+
+    public boolean toggleSubscribe(long userId, Long id, boolean enabled) {
+        return id != null && dayInfoMapper.updateSubscribeEnabled(id, userId, enabled ? 1 : 0) > 0;
+    }
+
+    /** 立即测试推送：把最新一期日报推给指定订阅（不看入库时间），用于配置后自检通道连通性 */
+    public String testSubscribe(long userId, Long id) {
+        DayInfoSubscribe s = id == null ? null : dayInfoMapper.getSubById(id);
+        if (s == null || s.getUserId() != userId) {
+            throw new IllegalArgumentException("订阅不存在");
+        }
+        DayInfo latest = dayInfoMapper.getLatest(TYPE_FINANCE);
+        if (latest == null) {
+            return "暂无日报可测试";
+        }
+        return pushOne(s, latest);
     }
 
     /* ==================== 订阅提醒（旁路异步） ==================== */
@@ -250,20 +272,10 @@ public class DayInfoService {
         if (subs == null || subs.isEmpty()) {
             return;
         }
-        String summary = info.getContent() == null ? "" : info.getContent().replaceAll("[#*`>\\[\\]]", "");
-        if (summary.length() > NOTIFY_SUMMARY_LEN) {
-            summary = summary.substring(0, NOTIFY_SUMMARY_LEN) + "…";
-        }
-        String markdown = "### " + info.getTitle() + "\n\n"
-                + "「金融日报」已更新（" + info.getInfoDate() + "），登录平台查看完整内容。\n\n"
-                + "---\n\n" + summary;
         for (DayInfoSubscribe s : subs) {
             notifyExecutor.execute(() -> {
                 try {
-                    String err = "dingtalk".equals(s.getChannel())
-                            ? pushService.pushDingtalk(s.getUserId(), s.getRobotId(), "金融日报：" + info.getInfoDate(), markdown)
-                            : pushService.pushEmail(s.getEmail(), "金融日报（" + info.getInfoDate() + "）",
-                                    markdown.replaceAll("### ", "").replaceAll("\\*\\*", "").replaceAll("  \n", "\n"));
+                    String err = pushOne(s, info);
                     if (err != null) {
                         log.warn("[DAYINFO] 订阅提醒失败：sub={} err={}", s.getId(), err);
                     }
@@ -272,5 +284,21 @@ public class DayInfoService {
                 }
             });
         }
+    }
+
+    /** 组装并推送一条订阅；@return null=成功，非 null=失败原因 */
+    private String pushOne(DayInfoSubscribe s, DayInfo info) {
+        String summary = info.getContent() == null ? "" : info.getContent().replaceAll("[#*`>\\[\\]]", "");
+        if (summary.length() > NOTIFY_SUMMARY_LEN) {
+            summary = summary.substring(0, NOTIFY_SUMMARY_LEN) + "…";
+        }
+        String markdown = "### " + info.getTitle() + "\n\n"
+                + "「金融日报」已更新（" + info.getInfoDate() + "），登录平台查看完整内容。\n\n"
+                + "---\n\n" + summary;
+        if ("dingtalk".equals(s.getChannel())) {
+            return pushService.pushDingtalk(s.getUserId(), s.getRobotId(), "金融日报：" + info.getInfoDate(), markdown);
+        }
+        return pushService.pushEmail(s.getEmail(), "金融日报（" + info.getInfoDate() + "）",
+                markdown.replaceAll("### ", "").replaceAll("\\*\\*", "").replaceAll("  \n", "\n"));
     }
 }

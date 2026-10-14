@@ -560,20 +560,21 @@
         <div class="module-box" id="dayinfo">
             <div class="page-title">金融日报 <span class="admin-badge" id="dayinfoSubBtn" style="cursor:pointer;">🔔 订阅提醒</span></div>
             <div class="cert-card" id="dayinfoSubCard" style="display:none;">
-                <div class="cert-card-tit">🔔 日报订阅提醒 <span style="font-weight:400;color:var(--text-5);font-size:12px;">每天有新日报入库时通知你</span></div>
+                <div class="cert-card-tit">🔔 日报订阅提醒 <span style="font-weight:400;color:var(--text-5);font-size:12px;">新日报入库时通知，支持多个钉钉机器人/邮箱</span></div>
                 <div class="cert-form-row">
-                    <label>渠道：</label>
                     <select id="dayinfoSubChannel" style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">
                         <option value="dingtalk">钉钉机器人</option>
                         <option value="email">邮件</option>
                     </select>
                     <select id="dayinfoSubRobot" style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"></select>
                     <input type="text" id="dayinfoSubEmail" placeholder="接收邮箱" style="flex:1;display:none;">
+                    <button class="btn-main" id="dayinfoSubAdd">添加订阅</button>
                 </div>
-                <div class="cert-btn-group">
-                    <button class="btn-main" id="dayinfoSubSave">保存订阅</button>
-                    <button class="btn-main" id="dayinfoSubOff" style="background:var(--glass-3);color:var(--text-1);">暂停提醒</button>
-                </div>
+                <table class="data-table" id="dayinfoSubTable" style="display:none;">
+                    <thead><tr><th width="14%">渠道</th><th width="36%">目标</th><th width="14%">状态</th><th width="36%">操作</th></tr></thead>
+                    <tbody id="dayinfoSubTableBody"></tbody>
+                </table>
+                <div id="dayinfoSubEmpty" style="display:none;color:var(--text-5);font-size:13px;">还没有订阅，添加钉钉机器人或邮箱开始接收提醒</div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
                 <select id="dayinfoDateSel" style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"></select>
@@ -707,7 +708,7 @@
 </div>
 <script src="Assets/js/welfare-md.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/welfare.js?v=6" type="text/javascript"></script>
-<script src="Assets/js/dayinfo.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/dayinfo.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/menu-manage.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/group-chat.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/javaapi.js?v=3" type="text/javascript"></script>

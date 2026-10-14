@@ -43,27 +43,41 @@
 		order by `info_date` desc limit 1
 	</select>
 
-	<select id="getSubscribeByUser" resultType="com.cyz.pojo.DayInfoSubscribe">
-		select `id`,`user_id`,`channel`,`robot_id`,`email`,`enabled`,
-		       date_format(`create_time`,'%Y-%m-%d %H:%i') as `create_time`,
-		       date_format(`update_time`,'%Y-%m-%d %H:%i') as `update_time`
-		from `day_info_subscribe` where `user_id`=#{userId}
+	<sql id="subCols">
+		`s`.`id`,`s`.`user_id`,`s`.`channel`,`s`.`robot_id`,`s`.`email`,`s`.`enabled`,
+		date_format(`s`.`create_time`,'%Y-%m-%d %H:%i') as `create_time`,
+		date_format(`s`.`update_time`,'%Y-%m-%d %H:%i') as `update_time`
+	</sql>
+
+	<select id="listByUser" resultType="com.cyz.pojo.DayInfoSubscribe">
+		select <include refid="subCols"/> from `day_info_subscribe` `s`
+		where `s`.`user_id`=#{userId} order by `s`.`id` desc
 	</select>
 
-	<insert id="upsertSubscribe" parameterType="com.cyz.pojo.DayInfoSubscribe">
+	<select id="getSubById" resultType="com.cyz.pojo.DayInfoSubscribe">
+		select <include refid="subCols"/> from `day_info_subscribe` `s` where `s`.`id`=#{id}
+	</select>
+
+	<insert id="insertSubscribe" parameterType="com.cyz.pojo.DayInfoSubscribe" useGeneratedKeys="true" keyProperty="id">
 		insert into `day_info_subscribe` (`user_id`,`channel`,`robot_id`,`email`,`enabled`)
 		values (#{userId},#{channel},#{robotId},#{email},#{enabled})
-		on duplicate key update `channel`=values(`channel`),`robot_id`=values(`robot_id`),
-			`email`=values(`email`),`enabled`=values(`enabled`)
 	</insert>
 
+	<!-- 双重限定：id 归属校验在 SQL 层兜底，杜绝删别人的订阅 -->
+	<delete id="deleteSubscribe">
+		delete from `day_info_subscribe` where `id`=#{id} and `user_id`=#{userId}
+	</delete>
+
 	<update id="updateSubscribeEnabled">
-		update `day_info_subscribe` set `enabled`=#{enabled} where `user_id`=#{userId}
+		update `day_info_subscribe` set `enabled`=#{enabled} where `id`=#{id} and `user_id`=#{userId}
 	</update>
 
+	<select id="countByUser" resultType="Integer">
+		select count(1) from `day_info_subscribe` where `user_id`=#{userId}
+	</select>
+
 	<select id="listEnabledSubscribe" resultType="com.cyz.pojo.DayInfoSubscribe">
-		select `id`,`user_id`,`channel`,`robot_id`,`email`,`enabled`
-		from `day_info_subscribe` where `enabled`=1
+		select <include refid="subCols"/> from `day_info_subscribe` `s` where `s`.`enabled`=1
 	</select>
 
 </mapper>

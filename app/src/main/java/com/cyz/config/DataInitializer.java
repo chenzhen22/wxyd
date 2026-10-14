@@ -425,7 +425,7 @@ public class DataInitializer implements ApplicationRunner {
 
     /**
      * 幂等确保金融日报两表存在（对应 sql/V15__day_info.sql）：
-     * day_info 按 (type, info_date) 唯一，外部推送同日覆盖；day_info_subscribe 每用户一条订阅。
+     * day_info 按 (type, info_date) 唯一，外部推送同日覆盖；day_info_subscribe 多订阅（V16 去一人一条限制）。
      */
     private void ensureDayInfoTables() {
         try {
@@ -442,7 +442,7 @@ public class DataInitializer implements ApplicationRunner {
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='金融日报（外部加密推送，每日一条）'");
             jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `day_info_subscribe` (" +
                     "`id` BIGINT NOT NULL AUTO_INCREMENT," +
-                    "`user_id` BIGINT NOT NULL COMMENT '订阅属主，一人一条'," +
+                    "`user_id` BIGINT NOT NULL COMMENT '订阅属主，一人多条'," +
                     "`channel` VARCHAR(10) NOT NULL COMMENT 'dingtalk | email'," +
                     "`robot_id` BIGINT NULL COMMENT 'channel=dingtalk 时必填'," +
                     "`email` VARCHAR(128) NULL COMMENT 'channel=email 时必填'," +
@@ -450,11 +450,34 @@ public class DataInitializer implements ApplicationRunner {
                     "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                     "`update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
                     "PRIMARY KEY (`id`)," +
-                    "UNIQUE KEY `uk_user` (`user_id`)" +
+                    "KEY `idx_user` (`user_id`)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='金融日报订阅提醒'");
-            log.info("[INIT] 已自动执行 V15 迁移：day_info / day_info_subscribe");
+            ensureDayInfoSubscribeMulti();
+            log.info("[INIT] 已自动执行 V15/V16 迁移：day_info / day_info_subscribe（多订阅）");
         } catch (Exception e) {
-            log.error("[INIT] 自动执行 V15 迁移失败（请手动执行 sql/V15__day_info.sql）：{}", e.getMessage());
+            log.error("[INIT] 自动执行 V15/V16 迁移失败（请手动执行 sql/V15__day_info.sql、V16__dayinfo_subscribe_multi.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * V16 升级兜底：旧库 day_info_subscribe 若仍带 uk_user 唯一键（一人一条），
+     * 幂等改为普通索引 idx_user，支持一人多订阅（多个钉钉机器人 + 多个邮箱）。
+     */
+    private void ensureDayInfoSubscribeMulti() {
+        try {
+            Integer uk = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.STATISTICS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='day_info_subscribe' AND INDEX_NAME='uk_user'",
+                    Integer.class);
+            if (uk == null || uk == 0) {
+                log.info("[INIT] day_info_subscribe 无 uk_user，跳过 V16 升级");
+                return;
+            }
+            jdbcTemplate.execute("ALTER TABLE `day_info_subscribe` " +
+                    "DROP KEY `uk_user`, ADD KEY `idx_user` (`user_id`)");
+            log.info("[INIT] 已自动执行 V16 迁移：day_info_subscribe 支持多订阅");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V16 迁移失败（请手动执行 sql/V16__dayinfo_subscribe_multi.sql）：{}", e.getMessage());
         }
     }
 

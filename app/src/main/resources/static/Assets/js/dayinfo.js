@@ -73,35 +73,50 @@
         });
     }
 
-    /* ================= 订阅提醒 ================= */
+    /* ================= 订阅提醒（一人多条：钉钉机器人/邮箱可配多个） ================= */
 
-    function fillSubForm(s) {
-        var has = s && s.id;
-        $('#dayinfoSubChannel').val(has ? (s.channel || 'dingtalk') : 'dingtalk');
-        $('#dayinfoSubEmail').val(has ? (s.email || '') : '');
-        var fillRobot = function () {
-            if (has && s.robotId) $('#dayinfoSubRobot').val(String(s.robotId));
-        };
-        if (!$('#dayinfoSubRobot option').length) {
-            $.getJSON('robot/list').done(function (r) {
-                var list = (r && r.body) || [];
-                var html = '';
-                list.forEach(function (rb) {
-                    html += '<option value="' + rb.id + '">' + esc(rb.name || ('机器人 #' + rb.id)) + '</option>';
-                });
-                $('#dayinfoSubRobot').html(html);
-                fillRobot();
+    var robotNames = {}; // robotId -> name，展示用
+
+    function loadRobots() {
+        return $.getJSON('robot/list').then(function (r) {
+            var list = (r && r.body) || [];
+            var html = '';
+            robotNames = {};
+            list.forEach(function (rb) {
+                robotNames[rb.id] = rb.name || ('机器人 #' + rb.id);
+                html += '<option value="' + rb.id + '">' + esc(robotNames[rb.id]) + '</option>';
             });
-        } else {
-            fillRobot();
-        }
-        $('#dayinfoSubChannel').change();
-        $('#dayinfoSubOff').text(has && s.enabled == 1 ? '暂停提醒' : '恢复提醒');
+            $('#dayinfoSubRobot').html(html);
+        });
     }
 
-    function loadSubscribe() {
+    function subTargetHtml(s) {
+        return s.channel === 'dingtalk'
+            ? '🤖 ' + esc(robotNames[s.robotId] || ('机器人 #' + s.robotId))
+            : '✉️ ' + esc(s.email || '');
+    }
+
+    function renderSubs(list) {
+        var $tb = $('#dayinfoSubTableBody').html('');
+        $('#dayinfoSubTable').toggle(list.length > 0);
+        $('#dayinfoSubEmpty').toggle(list.length === 0);
+        list.forEach(function (s) {
+            $tb.append(
+                '<tr>' +
+                '<td>' + (s.channel === 'dingtalk' ? '钉钉' : '邮件') + '</td>' +
+                '<td>' + subTargetHtml(s) + '</td>' +
+                '<td>' + (s.enabled == 1 ? '<span style="color:#4ade80;">已启用</span>' : '<span style="color:#f87171;">已暂停</span>') + '</td>' +
+                '<td>' +
+                '<button class="btn-main" data-op="test" data-id="' + s.id + '" style="color:#38bdf8;">测试推送</button> ' +
+                '<button class="btn-main" data-op="toggle" data-id="' + s.id + '" data-on="' + s.enabled + '" style="background:var(--glass-3);color:var(--text-1);">' + (s.enabled == 1 ? '暂停' : '恢复') + '</button> ' +
+                '<button class="btn-del" data-op="del" data-id="' + s.id + '">删除</button>' +
+                '</td></tr>');
+        });
+    }
+
+    function loadSubs() {
         $.getJSON('dayinfo/subscribe/my').done(function (res) {
-            fillSubForm(res.errorCode === '000000' ? res.body : null);
+            renderSubs((res.errorCode === '000000' && res.body) || []);
         });
     }
 
@@ -119,7 +134,9 @@
         $('#dayinfoSubBtn').on('click', function () {
             var $c = $('#dayinfoSubCard');
             $c.toggle();
-            if ($c.is(':visible')) loadSubscribe();
+            if ($c.is(':visible')) {
+                loadRobots().then(loadSubs);
+            }
         });
 
         // 渠道切换：钉钉选机器人 / 邮件填邮箱
@@ -129,9 +146,9 @@
             $('#dayinfoSubEmail').toggle(!isDing);
         });
 
-        // 保存订阅
-        $('#dayinfoSubSave').on('click', function () {
-            var payload = { channel: $('#dayinfoSubChannel').val(), enabled: true };
+        // 添加订阅
+        $('#dayinfoSubAdd').on('click', function () {
+            var payload = { channel: $('#dayinfoSubChannel').val() };
             if (payload.channel === 'dingtalk') {
                 payload.robotId = $('#dayinfoSubRobot').val();
                 if (!payload.robotId) { alterModal('请先在「钉钉机器人」中添加机器人'); return; }
@@ -140,30 +157,43 @@
                 if (!payload.email) { alterModal('请填写接收邮箱'); return; }
             }
             loading(true);
-            postJSON('dayinfo/subscribe/save', payload).done(function (res) {
+            postJSON('dayinfo/subscribe/add', payload).done(function (res) {
                 loading(false);
                 if (res.errorCode === '000000') {
-                    alterModal('订阅成功，新日报入库时会提醒你');
-                    fillSubForm(res.body);
+                    $('#dayinfoSubEmail').val('');
+                    loadSubs();
                 } else {
-                    alterModal(res.errorMsg || '保存失败');
+                    alterModal(res.errorMsg || '添加失败');
                 }
             }).fail(function () { loading(false); });
         });
 
-        // 暂停 / 恢复
-        $('#dayinfoSubOff').on('click', function () {
-            var resume = $(this).text() === '恢复提醒';
-            loading(true);
-            postJSON('dayinfo/subscribe/toggle', { enabled: resume }).done(function (res) {
-                loading(false);
-                if (res.errorCode === '000000') {
-                    alterModal(resume ? '已恢复提醒' : '已暂停提醒');
-                    $('#dayinfoSubOff').text(resume ? '暂停提醒' : '恢复提醒');
-                } else {
-                    alterModal(res.errorMsg || '操作失败');
-                }
-            }).fail(function () { loading(false); });
+        // 订阅行操作：测试 / 开关 / 删除
+        $('#dayinfoSubTableBody').on('click', '[data-op]', function () {
+            var $b = $(this), id = $b.data('id'), op = $b.data('op');
+            if (op === 'test') {
+                loading(true);
+                postJSON('dayinfo/subscribe/test', { id: id }).done(function (res) {
+                    loading(false);
+                    alterModal(res.errorCode === '000000' ? (res.body || '推送成功，请查收') : (res.errorMsg || '测试失败'));
+                }).fail(function () { loading(false); });
+            } else if (op === 'toggle') {
+                loading(true);
+                postJSON('dayinfo/subscribe/toggle', { id: id, enabled: $b.data('on') != 1 }).done(function (res) {
+                    loading(false);
+                    if (res.errorCode === '000000') loadSubs();
+                    else alterModal(res.errorMsg || '操作失败');
+                }).fail(function () { loading(false); });
+            } else if (op === 'del') {
+                confirmModal('确定删除该订阅？', function () {
+                    loading(true);
+                    postJSON('dayinfo/subscribe/delete', { id: id }).done(function (res) {
+                        loading(false);
+                        if (res.errorCode === '000000') loadSubs();
+                        else alterModal(res.errorMsg || '删除失败');
+                    }).fail(function () { loading(false); });
+                });
+            }
         });
 
         loadList();

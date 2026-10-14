@@ -85,8 +85,9 @@ public class DayInfoController {
         return result;
     }
 
-    /* ==================== 订阅提醒（登录，一人一条） ==================== */
+    /* ==================== 订阅提醒（登录，一人多条：钉钉机器人 + 邮箱可配多个） ==================== */
 
+    /** 我的订阅列表 */
     @GetMapping("dayinfo/subscribe/my")
     public Result mySubscribe(HttpSession session) {
         Result result = Result.getInstance();
@@ -94,27 +95,60 @@ public class DayInfoController {
         return result;
     }
 
-    @PostMapping("dayinfo/subscribe/save")
-    public Result saveSubscribe(@RequestBody(required = false) Result req, HttpSession session) {
+    /** 新增一条订阅（channel=dingtalk 带 robotId，channel=email 带 email） */
+    @PostMapping("dayinfo/subscribe/add")
+    public Result addSubscribe(@RequestBody(required = false) Result req, HttpSession session) {
         Result result = Result.getInstance();
         Map<String, Object> body = body(req);
         try {
-            result.setBody(dayInfoService.saveSubscribe(userId(session),
-                    str(body.get("channel")), longVal(body.get("robotId")),
-                    str(body.get("email")), boolVal(body.get("enabled"))));
-        } catch (IllegalArgumentException e) {
+            result.setBody(dayInfoService.addSubscribe(userId(session),
+                    str(body.get("channel")), longVal(body.get("robotId")), str(body.get("email"))));
+        } catch (IllegalArgumentException | IllegalStateException e) {
             result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
             result.setErrorMsg(e.getMessage());
         }
         return result;
     }
 
+    /** 删除一条订阅 */
+    @PostMapping("dayinfo/subscribe/delete")
+    public Result deleteSubscribe(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        Map<String, Object> body = body(req);
+        if (!dayInfoService.deleteSubscribe(userId(session), longVal(body.get("id")))) {
+            return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        }
+        return result;
+    }
+
+    /** 启用/暂停一条订阅 */
     @PostMapping("dayinfo/subscribe/toggle")
     public Result toggleSubscribe(@RequestBody(required = false) Result req, HttpSession session) {
         Result result = Result.getInstance();
         Map<String, Object> body = body(req);
-        if (!dayInfoService.toggleSubscribe(userId(session), Boolean.TRUE.equals(boolVal(body.get("enabled"))))) {
+        Boolean enabled = boolVal(body.get("enabled"));
+        if (!dayInfoService.toggleSubscribe(userId(session), longVal(body.get("id")), Boolean.TRUE.equals(enabled))) {
             return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        }
+        return result;
+    }
+
+    /** 测试推送：把最新一期日报立即推给指定订阅，验证通道连通性 */
+    @PostMapping("dayinfo/subscribe/test")
+    public Result testSubscribe(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        Map<String, Object> body = body(req);
+        try {
+            String err = dayInfoService.testSubscribe(userId(session), longVal(body.get("id")));
+            if (err != null) {
+                result.setErrorMsg("推送失败：" + err);
+                result.setErrorCode("000015");
+            } else {
+                result.setBody("推送成功，请查收");
+            }
+        } catch (IllegalArgumentException e) {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg(e.getMessage());
         }
         return result;
     }

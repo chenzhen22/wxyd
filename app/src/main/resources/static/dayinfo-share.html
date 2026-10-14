@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width,initial-scale=1.0" name="viewport">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <title>金融日报</title>
+    <link href="Assets/css/admin.css?v=20261009" rel="stylesheet" type="text/css">
+    <!-- 进入页面前先套用已保存主题，避免闪烁 -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem("wxyd-theme");
+                if (t === "system") {
+                    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? "dark" : "light";
+                }
+                if (t) document.documentElement.setAttribute("data-theme", t);
+                else document.documentElement.setAttribute("data-theme", "dark");
+            } catch (e) {}
+        })();
+    </script>
+    <style>
+        body { margin: 0; min-height: 100vh; }
+        .share-wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+        .share-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .share-logo { font-weight: 700; color: var(--title); font-size: 16px; }
+        .share-back { font-size: 13px; color: var(--accent); text-decoration: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+<div class="blob blob1"></div><div class="blob blob2"></div><div class="blob blob3"></div>
+<div class="share-wrap">
+    <div class="share-head">
+        <span class="share-logo">📈 金融日报</span>
+        <span class="share-back" id="shareHome" style="display:none;">进入平台</span>
+    </div>
+    <div class="welfare-article" id="shareArticle"><div class="welfare-empty">加载中…</div></div>
+</div>
+<script src="Assets/js/jquery-3.7.1.min.js" type="text/javascript"></script>
+<script src="Assets/js/welfare-md.js?v=2" type="text/javascript"></script>
+<script>
+    (function () {
+        var id = new URLSearchParams(location.search).get('id');
+        function esc(s) {
+            return s == null ? '' : String(s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        if (!id) {
+            $('#shareArticle').html('<div class="welfare-empty">缺少日报 id，链接无效</div>');
+            return;
+        }
+        $.getJSON('wdayinfo/detail', { id: id }).done(function (res) {
+            if (res.errorCode !== '000000' || !res.body) {
+                $('#shareArticle').html('<div class="welfare-empty">' + esc(res.errorMsg || '加载失败') + '</div>');
+                return;
+            }
+            var d = res.body;
+            document.title = d.title || '金融日报';
+            $('#shareArticle').html(
+                '<h1 class="wf-title">' + esc(d.title) + '</h1>' +
+                '<div class="wf-meta">' + esc(d.infoDate || '') + '</div>' +
+                '<div class="wf-body">' + window.WelfareMd.render(d.content) + '</div>');
+        }).fail(function () {
+            $('#shareArticle').html('<div class="welfare-empty">加载失败，请稍后重试</div>');
+        });
+    })();
+</script>
+</body>
+</html>

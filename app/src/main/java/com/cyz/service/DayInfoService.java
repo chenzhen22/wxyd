@@ -57,6 +57,10 @@ public class DayInfoService {
     @Value("${wxyd.dayinfo.sm4-key:}")
     private String sm4Key;
 
+    /** 分享链接基地址（如 https://域名/api），留空则推送消息不带链接 */
+    @Value("${wxyd.dayinfo.base-url:}")
+    private String baseUrl;
+
     /** 订阅提醒旁路发送（单线程串行，避免阻塞推送响应；失败仅记日志） */
     private final ExecutorService notifyExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "dayinfo-notify");
@@ -287,17 +291,29 @@ public class DayInfoService {
         }
     }
 
-    /** 组装并推送一条订阅；@return null=成功，非 null=失败原因。钉钉/邮件均推送日报全文 */
+    /** 组装并推送一条订阅；@return null=成功，非 null=失败原因。钉钉/邮件均推送日报全文并附免登录查看链接 */
     private String pushOne(DayInfoSubscribe s, DayInfo info) {
+        String link = shareLink(info);
         if ("dingtalk".equals(s.getChannel())) {
             String md = "### " + info.getTitle() + "\n\n"
-                    + "> 金融日报 " + info.getInfoDate() + " 推送，完整内容见平台「金融日报」页\n\n"
+                    + "> 金融日报 " + info.getInfoDate() + " 推送\n\n"
                     + truncateBytes(info.getContent(), DINGTALK_MD_MAX_BYTES,
-                    "\n\n> 内容过长已截断，完整内容请登录平台查看");
+                    "\n\n> 内容过长已截断，请点击下方链接查看完整内容")
+                    + (link == null ? "" : "\n\n🔗 [点击查看完整日报](" + link + ")");
             return pushService.pushDingtalk(s.getUserId(), s.getRobotId(), "金融日报：" + info.getInfoDate(), md);
         }
         return pushService.pushEmail(s.getEmail(), info.getTitle() + "（" + info.getInfoDate() + "）",
-                mdToPlainText(info.getContent()));
+                mdToPlainText(info.getContent()) + (link == null ? "" : "\n\n————————————\n完整日报（免登录可看）：" + link));
+    }
+
+    /** 日报分享链接（免登录公开页 dayinfo-share.html）；base-url 未配置时返回 null */
+    private String shareLink(DayInfo info) {
+        if (info.getId() == null || baseUrl == null || baseUrl.trim().isEmpty()) {
+            return null;
+        }
+        String base = baseUrl.trim();
+        return (base.endsWith("/") ? base.substring(0, base.length() - 1) : base)
+                + "/dayinfo-share.html?id=" + info.getId();
     }
 
     /** 按 UTF-8 字节数安全截断（不截半个字符），超限时在尾部追加提示语 */

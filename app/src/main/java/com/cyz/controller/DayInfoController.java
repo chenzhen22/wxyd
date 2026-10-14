@@ -56,6 +56,19 @@ public class DayInfoController {
         return result;
     }
 
+    /* ==================== 公开只读（免登录，供分享链接，路径不在 AuthInterceptor 保护清单） ==================== */
+
+    /**
+     * 分享链接用的公开详情：GET /wdayinfo/detail?id=（免登录）。
+     * 只暴露日报内容本身（type/date/title/content），不含任何用户数据——照 /welfare/** 公开只读模式。
+     */
+    @GetMapping("wdayinfo/detail")
+    public Result publicDetail(@RequestParam Long id) {
+        Result result = Result.getInstance();
+        result.setBody(dayInfoService.detail(id));
+        return result;
+    }
+
     /* ==================== 查询（登录） ==================== */
 
     @GetMapping("dayinfo/list")

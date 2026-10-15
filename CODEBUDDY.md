@@ -35,8 +35,8 @@ App runs on port **8090** with context-path **/api** → UI at `http://localhost
 ### Database init (run once)
 
 ```bash
-mysql -u root -p < wxyd.sql                                    # base tables (message, action, requestlog, doc, ...)
-mysql -u root -p < app/src/main/resources/sql/V2__user_robot.sql  # users + ding_robot
+mysql -u root -p < wxyd.sql                                    # 应用初始化脚本（已合并 V2~V18 最终表结构，全新库执行一次即可）
+mysql -u root -p < app/src/main/resources/sql/V2__user_robot.sql  # （旧库升级用；全新安装无需执行）
 ```
 
 ### Configuration

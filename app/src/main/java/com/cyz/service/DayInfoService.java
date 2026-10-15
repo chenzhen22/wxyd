@@ -340,7 +340,7 @@ public class DayInfoService {
             StringBuilder md = new StringBuilder();
             md.append("### 金融日报 ").append(info.getInfoDate()).append(" 已更新\n\n");
             if (link != null) {
-                md.append("🔗 [点击查看完整日报](").append(link).append(")（免登录可看）\n\n");
+                md.append("🔗 [点击查看完整日报](").append(link).append(")\n\n");
             }
             md.append("> ").append(teaser).append('\n');
             if (link != null) {
@@ -351,7 +351,7 @@ public class DayInfoService {
         StringBuilder mail = new StringBuilder();
         mail.append("金融日报 ").append(info.getInfoDate()).append(" 已更新\n\n");
         if (link != null) {
-            mail.append("完整日报（免登录可看）：").append(link).append("\n\n");
+            mail.append("完整日报：").append(link).append("\n\n");
         }
         mail.append(teaser).append('\n');
         if (link != null) {

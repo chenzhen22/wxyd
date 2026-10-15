@@ -6,19 +6,8 @@
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <title>金融日报</title>
     <link href="Assets/css/admin.css?v=20261009" rel="stylesheet" type="text/css">
-    <!-- 进入页面前先套用已保存主题，避免闪烁 -->
-    <script>
-        (function () {
-            try {
-                var t = localStorage.getItem("wxyd-theme");
-                if (t === "system") {
-                    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? "dark" : "light";
-                }
-                if (t) document.documentElement.setAttribute("data-theme", t);
-                else document.documentElement.setAttribute("data-theme", "dark");
-            } catch (e) {}
-        })();
-    </script>
+    <!-- 分享页固定使用活力橙主题 -->
+    <script>document.documentElement.setAttribute("data-theme", "orange");</script>
     <style>
         body { margin: 0; min-height: 100vh; }
         .share-wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
@@ -89,8 +78,6 @@
             var d = res.body;
             document.title = d.title || '金融日报';
             $('#shareArticle').html(
-                '<h1 class="wf-title">' + esc(d.title) + '</h1>' +
-                '<div class="wf-meta">' + esc(d.infoDate || '') + '</div>' +
                 '<div class="wf-body">' + window.WelfareMd.render(d.content) + '</div>');
         }).fail(function () {
             $('#shareArticle').html('<div class="welfare-empty">加载失败，请稍后重试</div>');

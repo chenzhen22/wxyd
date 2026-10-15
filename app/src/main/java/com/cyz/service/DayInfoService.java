@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -42,8 +41,8 @@ public class DayInfoService {
     /** 默认日报类型：type 为空视为金融日报 */
     private static final String TYPE_FINANCE = "finance";
 
-    /** 钉钉 markdown 消息安全字节上限（官方上限约 20KB，留余量） */
-    private static final int DINGTALK_MD_MAX_BYTES = 18000;
+    /** 推送里「今日要点」一行摘要的截断长度 */
+    private static final int TEASER_LEN = 100;
 
     @Resource
     private DayInfoMapper dayInfoMapper;
@@ -291,19 +290,35 @@ public class DayInfoService {
         }
     }
 
-    /** 组装并推送一条订阅；@return null=成功，非 null=失败原因。钉钉/邮件均推送日报全文并附免登录查看链接 */
+    /** 组装并推送一条订阅；@return null=成功，非 null=失败原因。简洁版：链接放最前，引导注册 */
     private String pushOne(DayInfoSubscribe s, DayInfo info) {
         String link = shareLink(info);
-        if ("dingtalk".equals(s.getChannel())) {
-            String md = "### " + info.getTitle() + "\n\n"
-                    + "> 金融日报 " + info.getInfoDate() + " 推送\n\n"
-                    + truncateBytes(info.getContent(), DINGTALK_MD_MAX_BYTES,
-                    "\n\n> 内容过长已截断，请点击下方链接查看完整内容")
-                    + (link == null ? "" : "\n\n🔗 [点击查看完整日报](" + link + ")");
-            return pushService.pushDingtalk(s.getUserId(), s.getRobotId(), "金融日报：" + info.getInfoDate(), md);
+        String teaser = mdToPlainText(info.getContent());
+        if (teaser.length() > TEASER_LEN) {
+            teaser = teaser.substring(0, TEASER_LEN) + "…";
         }
-        return pushService.pushEmail(s.getEmail(), info.getTitle() + "（" + info.getInfoDate() + "）",
-                mdToPlainText(info.getContent()) + (link == null ? "" : "\n\n————————————\n完整日报（免登录可看）：" + link));
+        if ("dingtalk".equals(s.getChannel())) {
+            StringBuilder md = new StringBuilder();
+            md.append("### 金融日报 ").append(info.getInfoDate()).append(" 已更新\n\n");
+            if (link != null) {
+                md.append("🔗 [点击查看完整日报](").append(link).append(")（免登录可看）\n\n");
+            }
+            md.append("> ").append(teaser).append('\n');
+            if (link != null) {
+                md.append("\n—\n\n📡 注册小泽助手账号，新日报自动推送到你的钉钉/邮箱：").append(registerLink());
+            }
+            return pushService.pushDingtalk(s.getUserId(), s.getRobotId(), "金融日报：" + info.getInfoDate(), md.toString());
+        }
+        StringBuilder mail = new StringBuilder();
+        mail.append("金融日报 ").append(info.getInfoDate()).append(" 已更新\n\n");
+        if (link != null) {
+            mail.append("完整日报（免登录可看）：").append(link).append("\n\n");
+        }
+        mail.append(teaser).append('\n');
+        if (link != null) {
+            mail.append("\n————————————\n注册小泽助手账号，新日报自动推送到你的钉钉/邮箱：").append(registerLink());
+        }
+        return pushService.pushEmail(s.getEmail(), "金融日报（" + info.getInfoDate() + "）", mail.toString());
     }
 
     /** 日报分享链接（免登录公开页 dayinfo-share.html）；base-url 未配置时返回 null */
@@ -316,22 +331,16 @@ public class DayInfoService {
                 + "/dayinfo-share.html?id=" + info.getId();
     }
 
-    /** 按 UTF-8 字节数安全截断（不截半个字符），超限时在尾部追加提示语 */
-    private static String truncateBytes(String s, int maxBytes, String suffix) {
-        String body = s == null ? "" : s;
-        byte[] sb = body.getBytes(StandardCharsets.UTF_8);
-        if (sb.length <= maxBytes) {
-            return body;
+    /** 注册引导链接（base-url 下的注册页）；base-url 未配置时返回 null */
+    private String registerLink() {
+        if (baseUrl == null || baseUrl.trim().isEmpty()) {
+            return null;
         }
-        int end = maxBytes;
-        // 回退到完整 UTF-8 字符边界（跳过续字节 10xxxxxx）
-        while (end > 0 && (sb[end] & 0xC0) == 0x80) {
-            end--;
-        }
-        return new String(sb, 0, end, StandardCharsets.UTF_8) + suffix;
+        String base = baseUrl.trim();
+        return (base.endsWith("/") ? base.substring(0, base.length() - 1) : base) + "/register.html";
     }
 
-    /** md 转可读纯文本（邮件用）：去标题井号/加粗斜体/引用/代码围栏/图片，链接只留文字 */
+    /** md 转可读纯文本：去标题井号/加粗斜体/引用/代码围栏/图片，链接只留文字 */
     private static String mdToPlainText(String md) {
         if (md == null || md.isEmpty()) {
             return "";

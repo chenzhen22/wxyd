@@ -69,10 +69,14 @@
                 return;
             }
             var d = res.body;
+            var brief = (d.brief || '').trim();
             $('#h5DayinfoEmpty').hide();
             $('#h5DayinfoArticle').show().html(
                 '<h2 style="margin:0 0 6px;color:var(--title);word-break:break-all;">' + esc(d.title) + '</h2>' +
                 '<div style="font-size:12px;color:var(--text-5);margin-bottom:12px;">' + esc(d.infoDate || '') + '</div>' +
+                (brief ? '<div style="padding:10px 12px;margin-bottom:12px;border-left:3px solid var(--accent);' +
+                    'background:var(--glass-3);border-radius:8px;color:var(--text-2);font-size:13px;line-height:1.7;">' +
+                    '📌 今日要点：' + esc(brief) + '</div>' : '') +
                 window.WelfareMd.render(d.content));
         }).fail(function () {
             loading(false);

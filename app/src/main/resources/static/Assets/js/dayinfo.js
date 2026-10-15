@@ -26,11 +26,15 @@
             $('#dayinfoEmpty').show();
             return;
         }
+        var brief = (info.brief || '').trim();
         $('#dayinfoEmpty').hide();
         $('#dayinfoArticle').show().html(
             '<h1 class="wf-title">' + esc(info.title) + '</h1>' +
             '<div class="wf-meta">' + esc(info.infoDate || '') +
             (info.updateTime ? ' · 更新于 ' + esc(info.updateTime) : '') + '</div>' +
+            (brief ? '<div style="padding:10px 14px;margin-bottom:14px;border-left:3px solid var(--accent);' +
+                'background:var(--glass-2);border-radius:8px;color:var(--text-2);font-size:13px;line-height:1.7;">' +
+                '📌 今日要点：' + esc(brief) + '</div>' : '') +
             '<div class="wf-body">' + window.WelfareMd.render(info.content) + '</div>');
     }
 

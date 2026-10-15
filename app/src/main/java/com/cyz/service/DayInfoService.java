@@ -324,12 +324,17 @@ public class DayInfoService {
     /** 组装并推送一条订阅；@return null=成功，非 null=失败原因。简洁版：链接放最前，引导注册 */
     private String pushOne(DayInfoSubscribe s, DayInfo info) {
         String link = shareLink(info);
-        // 优先取推送方提供的简洁版（brief），为空则后端自动截取正文前 TEASER_LEN 字
-        String teaser = info.getBrief() != null && !info.getBrief().trim().isEmpty()
-                ? mdToPlainText(info.getBrief())
-                : mdToPlainText(info.getContent());
-        if (teaser.length() > TEASER_LEN) {
-            teaser = teaser.substring(0, TEASER_LEN) + "…";
+        // 优先取推送方提供的简洁版（brief），完整展示不截断；
+        // brief 缺省才由后端自动截取正文前 TEASER_LEN 字
+        String brief = info.getBrief() != null && !info.getBrief().trim().isEmpty() ? info.getBrief().trim() : null;
+        String teaser;
+        if (brief != null) {
+            teaser = mdToPlainText(brief);
+        } else {
+            teaser = mdToPlainText(info.getContent());
+            if (teaser.length() > TEASER_LEN) {
+                teaser = teaser.substring(0, TEASER_LEN) + "…";
+            }
         }
         if ("dingtalk".equals(s.getChannel())) {
             StringBuilder md = new StringBuilder();

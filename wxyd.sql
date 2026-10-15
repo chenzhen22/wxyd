@@ -352,43 +352,43 @@ CREATE TABLE IF NOT EXISTS `action` (
   PRIMARY KEY (`id`, `actions`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
-INSERT INTO action (id, actions) VALUES (1, 'queryMsgCode');
-INSERT INTO action (id, actions) VALUES (2, 'uploadFileToBank');
-INSERT INTO action (id, actions) VALUES (4, 'message');
-INSERT INTO action (id, actions) VALUES (5, 'queryMessage');
-INSERT INTO action (id, actions) VALUES (6, 'queryUdInfo');
-INSERT INTO action (id, actions) VALUES (7, 'start');
-INSERT INTO action (id, actions) VALUES (8, 'orderCreate');
-INSERT INTO action (id, actions) VALUES (9, 'error');
-INSERT INTO action (id, actions) VALUES (10, 'queryMsgCode');
-INSERT INTO action (id, actions) VALUES (11, 'uploadFileToBank');
-INSERT INTO action (id, actions) VALUES (13, 'message');
-INSERT INTO action (id, actions) VALUES (14, 'queryMessage');
-INSERT INTO action (id, actions) VALUES (15, 'queryUdInfo');
-INSERT INTO action (id, actions) VALUES (16, 'addWhite');
-INSERT INTO action (id, actions) VALUES (17, 'queryWhiteInfo');
-INSERT INTO action (id, actions) VALUES (18, 'updateWhite');
-INSERT INTO action (id, actions) VALUES (19, 'deleteWhite');
-INSERT INTO action (id, actions) VALUES (20, 'queryUdOper');
-INSERT INTO action (id, actions) VALUES (21, 'queryMsgCode');
-INSERT INTO action (id, actions) VALUES (22, 'uploadFileToBank');
-INSERT INTO action (id, actions) VALUES (23, 'mmLogin');
-INSERT INTO action (id, actions) VALUES (24, 'addMessage');
-INSERT INTO action (id, actions) VALUES (25, 'queryMessage');
-INSERT INTO action (id, actions) VALUES (26, 'queryUdInfo');
-INSERT INTO action (id, actions) VALUES (27, 'start');
-INSERT INTO action (id, actions) VALUES (28, 'orderCreate');
-INSERT INTO action (id, actions) VALUES (29, 'error');
-INSERT INTO action (id, actions) VALUES (30, 'addWhite');
-INSERT INTO action (id, actions) VALUES (31, 'queryWhiteInfo');
-INSERT INTO action (id, actions) VALUES (32, 'updateWhite');
-INSERT INTO action (id, actions) VALUES (33, 'deleteWhite');
-INSERT INTO action (id, actions) VALUES (34, 'queryUdOper');
-INSERT INTO action (id, actions) VALUES (35, 'docQry');
-INSERT INTO action (id, actions) VALUES (36, 'delMessage');
-INSERT INTO action (id, actions) VALUES (37, 'uploadDocumentFile');
-INSERT INTO action (id, actions) VALUES (38, 'queryDocumentFileList');
-INSERT INTO action (id, actions) VALUES (39, 'deleteDocumentFile');
+INSERT IGNORE INTO `action` (id, actions) VALUES (1, 'queryMsgCode');
+INSERT IGNORE INTO `action` (id, actions) VALUES (2, 'uploadFileToBank');
+INSERT IGNORE INTO `action` (id, actions) VALUES (4, 'message');
+INSERT IGNORE INTO `action` (id, actions) VALUES (5, 'queryMessage');
+INSERT IGNORE INTO `action` (id, actions) VALUES (6, 'queryUdInfo');
+INSERT IGNORE INTO `action` (id, actions) VALUES (7, 'start');
+INSERT IGNORE INTO `action` (id, actions) VALUES (8, 'orderCreate');
+INSERT IGNORE INTO `action` (id, actions) VALUES (9, 'error');
+INSERT IGNORE INTO `action` (id, actions) VALUES (10, 'queryMsgCode');
+INSERT IGNORE INTO `action` (id, actions) VALUES (11, 'uploadFileToBank');
+INSERT IGNORE INTO `action` (id, actions) VALUES (13, 'message');
+INSERT IGNORE INTO `action` (id, actions) VALUES (14, 'queryMessage');
+INSERT IGNORE INTO `action` (id, actions) VALUES (15, 'queryUdInfo');
+INSERT IGNORE INTO `action` (id, actions) VALUES (16, 'addWhite');
+INSERT IGNORE INTO `action` (id, actions) VALUES (17, 'queryWhiteInfo');
+INSERT IGNORE INTO `action` (id, actions) VALUES (18, 'updateWhite');
+INSERT IGNORE INTO `action` (id, actions) VALUES (19, 'deleteWhite');
+INSERT IGNORE INTO `action` (id, actions) VALUES (20, 'queryUdOper');
+INSERT IGNORE INTO `action` (id, actions) VALUES (21, 'queryMsgCode');
+INSERT IGNORE INTO `action` (id, actions) VALUES (22, 'uploadFileToBank');
+INSERT IGNORE INTO `action` (id, actions) VALUES (23, 'mmLogin');
+INSERT IGNORE INTO `action` (id, actions) VALUES (24, 'addMessage');
+INSERT IGNORE INTO `action` (id, actions) VALUES (25, 'queryMessage');
+INSERT IGNORE INTO `action` (id, actions) VALUES (26, 'queryUdInfo');
+INSERT IGNORE INTO `action` (id, actions) VALUES (27, 'start');
+INSERT IGNORE INTO `action` (id, actions) VALUES (28, 'orderCreate');
+INSERT IGNORE INTO `action` (id, actions) VALUES (29, 'error');
+INSERT IGNORE INTO `action` (id, actions) VALUES (30, 'addWhite');
+INSERT IGNORE INTO `action` (id, actions) VALUES (31, 'queryWhiteInfo');
+INSERT IGNORE INTO `action` (id, actions) VALUES (32, 'updateWhite');
+INSERT IGNORE INTO `action` (id, actions) VALUES (33, 'deleteWhite');
+INSERT IGNORE INTO `action` (id, actions) VALUES (34, 'queryUdOper');
+INSERT IGNORE INTO `action` (id, actions) VALUES (35, 'docQry');
+INSERT IGNORE INTO `action` (id, actions) VALUES (36, 'delMessage');
+INSERT IGNORE INTO `action` (id, actions) VALUES (37, 'uploadDocumentFile');
+INSERT IGNORE INTO `action` (id, actions) VALUES (38, 'queryDocumentFileList');
+INSERT IGNORE INTO `action` (id, actions) VALUES (39, 'deleteDocumentFile');
 
 CREATE TABLE IF NOT EXISTS `pwmanagement` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -398,7 +398,7 @@ CREATE TABLE IF NOT EXISTS `pwmanagement` (
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
-INSERT INTO `pwmanagement` (`type`, `password`, `desc`)
+INSERT IGNORE INTO `pwmanagement` (`type`, `password`, `desc`)
 VALUES ('restart', '~1q2w3e4r', '重启应用密码');
 
 CREATE TABLE IF NOT EXISTS `requestlog` (

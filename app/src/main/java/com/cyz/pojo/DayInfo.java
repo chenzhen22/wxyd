@@ -16,6 +16,8 @@ public class DayInfo {
     private String title;
     /** md 原文 */
     private String content;
+    /** 简洁版内容（订阅推送用；空则后端自动截取正文） */
+    private String brief;
     private String createTime;
     private String updateTime;
 }

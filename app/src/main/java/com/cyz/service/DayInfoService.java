@@ -133,6 +133,8 @@ public class DayInfoService {
             title = (TYPE_FINANCE.equals(type) ? "金融日报 " : type + "日报 ") + infoDate;
         }
         title = title.trim();
+        // 简洁版：推送方可传（订阅推送优先用），缺省 null 由后端自动截取正文
+        String brief = data.getString("brief");
 
         // 按 (type, info_date) upsert：同日重复推送覆盖，只留最新
         DayInfo exist = dayInfoMapper.getByTypeAndDate(type, infoDate);
@@ -141,6 +143,7 @@ public class DayInfoService {
         info.setInfoDate(infoDate);
         info.setTitle(title);
         info.setContent(md);
+        info.setBrief(brief);
         boolean isNew;
         if (exist == null) {
             dayInfoMapper.insert(info);
@@ -293,7 +296,10 @@ public class DayInfoService {
     /** 组装并推送一条订阅；@return null=成功，非 null=失败原因。简洁版：链接放最前，引导注册 */
     private String pushOne(DayInfoSubscribe s, DayInfo info) {
         String link = shareLink(info);
-        String teaser = mdToPlainText(info.getContent());
+        // 优先取推送方提供的简洁版（brief），为空则后端自动截取正文前 TEASER_LEN 字
+        String teaser = info.getBrief() != null && !info.getBrief().trim().isEmpty()
+                ? mdToPlainText(info.getBrief())
+                : mdToPlainText(info.getContent());
         if (teaser.length() > TEASER_LEN) {
             teaser = teaser.substring(0, TEASER_LEN) + "…";
         }

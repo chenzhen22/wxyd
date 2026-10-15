@@ -3,7 +3,7 @@
 <mapper namespace="com.cyz.mapper.mysqlMapper.DayInfoMapper">
 
 	<sql id="cols">
-		`id`,`type`,date_format(`info_date`,'%Y-%m-%d') as `info_date`,`title`,`content`,
+		`id`,`type`,date_format(`info_date`,'%Y-%m-%d') as `info_date`,`title`,`content`,`brief`,
 		date_format(`create_time`,'%Y-%m-%d %H:%i') as `create_time`,
 		date_format(`update_time`,'%Y-%m-%d %H:%i') as `update_time`
 	</sql>
@@ -14,12 +14,12 @@
 	</select>
 
 	<insert id="insert" parameterType="com.cyz.pojo.DayInfo" useGeneratedKeys="true" keyProperty="id">
-		insert into `day_info` (`type`,`info_date`,`title`,`content`)
-		values (#{type},#{infoDate},#{title},#{content})
+		insert into `day_info` (`type`,`info_date`,`title`,`content`,`brief`)
+		values (#{type},#{infoDate},#{title},#{content},#{brief})
 	</insert>
 
 	<update id="updateContent" parameterType="com.cyz.pojo.DayInfo">
-		update `day_info` set `title`=#{title}, `content`=#{content} where `id`=#{id}
+		update `day_info` set `title`=#{title}, `content`=#{content}, `brief`=#{brief} where `id`=#{id}
 	</update>
 
 	<select id="listByType" resultType="com.cyz.pojo.DayInfo">

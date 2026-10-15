@@ -12,14 +12,18 @@
 
 ## 1. 日报查询（登录后可用）
 
-### 1.1 分页列表
+### 1.1 分页列表（支持关键词 / 月份筛选）
 
 ```
-GET dayinfo/list?type=finance&pageNum=1&pageSize=50
+GET dayinfo/list?type=finance&keyword=银行&month=2026-10&pageNum=1&pageSize=50
 ```
+
+- `keyword`：可选，模糊匹配标题 / 正文 / brief
+- `month`：可选，`YYYY-MM`，按所属日期过滤
 
 ```js
-$.getJSON('dayinfo/list', { pageNum: 1, pageSize: 50 }).done(function (res) {
+$.getJSON('dayinfo/list', { pageNum: 1, pageSize: 50, keyword: '银行', month: '2026-10' })
+  .done(function (res) {
     var body = res.body;          // { total: 12, list: [DayInfo...] }
     body.list.forEach(function (d) { /* d.infoDate, d.title, d.brief... */ });
 });
@@ -106,14 +110,16 @@ POST common/dayinfo.do
 
 | 项 | 说明 |
 |---|---|
-| `GET wdayinfo/detail?id=` | 公开详情，只暴露日报内容本身，不含用户数据 |
-| `dayinfo-share.html?id=<id>` | 独立分享页（免登录，含注册引导），钉钉/邮件推送里的链接即指向此页 |
+| `GET wdayinfo/detail?id=&t=` | 公开详情，只暴露日报内容本身，不含用户数据 |
+| `dayinfo-share.html?id=<id>&t=<token>` | 独立分享页（免登录，含注册引导），钉钉/邮件推送里的链接即指向此页 |
 
 ```js
-$.getJSON('wdayinfo/detail', { id: id }).done(function (res) { /* res.body = DayInfo */ });
+$.getJSON('wdayinfo/detail', { id: id, t: token }).done(function (res) { /* res.body = DayInfo */ });
 ```
 
 > 路径刻意避开 `/dayinfo/**` 的登录拦截（WebMvcConfig 保护清单），照 `/welfare/**` 公开只读模式。
+> `t` 为访问令牌（`SM3(sm4Key + ":dayinfo:" + id)` 前 32 位 hex，由 `DayInfoService.shareToken` 生成），
+> 防止 id 被枚举遍历；缺失或不匹配统一按「内容不存在」处理。分享页自动透传 `t`。
 
 ## 5. 前端接入要点（新会话/改造参考）
 

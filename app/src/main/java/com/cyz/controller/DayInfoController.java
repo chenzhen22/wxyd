@@ -59,12 +59,17 @@ public class DayInfoController {
     /* ==================== 公开只读（免登录，供分享链接，路径不在 AuthInterceptor 保护清单） ==================== */
 
     /**
-     * 分享链接用的公开详情：GET /wdayinfo/detail?id=（免登录）。
-     * 只暴露日报内容本身（type/date/title/content），不含任何用户数据——照 /welfare/** 公开只读模式。
+     * 分享链接用的公开详情：GET /wdayinfo/detail?id=&t=（免登录）。
+     * 只暴露日报内容本身（type/date/title/content），不含任何用户数据——照 /welfare/** 公开只读模式；
+     * t 为访问令牌（防 id 枚举），由推送消息里的分享链接携带，缺失或不匹配按不存在处理。
      */
     @GetMapping("wdayinfo/detail")
-    public Result publicDetail(@RequestParam Long id) {
+    public Result publicDetail(@RequestParam Long id,
+                               @RequestParam(value = "t", required = false) String token) {
         Result result = Result.getInstance();
+        if (!dayInfoService.verifyShareToken(id, token)) {
+            return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000022);
+        }
         result.setBody(dayInfoService.detail(id));
         return result;
     }
@@ -73,12 +78,14 @@ public class DayInfoController {
 
     @GetMapping("dayinfo/list")
     public Result list(@RequestParam(defaultValue = "finance") String type,
+                       @RequestParam(required = false) String keyword,
+                       @RequestParam(required = false) String month,
                        @RequestParam(defaultValue = "1") Integer pageNum,
                        @RequestParam(defaultValue = "10") Integer pageSize) {
         Result result = Result.getInstance();
         Map<String, Object> body = new HashMap<>();
-        body.put("total", dayInfoService.count(type));
-        body.put("list", dayInfoService.list(type, pageNum, pageSize));
+        body.put("total", dayInfoService.count(type, keyword, month));
+        body.put("list", dayInfoService.list(type, keyword, month, pageNum, pageSize));
         result.setBody(body);
         return result;
     }

@@ -18,6 +18,8 @@ public class DayInfo {
     private String content;
     /** 简洁版内容（订阅推送用；空则后端自动截取正文） */
     private String brief;
+    /** 订阅提醒发送标记：0=待推送 1=已发送/无需发送 */
+    private Integer notified;
     private String createTime;
     private String updateTime;
 }

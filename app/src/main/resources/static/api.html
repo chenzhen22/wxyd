@@ -576,12 +576,17 @@
                 </table>
                 <div id="dayinfoSubEmpty" style="display:none;color:var(--text-5);font-size:13px;">还没有订阅，添加钉钉机器人或邮箱开始接收提醒</div>
             </div>
-            <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
-                <select id="dayinfoDateSel" style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"></select>
-                <span id="dayinfoMeta" style="color:var(--text-5);font-size:12px;"></span>
+            <div class="dayinfo-wrap">
+                <aside class="dayinfo-side">
+                    <input type="text" id="dayinfoSearch" class="dayinfo-search" placeholder="🔍 搜索标题 / 要点 / 正文" autocomplete="off">
+                    <select id="dayinfoMonth" class="dayinfo-month"></select>
+                    <div class="dayinfo-list" id="dayinfoList"><div class="dayinfo-empty">加载中…</div></div>
+                </aside>
+                <main class="dayinfo-main">
+                    <div class="welfare-article" id="dayinfoArticle"><div class="welfare-empty">加载中…</div></div>
+                    <div class="welfare-empty" id="dayinfoEmpty" style="display:none">暂无日报，等外部推送入库后即可查看</div>
+                </main>
             </div>
-            <div class="welfare-article" id="dayinfoArticle"><div class="welfare-empty">加载中…</div></div>
-            <div class="welfare-empty" id="dayinfoEmpty" style="display:none">暂无日报，等外部推送入库后即可查看</div>
         </div>
 
         <div class="module-box" id="menuManage">
@@ -708,7 +713,7 @@
 </div>
 <script src="Assets/js/welfare-md.js?v=2" type="text/javascript"></script>
 <script src="Assets/js/welfare.js?v=6" type="text/javascript"></script>
-<script src="Assets/js/dayinfo.js?v=3" type="text/javascript"></script>
+<script src="Assets/js/dayinfo.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/menu-manage.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/group-chat.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/javaapi.js?v=3" type="text/javascript"></script>

@@ -14,23 +14,36 @@
 	</select>
 
 	<insert id="insert" parameterType="com.cyz.pojo.DayInfo" useGeneratedKeys="true" keyProperty="id">
-		insert into `day_info` (`type`,`info_date`,`title`,`content`,`brief`)
-		values (#{type},#{infoDate},#{title},#{content},#{brief})
+		insert into `day_info` (`type`,`info_date`,`title`,`content`,`brief`,`notified`)
+		values (#{type},#{infoDate},#{title},#{content},#{brief},0)
 	</insert>
 
+	<!-- 订阅提醒发送标记由定时任务管理：覆盖更新不重置，避免重复提醒 -->
 	<update id="updateContent" parameterType="com.cyz.pojo.DayInfo">
 		update `day_info` set `title`=#{title}, `content`=#{content}, `brief`=#{brief} where `id`=#{id}
 	</update>
 
+	<sql id="listWhere">
+		where `type`=#{type}
+		<if test="keyword != null and keyword != ''">
+			and (`title` like concat('%',#{keyword},'%') or `content` like concat('%',#{keyword},'%')
+			     or `brief` like concat('%',#{keyword},'%'))
+		</if>
+		<if test="month != null and month != ''">
+			and date_format(`info_date`,'%Y-%m') = #{month}
+		</if>
+	</sql>
+
 	<select id="listByType" resultType="com.cyz.pojo.DayInfo">
 		select <include refid="cols"/> from `day_info`
-		where `type`=#{type}
+		<include refid="listWhere"/>
 		order by `info_date` desc
 		limit #{offset}, #{pageSize}
 	</select>
 
 	<select id="countByType" resultType="Integer">
-		select count(1) from `day_info` where `type`=#{type}
+		select count(1) from `day_info`
+		<include refid="listWhere"/>
 	</select>
 
 	<select id="getById" resultType="com.cyz.pojo.DayInfo">
@@ -42,6 +55,14 @@
 		where `type`=#{type}
 		order by `info_date` desc limit 1
 	</select>
+
+	<select id="listUnnotified" resultType="com.cyz.pojo.DayInfo">
+		select <include refid="cols"/> from `day_info` where `notified`=0 order by `id` asc
+	</select>
+
+	<update id="markNotified">
+		update `day_info` set `notified`=1 where `id`=#{id}
+	</update>
 
 	<sql id="subCols">
 		`s`.`id`,`s`.`user_id`,`s`.`channel`,`s`.`robot_id`,`s`.`email`,`s`.`enabled`,

@@ -69,7 +69,9 @@
 <script src="Assets/js/welfare-md.js?v=2" type="text/javascript"></script>
 <script>
     (function () {
-        var id = new URLSearchParams(location.search).get('id');
+        var qs = new URLSearchParams(location.search);
+        var id = qs.get('id');
+        var token = qs.get('t'); // 访问令牌，防 id 枚举，缺失或不匹配按不存在处理
         function esc(s) {
             return s == null ? '' : String(s)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -79,7 +81,7 @@
             $('#shareArticle').html('<div class="welfare-empty">缺少日报 id，链接无效</div>');
             return;
         }
-        $.getJSON('wdayinfo/detail', { id: id }).done(function (res) {
+        $.getJSON('wdayinfo/detail', { id: id, t: token || '' }).done(function (res) {
             if (res.errorCode !== '000000' || !res.body) {
                 $('#shareArticle').html('<div class="welfare-empty">' + esc(res.errorMsg || '加载失败') + '</div>');
                 return;

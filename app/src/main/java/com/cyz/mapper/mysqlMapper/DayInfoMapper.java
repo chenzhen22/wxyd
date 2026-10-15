@@ -18,16 +18,25 @@ public interface DayInfoMapper {
 
     int updateContent(DayInfo info);
 
-    /** 按日期倒序分页 */
+    /** 按类型+日期倒序分页，支持关键词（标题/正文/要点）与月份（YYYY-MM）过滤 */
     List<DayInfo> listByType(@Param("type") String type,
+                             @Param("keyword") String keyword,
+                             @Param("month") String month,
                              @Param("offset") Integer offset,
                              @Param("pageSize") Integer pageSize);
 
-    int countByType(@Param("type") String type);
+    int countByType(@Param("type") String type,
+                    @Param("keyword") String keyword,
+                    @Param("month") String month);
 
     DayInfo getById(@Param("id") Long id);
 
     DayInfo getLatest(@Param("type") String type);
+
+    /** 首次入库但订阅提醒尚未发送的日报（推送时间窗口定时任务取用） */
+    List<DayInfo> listUnnotified();
+
+    int markNotified(@Param("id") Long id);
 
     /* ---------------- 订阅（一人多条：多个钉钉机器人 + 多个邮箱） ---------------- */
 

@@ -436,6 +436,7 @@ public class DataInitializer implements ApplicationRunner {
                     "`title` VARCHAR(255) NOT NULL DEFAULT '' COMMENT '标题，默认「金融日报 YYYY-MM-DD」'," +
                     "`content` MEDIUMTEXT COMMENT 'md 原文'," +
                     "`brief` TEXT NULL COMMENT '简洁版内容，订阅推送用；空则后端自动截取正文'," +
+                    "`notified` TINYINT NOT NULL DEFAULT 1 COMMENT '订阅提醒发送标记：0=待推送 1=已发送/无需发送'," +
                     "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                     "`update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
                     "PRIMARY KEY (`id`)," +
@@ -455,9 +456,33 @@ public class DataInitializer implements ApplicationRunner {
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='金融日报订阅提醒'");
             ensureDayInfoSubscribeMulti();
             ensureDayInfoBriefColumn();
-            log.info("[INIT] 已自动执行 V15/V16/V17 迁移：day_info / day_info_subscribe（多订阅）/ day_info.brief");
+            ensureDayInfoNotifiedColumn();
+            log.info("[INIT] 已自动执行 V15-V18 迁移：day_info / day_info_subscribe（多订阅）/ brief / notified");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V15/V16 迁移失败（请手动执行 sql/V15__day_info.sql、V16__dayinfo_subscribe_multi.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * V18 升级兜底：day_info 若无 notified 列（订阅提醒发送标记）则幂等补列。
+     * 默认值 1：存量历史行不回灌提醒；新插入行由 service 显式写 0。
+     */
+    private void ensureDayInfoNotifiedColumn() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='day_info' AND COLUMN_NAME='notified'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) {
+                log.info("[INIT] day_info.notified 列已存在，跳过 V18 补列");
+                return;
+            }
+            jdbcTemplate.execute("ALTER TABLE `day_info` " +
+                    "ADD COLUMN `notified` TINYINT NOT NULL DEFAULT 1 " +
+                    "COMMENT '订阅提醒发送标记：0=待推送 1=已发送/无需发送' AFTER `brief`");
+            log.info("[INIT] 已自动执行 V18 迁移：day_info 增加 notified 列");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V18 迁移失败（请手动执行 sql/V18__day_info_notified.sql）：{}", e.getMessage());
         }
     }
 

@@ -9,10 +9,12 @@ import com.cyz.push.PushService;
 import com.cyz.util.SMUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
@@ -60,7 +62,15 @@ public class DayInfoService {
     @Value("${wxyd.dayinfo.base-url:}")
     private String baseUrl;
 
-    /** 订阅提醒旁路发送（单线程串行，避免阻塞推送响应；失败仅记日志） */
+    /** 订阅提醒发送时间窗口起始小时（含），默认 8 点 */
+    @Value("${wxyd.dayinfo.notify-window-start:8}")
+    private int notifyWindowStart;
+
+    /** 订阅提醒发送时间窗口结束小时（不含），默认 22 点；窗口外入库的日报推迟到窗口内再推 */
+    @Value("${wxyd.dayinfo.notify-window-end:22}")
+    private int notifyWindowEnd;
+
+    /** 订阅提醒旁路发送（单线程串行，避免阻塞定时任务线程；失败仅记日志） */
     private final ExecutorService notifyExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "dayinfo-notify");
         t.setDaemon(true);
@@ -146,7 +156,7 @@ public class DayInfoService {
         info.setBrief(brief);
         boolean isNew;
         if (exist == null) {
-            dayInfoMapper.insert(info);
+            dayInfoMapper.insert(info); // notified=0，由 notifyJob 在时间窗口内发送订阅提醒
             isNew = true;
         } else {
             info.setId(exist.getId());
@@ -154,9 +164,6 @@ public class DayInfoService {
             isNew = false;
         }
         log.info("[DAYINFO] 日报入库：type={} date={} title={} mode={}", type, infoDate, title, isNew ? "insert" : "update");
-        if (isNew) {
-            notifySubscribers(info);
-        }
         return null;
     }
 
@@ -194,15 +201,20 @@ public class DayInfoService {
 
     /* ==================== 查询（登录用户） ==================== */
 
-    public List<DayInfo> list(String type, int pageNum, int pageSize) {
+    public List<DayInfo> list(String type, String keyword, String month, int pageNum, int pageSize) {
         String t = normalizeType(type);
         int size = Math.min(Math.max(pageSize, 1), 50);
         int page = Math.max(pageNum, 1);
-        return dayInfoMapper.listByType(t, (page - 1) * size, size);
+        return dayInfoMapper.listByType(t, emptyToNull(keyword), month == null ? null : month.trim(),
+                (page - 1) * size, size);
     }
 
-    public int count(String type) {
-        return dayInfoMapper.countByType(normalizeType(type));
+    public int count(String type, String keyword, String month) {
+        return dayInfoMapper.countByType(normalizeType(type), emptyToNull(keyword), month == null ? null : month.trim());
+    }
+
+    private static String emptyToNull(String s) {
+        return s == null || s.trim().isEmpty() ? null : s.trim();
     }
 
     public DayInfo detail(Long id) {
@@ -271,25 +283,41 @@ public class DayInfoService {
         return pushOne(s, latest);
     }
 
-    /* ==================== 订阅提醒（旁路异步） ==================== */
+    /* ==================== 订阅提醒（时间窗口定时任务） ==================== */
 
-    /** 新日报入库后异步提醒订阅者；发送失败仅记日志，不影响推送接口返回 */
-    private void notifySubscribers(DayInfo info) {
-        List<DayInfoSubscribe> subs = dayInfoMapper.listEnabledSubscribe();
-        if (subs == null || subs.isEmpty()) {
+    /**
+     * 订阅提醒定时任务：每 10 分钟扫描首次入库（notified=0）的日报，
+     * 处于时间窗口（默认 8:00-22:00，wxyd.dayinfo.notify-window-start/end）内才发送——
+     * 深夜入库的日报顺延到次日窗口开启时推送；发送后置 notified=1，同日覆盖更新不重置（不重复提醒）。
+     */
+    @Scheduled(cron = "0 */10 * * * *")
+    public void notifyJob() {
+        int hour = LocalTime.now().getHour();
+        if (hour < notifyWindowStart || hour >= notifyWindowEnd) {
             return;
         }
-        for (DayInfoSubscribe s : subs) {
-            notifyExecutor.execute(() -> {
-                try {
-                    String err = pushOne(s, info);
-                    if (err != null) {
-                        log.warn("[DAYINFO] 订阅提醒失败：sub={} err={}", s.getId(), err);
-                    }
-                } catch (Exception e) {
-                    log.error("[DAYINFO] 订阅提醒异常：sub={}", s.getId(), e);
+        List<DayInfo> pending = dayInfoMapper.listUnnotified();
+        if (pending == null || pending.isEmpty()) {
+            return;
+        }
+        List<DayInfoSubscribe> subs = dayInfoMapper.listEnabledSubscribe();
+        for (DayInfo info : pending) {
+            if (subs != null && !subs.isEmpty()) {
+                for (DayInfoSubscribe s : subs) {
+                    notifyExecutor.execute(() -> {
+                        try {
+                            String err = pushOne(s, info);
+                            if (err != null) {
+                                log.warn("[DAYINFO] 订阅提醒失败：sub={} info={} err={}", s.getId(), info.getId(), err);
+                            }
+                        } catch (Exception e) {
+                            log.error("[DAYINFO] 订阅提醒异常：sub={} info={}", s.getId(), info.getId(), e);
+                        }
+                    });
                 }
-            });
+            }
+            dayInfoMapper.markNotified(info.getId());
+            log.info("[DAYINFO] 订阅提醒已派发：info={} subs={}", info.getId(), subs == null ? 0 : subs.size());
         }
     }
 
@@ -327,14 +355,24 @@ public class DayInfoService {
         return pushService.pushEmail(s.getEmail(), "金融日报（" + info.getInfoDate() + "）", mail.toString());
     }
 
-    /** 日报分享链接（免登录公开页 dayinfo-share.html）；base-url 未配置时返回 null */
+    /** 日报分享链接（免登录公开页 dayinfo-share.html，带访问令牌防 id 枚举）；base-url 未配置时返回 null */
     private String shareLink(DayInfo info) {
         if (info.getId() == null || baseUrl == null || baseUrl.trim().isEmpty()) {
             return null;
         }
         String base = baseUrl.trim();
         return (base.endsWith("/") ? base.substring(0, base.length() - 1) : base)
-                + "/dayinfo-share.html?id=" + info.getId();
+                + "/dayinfo-share.html?id=" + info.getId() + "&t=" + shareToken(info.getId());
+    }
+
+    /** 公开详情访问令牌：SM3(sm4Key + ":dayinfo:" + id) 前 32 位 hex，无状态校验防遍历 */
+    public String shareToken(Long id) {
+        return SMUtil.sm3((sm4Key == null ? "" : sm4Key.trim()) + ":dayinfo:" + id).substring(0, 32);
+    }
+
+    /** 校验公开详情访问令牌 */
+    public boolean verifyShareToken(Long id, String token) {
+        return id != null && token != null && constantTimeEquals(shareToken(id), token.trim());
     }
 
     /** 注册引导链接（base-url 下的注册页）；base-url 未配置时返回 null */

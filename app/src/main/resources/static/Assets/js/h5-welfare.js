@@ -10,7 +10,7 @@
 (function () {
 
     var PAGE_SIZE = 20;
-    var state = { page: 0, loading: false, done: false, shareId: null };
+    var state = { page: 0, loading: false, done: false, shareId: null, keyword: '' };
 
     /* ---- 分享链接：?welfare=<id> 与地址栏互同步 ---- */
     function urlWithWelfare(id) {
@@ -114,7 +114,7 @@
         if (state.loading || state.done) return;
         state.loading = true;
         $('#wfLoading').show();
-        api({ url: 'welfare/list?page=' + (state.page + 1) + '&size=' + PAGE_SIZE, type: 'GET' })
+        api({ url: 'welfare/list?page=' + (state.page + 1) + '&size=' + PAGE_SIZE + (state.keyword ? '&keyword=' + encodeURIComponent(state.keyword) : ''), type: 'GET' })
             .done(function (res) {
                 var list = (res.errorCode === '000000' && res.body) || [];
                 state.page += 1;
@@ -139,14 +139,32 @@
         state.page = 0;
         state.loading = false;
         state.done = false;
+        state.keyword = '';
         $page.html(
             '<div class="h5-section-title">🎁 福利专区' +
             '<span class="h5-btn-ghost h5-btn-sm" id="wfRadarBtn" style="float:right">📡 雷达</span></div>' +
             '<div id="wfRadarBox" style="display:none;margin-bottom:10px"></div>' +
+            '<input id="wfSearch" placeholder="🔍 搜索标题 / 正文关键词" autocomplete="off" ' +
+            'style="width:100%;padding:10px 12px;margin-bottom:10px;border-radius:10px;font-size:13px;' +
+            'background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);outline:none;">' +
             '<div id="wfList"></div>' +
             '<div class="h5-empty" id="wfEmpty" style="display:none">暂无福利</div>' +
             '<div class="wf-loading-more" id="wfLoading" style="display:none">加载中…</div>'
         );
+        // 关键词模糊搜索（300ms 防抖，命中标题/正文）
+        var searchTimer = null;
+        $('#wfSearch').off('input').on('input', function () {
+            clearTimeout(searchTimer);
+            var kw = $(this).val().trim();
+            searchTimer = setTimeout(function () {
+                if (kw === state.keyword) return;
+                state.keyword = kw;
+                state.page = 0; state.loading = false; state.done = false;
+                $('#wfList').empty(); $('#wfEmpty').hide(); $('#wfLoading').show();
+                loadMore($page);
+            }, 300);
+        });
+
         loadMore($page);
         $page.off('click').on('click', '.welfare-card', function () {
             showDetail($(this).data('id'));

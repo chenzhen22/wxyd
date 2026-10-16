@@ -38,11 +38,12 @@ public class WelfareServiceImpl implements WelfareService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
-    public Result list(String contextPath, int page, int size) {
+    public Result list(String contextPath, String keyword, int page, int size) {
         Result result = Result.getInstance();
         if (page < 1) page = 1;
         if (size < 1 || size > 50) size = 20;
-        List<ScanPost> posts = mysqlMapper.listWelfarePosts((page - 1) * size, size);
+        String kw = keyword == null || keyword.trim().isEmpty() ? null : keyword.trim();
+        List<ScanPost> posts = mysqlMapper.listWelfarePosts(kw, (page - 1) * size, size);
         List<Map<String, Object>> body = new ArrayList<>();
         if (posts != null) {
             for (ScanPost p : posts) {

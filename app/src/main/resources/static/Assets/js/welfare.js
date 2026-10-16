@@ -7,7 +7,7 @@
 (function () {
 
     var PAGE_SIZE = 20;
-    var state = { page: 0, loading: false, done: false, observer: null };
+    var state = { page: 0, loading: false, done: false, observer: null, keyword: '' };
 
     function esc(s) {
         return s == null ? '' : String(s)
@@ -63,7 +63,7 @@
         if (state.loading || state.done) return;
         state.loading = true;
         $('#welfareSentinel .welfare-loading').show();
-        $.getJSON('welfare/list', { page: state.page + 1, size: PAGE_SIZE }).done(function (res) {
+        $.getJSON('welfare/list', { page: state.page + 1, size: PAGE_SIZE, keyword: state.keyword || undefined }).done(function (res) {
             var list = (res.errorCode === '000000' && res.body) || [];
             state.page += 1;
             if (list.length < PAGE_SIZE) state.done = true;
@@ -205,6 +205,17 @@
                 showDetail($(this).data('id'));
             });
             $('#welfareBackBtn').off('click').on('click', showList);
+            // 关键词模糊搜索（300ms 防抖，命中标题/正文）
+            var searchTimer = null;
+            $('#welfareSearch').off('input').on('input', function () {
+                clearTimeout(searchTimer);
+                var kw = $(this).val().trim();
+                searchTimer = setTimeout(function () {
+                    if (kw === state.keyword) return;
+                    state.keyword = kw;
+                    reset();
+                }, 300);
+            });
             // 羊毛雷达入口（登录用户可见；未登录时整个 welfare 模块本就不可达）
             $('#radarEntry').show();
             $('#radarEntry').off('click').on('click', function () {

@@ -353,6 +353,9 @@
 		       date_format(p.`published_at`, '%Y-%m-%d %H:%i') as publishedAt,
 		       p.`images`
 		from `scan_post` p
+		<if test="keyword != null and keyword != ''">
+			where (p.`title` like concat('%',#{keyword},'%') or p.`content_md` like concat('%',#{keyword},'%'))
+		</if>
 		order by p.`published_at` desc, p.`id` desc
 		limit #{size} offset #{offset}
 	</select>

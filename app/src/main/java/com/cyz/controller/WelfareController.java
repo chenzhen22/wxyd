@@ -21,12 +21,13 @@ public class WelfareController implements CommController {
     @Autowired
     WelfareService welfareService;
 
-    /** 分页列表：[{id,title,summary,firstImage,publishedAt}] */
+    /** 分页列表：[{id,title,summary,firstImage,publishedAt}]；keyword 可选，模糊匹配标题/正文 */
     @GetMapping("welfare/list")
     public Result list(HttpServletRequest request,
+                       @RequestParam(required = false) String keyword,
                        @RequestParam(defaultValue = "1") int page,
                        @RequestParam(defaultValue = "20") int size) {
-        return welfareService.list(request.getContextPath(), page, size);
+        return welfareService.list(request.getContextPath(), keyword, page, size);
     }
 
     /** 详情：{id,title,publishedAt,contentMd,images} */

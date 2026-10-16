@@ -154,7 +154,7 @@ public interface MysqlMapper {
 	int deleteExpiredTransit();
 
 	// ===== scan_post（福利专区，只读 dataScan 抓取数据）=====
-	List<ScanPost> listWelfarePosts(@Param("offset") int offset, @Param("size") int size);
+	List<ScanPost> listWelfarePosts(@Param("keyword") String keyword, @Param("offset") int offset, @Param("size") int size);
 
 	ScanPost queryWelfarePost(@Param("id") Long id);
 }

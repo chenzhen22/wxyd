@@ -38,6 +38,15 @@ public class MailService {
     private String from;
 
     public void send(String to, String subject, String content) {
+        sendInternal(to, subject, content, false);
+    }
+
+    /** HTML 格式邮件（正文为 HTML 片段，可含 <a> 链接等） */
+    public void sendHtml(String to, String subject, String html) {
+        sendInternal(to, subject, html, true);
+    }
+
+    private void sendInternal(String to, String subject, String content, boolean html) {
         if (host == null || host.isEmpty() || username == null || username.isEmpty()) {
             throw new IllegalStateException("SMTP 未配置（wxyd.smtp.host/username/password）");
         }
@@ -62,10 +71,14 @@ public class MailService {
             msg.setFrom(new InternetAddress(fromAddr, "小泽助手", "UTF-8"));
             msg.setRecipient(Message.RecipientType.TO, new InternetAddress(to));
             msg.setSubject(subject, "UTF-8");
-            msg.setText(content, "UTF-8");
+            if (html) {
+                msg.setContent(content, "text/html;charset=UTF-8");
+            } else {
+                msg.setText(content, "UTF-8");
+            }
             msg.setSentDate(new Date());
             Transport.send(msg);
-            log.info("验证码邮件已发送：to={}", to);
+            log.info("邮件已发送：to={} subject={}", to, subject);
         } catch (Exception e) {
             log.error("邮件发送失败：to={} err={}", to, e.getMessage());
             throw new IllegalStateException("邮件发送失败，请稍后重试");

@@ -106,4 +106,19 @@ public class PushService {
             return e.getMessage();
         }
     }
+
+    /**
+     * HTML 邮件推送（正文为 HTML 片段，支持 <a> 链接等）。
+     * @return null=成功；非 null=失败原因
+     */
+    public String pushEmailHtml(String to, String subject, String html) {
+        try {
+            mailService.sendHtml(to, subject, html);
+            log.info("[PUSH] HTML 邮件推送完成：to={} subject={}", to, subject);
+            return null;
+        } catch (Exception e) {
+            log.error("[PUSH] HTML 邮件推送失败：to={}", to, e);
+            return e.getMessage();
+        }
+    }
 }

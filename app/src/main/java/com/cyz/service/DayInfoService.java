@@ -344,20 +344,29 @@ public class DayInfoService {
             }
             md.append("> ").append(teaser).append('\n');
             if (link != null) {
-                md.append("\n—\n\n📡 注册小泽助手账号，新日报自动推送到你的钉钉/邮箱：").append(registerLink());
+                md.append("\n\n📡 [注册小泽助手账号](").append(registerLink())
+                        .append(")，新日报自动推送到你的钉钉/邮箱");
             }
             return pushService.pushDingtalk(s.getUserId(), s.getRobotId(), "金融日报：" + info.getInfoDate(), md.toString());
         }
+        // 邮件走 HTML：<a> 承载链接，不裸露 URL
         StringBuilder mail = new StringBuilder();
-        mail.append("金融日报 ").append(info.getInfoDate()).append(" 已更新\n\n");
+        mail.append("<p><b>金融日报 ").append(htmlEscape(info.getInfoDate())).append(" 已更新</b></p>");
         if (link != null) {
-            mail.append("完整日报：").append(link).append("\n\n");
+            mail.append("<p>🔗 <a href=\"").append(link).append("\">点击查看完整日报</a></p>");
         }
-        mail.append(teaser).append('\n');
+        mail.append("<p style=\"color:#666;\">").append(htmlEscape(teaser).replace("\n", "<br>")).append("</p>");
         if (link != null) {
-            mail.append("\n————————————\n注册小泽助手账号，新日报自动推送到你的钉钉/邮箱：").append(registerLink());
+            mail.append("<hr><p>📡 <a href=\"").append(registerLink())
+                    .append("\">注册小泽助手账号</a>，新日报自动推送到你的钉钉/邮箱</p>");
         }
-        return pushService.pushEmail(s.getEmail(), "金融日报（" + info.getInfoDate() + "）", mail.toString());
+        return pushService.pushEmailHtml(s.getEmail(), "金融日报（" + info.getInfoDate() + "）", mail.toString());
+    }
+
+    /** HTML 转义（邮件正文片段用） */
+    private static String htmlEscape(String s) {
+        return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace("\"", "&quot;");
     }
 
     /** 日报分享链接（免登录公开页 dayinfo-share.html，带访问令牌防 id 枚举）；base-url 未配置时返回 null */

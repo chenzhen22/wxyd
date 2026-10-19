@@ -64,7 +64,11 @@ public class WbGatewayChatService {
 
         // ---- 模型候选链 + 对外模型名 ----
         WbModelCatalog catalog = client.models();
-        boolean switchOn = !Integer.valueOf(0).equals(wbGatewayMapper.queryModelSwitch());
+        // 模型开关判定：Key 级覆盖优先（管理员设置），否则跟随全局开关
+        Integer keyOverride = key.getModelOverride();
+        boolean switchOn = keyOverride != null
+                ? keyOverride == 1
+                : !Integer.valueOf(0).equals(wbGatewayMapper.queryModelSwitch());
         String selected = key.getModel() == null ? "" : key.getModel().trim();
         String requested = requestedModel == null ? "" : requestedModel.trim();
         // 校验：请求模型必须与 Key 在「模型网关」页面配置的模型匹配（大小写不敏感）；

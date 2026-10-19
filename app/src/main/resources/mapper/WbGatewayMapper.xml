@@ -27,7 +27,7 @@
 	</select>
 
 	<select id="queryKeyByHash" parameterType="String" resultType="com.cyz.pojo.WbGatewayKey">
-		select `id`,`user_id`,`name`,`api_key`,`key_hash`,`model`,`enabled`,
+		select `id`,`user_id`,`name`,`api_key`,`key_hash`,`model`,`enabled`,`model_override` as modelOverride,
 		       date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime,
 		       date_format(`last_used_time`,'%Y-%m-%d %H:%i:%s') as lastUsedTime
 		from `wb_gateway_key` where `key_hash`=#{keyHash} and `enabled`=1
@@ -56,6 +56,28 @@
 
 	<update id="updateModelSwitch" parameterType="Integer">
 		update `wb_gateway_config` set `model_switch`=#{modelSwitch} where `id`=1
+	</update>
+
+	<!-- ===== 管理员（全部用户 Key） ===== -->
+	<select id="adminListKeys" resultType="java.util.HashMap">
+		select k.`id`, k.`user_id` as "userId",
+		       COALESCE(NULLIF(u.`display_name`,''), u.`username`) as "ownerName",
+		       u.`username` as "username",
+		       k.`name`, k.`api_key` as "apiKey", k.`model`, k.`enabled`,
+		       k.`model_override` as "modelOverride",
+		       date_format(k.`create_time`,'%Y-%m-%d %H:%i:%s') as "createTime",
+		       date_format(k.`last_used_time`,'%Y-%m-%d %H:%i:%s') as "lastUsedTime"
+		from `wb_gateway_key` k left join `users` u on k.`user_id` = u.`id`
+		order by u.`id`, k.`id`
+	</select>
+
+	<select id="adminQueryKeyById" parameterType="Long" resultType="com.cyz.pojo.WbGatewayKey">
+		select `id`,`user_id` as userId,`name`,`api_key` as apiKey,`key_hash` as keyHash,`model`,`enabled`,`model_override` as modelOverride
+		from `wb_gateway_key` where `id`=#{id}
+	</select>
+
+	<update id="adminUpdateKeyModelOverride">
+		update `wb_gateway_key` set `model_override`=#{modelOverride} where `id`=#{id}
 	</update>
 
 </mapper>

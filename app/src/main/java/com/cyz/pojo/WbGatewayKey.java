@@ -23,6 +23,8 @@ public class WbGatewayKey {
     private String keyHash;
     /** 用户自选模型，空=按请求模型/网关默认 */
     private String model;
+    /** Key 级模型开关：NULL=跟随全局 1=强制开 0=强制关（仅管理员可设） */
+    private Integer modelOverride;
     private Integer enabled;
     private String createTime;
     private String lastUsedTime;

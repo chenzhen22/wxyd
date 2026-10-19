@@ -235,6 +235,44 @@ public class WbGatewayManageController {
         return result;
     }
 
+    /** 全部用户的 Key 列表（仅管理员） */
+    @GetMapping("gateway/admin/keys")
+    public Result adminKeys(HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Map<String, Object> body = new HashMap<>();
+        body.put("list", keyService.adminListKeys());
+        result.setBody(body);
+        return result;
+    }
+
+    /**
+     * 设置单条 Key 的模型开关（仅管理员）。
+     * override: auto=跟随全局（NULL） on=强制开（1） off=强制关（0）
+     */
+    @PostMapping("gateway/admin/keys/switch")
+    public Result adminKeySwitch(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Map<String, Object> body = body(req);
+        String ov = str(body.get("override"));
+        Integer val;
+        if ("on".equalsIgnoreCase(ov)) val = 1;
+        else if ("off".equalsIgnoreCase(ov)) val = 0;
+        else if ("auto".equalsIgnoreCase(ov)) val = null;
+        else {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg("override 取值须为 auto | on | off");
+            return result;
+        }
+        Long id = longVal(body.get("id"));
+        if (id == null || !keyService.adminSetModelOverride(id, val)) {
+            return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        }
+        log.info("[WBGATEWAY] Key 级模型开关：id={} -> {}（by user {}）", id, ov, userId(session));
+        return result;
+    }
+
     /* ==================== 辅助 ==================== */
 
     private static Long userId(HttpSession session) {

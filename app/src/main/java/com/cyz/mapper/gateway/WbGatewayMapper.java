@@ -32,4 +32,12 @@ public interface WbGatewayMapper {
     Integer queryModelSwitch();
 
     int updateModelSwitch(@Param("modelSwitch") Integer modelSwitch);
+
+    /** 管理员：全部用户的 Key 列表（join users 带属主名） */
+    List<Map<String, Object>> adminListKeys();
+
+    WbGatewayKey adminQueryKeyById(@Param("id") Long id);
+
+    /** 管理员：设置单条 Key 的模型开关（null=跟随全局） */
+    int adminUpdateKeyModelOverride(@Param("id") Long id, @Param("modelOverride") Integer modelOverride);
 }

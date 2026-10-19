@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -82,6 +84,31 @@ public class WbGatewayKeyService {
     public boolean updateModel(Long userId, Long id, String model) {
         if (wbGatewayMapper.queryKeyById(id, userId) == null) return false;
         wbGatewayMapper.updateKeyModel(id, userId, model == null ? "" : model.trim());
+        return true;
+    }
+
+    /** 管理员：全部用户的 Key（api_key 解密为掩码；modelOverride 转成 auto/on/off 字符串） */
+    public List<Map<String, Object>> adminListKeys() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> row : wbGatewayMapper.adminListKeys()) {
+            Map<String, Object> m = new HashMap<>(row);
+            String cipher = (String) m.remove("apiKey");
+            try {
+                m.put("maskedKey", WbGatewayKeyService.mask(sm4KeyHolder.decrypt(cipher)));
+            } catch (Exception e) {
+                m.put("maskedKey", "wb-****");
+            }
+            Object ov = m.get("modelOverride");
+            m.put("override", ov == null ? "auto" : (Integer.valueOf(1).equals(((Number) ov).intValue()) ? "on" : "off"));
+            out.add(m);
+        }
+        return out;
+    }
+
+    /** 管理员：设置单条 Key 的模型开关（auto=跟随全局 null / on=1 / off=0）；Key 不存在返回 false */
+    public boolean adminSetModelOverride(Long id, Integer modelOverride) {
+        if (wbGatewayMapper.adminQueryKeyById(id) == null) return false;
+        wbGatewayMapper.adminUpdateKeyModelOverride(id, modelOverride);
         return true;
     }
 

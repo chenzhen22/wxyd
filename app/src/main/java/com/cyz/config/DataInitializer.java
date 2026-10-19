@@ -585,6 +585,7 @@ public class DataInitializer implements ApplicationRunner {
                     "`api_key` VARCHAR(255) NOT NULL COMMENT 'Key 明文的 SM4 密文（随机 IV，不可等值查询）'," +
                     "`key_hash` CHAR(64) NOT NULL COMMENT 'Key 明文的 SM3 摘要（等值查询用）'," +
                     "`model` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '用户自选模型（空=按请求模型/默认），仅模型开关开启时生效'," +
+                    "`model_override` TINYINT NULL COMMENT 'NULL=跟随全局开关 1=强制开 0=强制关（仅管理员可设）'," +
                     "`enabled` TINYINT NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用'," +
                     "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                     "`last_used_time` DATETIME NULL COMMENT '最近一次网关调用时间'," +
@@ -599,11 +600,32 @@ public class DataInitializer implements ApplicationRunner {
                     "PRIMARY KEY (`id`)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型网关全局配置（仅管理员可改）'");
             jdbcTemplate.update("INSERT IGNORE INTO wb_gateway_config (id, model_switch) VALUES (1, 1)");
+            ensureWbGatewayKeyOverrideColumn();
             log.info("[INIT] 已自动执行 V19 迁移：wb_gateway_key / wb_gateway_config（模型网关）");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V19 迁移失败（请手动执行 sql/V19__wb_gateway.sql）：{}", e.getMessage());
         }
     }
+    /**
+     * V20 升级兜底：wb_gateway_key 若无 model_override 列（Key 级模型开关）则幂等补列。
+     */
+    private void ensureWbGatewayKeyOverrideColumn() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='wb_gateway_key' AND COLUMN_NAME='model_override'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) {
+                return;
+            }
+            jdbcTemplate.execute("ALTER TABLE `wb_gateway_key` ADD COLUMN `model_override` TINYINT NULL " +
+                    "COMMENT 'NULL=跟随全局开关 1=强制开 0=强制关（静默映射免费模型，仅管理员可设）' AFTER `model`");
+            log.info("[INIT] 已自动执行 V20 迁移：wb_gateway_key 补 model_override 列（Key 级模型开关）");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V20 迁移失败（请手动执行 sql/V20__wb_gateway_key_override.sql）：{}", e.getMessage());
+        }
+    }
+
     private void ensureMenuItems() {
         try {
             Integer cnt = jdbcTemplate.queryForObject(

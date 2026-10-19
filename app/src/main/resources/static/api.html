@@ -637,6 +637,16 @@
                     </table>
                 </div>
                 <div style="font-size:12px;color:var(--text-5);margin-top:6px;">目录来源：<span id="gwModelsSource">-</span></div>
+
+                <div style="font-weight:600;color:var(--text-1);margin:14px 0 8px;">🗂️ 全部用户 Key</div>
+                <div style="max-height:340px;overflow:auto;">
+                    <table class="data-table" id="gwAdminKeyTable">
+                        <thead><tr><th width="14%">用户</th><th width="14%">名称</th><th width="18%">Key</th><th width="16%">模型</th><th width="8%">状态</th><th width="18%">模型开关（Key 级）</th><th width="12%">最近使用</th></tr></thead>
+                        <tbody id="gwAdminKeyBody"></tbody>
+                    </table>
+                    <div id="gwAdminKeysEmpty" style="display:none;color:var(--text-5);font-size:13px;">还没有用户创建 Key</div>
+                </div>
+                <div style="font-size:12px;color:var(--text-5);margin-top:6px;">Key 级开关优先于全局模型开关：「开/关（覆盖）」对该用户强制生效，「跟随全局」则按上面的全局开关处理。</div>
             </div>
         </div>
 
@@ -789,6 +799,6 @@
 <script src="Assets/js/sqltool.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
-<script src="Assets/js/gateway.js?v=5" type="text/javascript"></script>
+<script src="Assets/js/gateway.js?v=6" type="text/javascript"></script>
 </body>
 </html>

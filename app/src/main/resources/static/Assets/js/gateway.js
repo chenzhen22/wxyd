@@ -132,6 +132,7 @@
             var on = res.body && res.body.modelSwitch;
             $('#gwSwitch').prop('checked', !!on);
             $('#gwSwitchLabel').text(on ? '开（用户自选模型生效）' : '关（静默映射免费模型）');
+            loadAdminKeys();
             $.getJSON('gateway/admin/models').done(function (r2) {
                 if (r2.errorCode !== '000000') return;
                 var b = r2.body || {};
@@ -143,6 +144,34 @@
                 });
             });
         }).fail(function () { /* 非管理员，保持隐藏 */ });
+    }
+
+    /* ================= 管理员：全部用户 Key ================= */
+
+    function loadAdminKeys() {
+        $.getJSON('gateway/admin/keys').done(function (res) {
+            if (res.errorCode !== '000000') return;
+            var list = (res.body && res.body.list) || [];
+            var $tb = $('#gwAdminKeyBody').html('');
+            $('#gwAdminKeysEmpty').toggle(!list.length);
+            list.forEach(function (k) {
+                var ov = k.override || 'auto';
+                var ovLabel = ov === 'on' ? '开（覆盖）' : ov === 'off' ? '关（覆盖）' : '跟随全局';
+                var $tr = $('<tr/>');
+                $tr.append('<td>' + esc(k.ownerName || k.username || k.userId) + '</td>');
+                $tr.append('<td>' + esc(k.name || '(未命名)') + '</td>');
+                $tr.append('<td><code style="color:var(--accent);">' + esc(k.maskedKey) + '</code></td>');
+                $tr.append('<td>' + esc(k.model || '跟随请求 / 默认') + '</td>');
+                $tr.append('<td>' + (k.enabled ? '🟢' : '⏸️') + '</td>');
+                $tr.append('<td><select class="gw-admin-ov" data-id="' + k.id + '" style="width:100%;padding:4px;border-radius:6px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">' +
+                    '<option value="auto"' + (ov === 'auto' ? ' selected' : '') + '>跟随全局</option>' +
+                    '<option value="on"' + (ov === 'on' ? ' selected' : '') + '>开（覆盖）</option>' +
+                    '<option value="off"' + (ov === 'off' ? ' selected' : '') + '>关（覆盖）</option>' +
+                    '</select> <span style="font-size:11px;color:var(--text-5);">' + esc(ovLabel) + '</span></td>');
+                $tr.append('<td>' + esc(k.lastUsedTime || '从未') + '</td>');
+                $tb.append($tr);
+            });
+        });
     }
 
     /* ================= 事件绑定 ================= */
@@ -219,6 +248,18 @@
                     else gwAlert(res.errorMsg || '删除失败');
                 });
             }
+        });
+
+        $('#gwAdminKeyTable').on('change', '.gw-admin-ov', function () {
+            postJSON('gateway/admin/keys/switch', { id: Number($(this).data('id')), override: $(this).val() }).done(function (res) {
+                if (res.errorCode !== '000000') {
+                    gwAlert(res.errorMsg || '设置失败');
+                    loadAdminKeys();
+                    return;
+                }
+                gwAlert('已设置');
+                loadAdminKeys();
+            });
         });
 
         $('#gwSwitch').on('change', function () {

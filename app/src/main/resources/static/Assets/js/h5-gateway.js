@@ -102,6 +102,7 @@
             var on = res.body && res.body.modelSwitch;
             $('#h5GwSwitch').prop('checked', !!on);
             $('#h5GwSwitchLabel').text(on ? '开（用户自选模型生效）' : '关（静默映射免费模型）');
+            loadAdminKeys();
             $.getJSON('gateway/admin/models').done(function (r2) {
                 if (r2.errorCode !== '000000') return;
                 var b = r2.body || {};
@@ -138,7 +139,10 @@
             '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);cursor:pointer;">' +
             '<input type="checkbox" id="h5GwSwitch"> <span id="h5GwSwitchLabel"></span></label>' +
             '<div style="font-size:11px;color:var(--text-5);margin:6px 0 8px;">关 = 所有请求自动映射到 WorkBuddy 免费模型（对用户不可见）</div>' +
-            '<div id="h5GwAdminModels"></div></div>');
+            '<div id="h5GwAdminModels"></div>' +
+            '<div style="font-weight:600;color:var(--text-1);margin:10px 0 6px;">🗂️ 全部用户 Key</div>' +
+            '<div id="h5GwAdminKeys"></div>' +
+            '<div class="h5-empty" id="h5GwAdminKeysEmpty" style="display:none;">还没有用户创建 Key</div></div>');
 
         if (!initialized) {
             initialized = true;
@@ -195,6 +199,39 @@
                         return;
                     }
                     $('#h5GwSwitchLabel').text(on ? '开（用户自选模型生效）' : '关（静默映射免费模型）');
+                });
+            });
+            function loadAdminKeys() {
+                $.getJSON('gateway/admin/keys').done(function (res) {
+                    if (res.errorCode !== '000000') return;
+                    var list = (res.body && res.body.list) || [];
+                    var $l = $('#h5GwAdminKeys').html('');
+                    $('#h5GwAdminKeysEmpty').toggle(!list.length);
+                    list.forEach(function (k) {
+                        var ov = k.override || 'auto';
+                        var $card = $('<div/>').css({ background: 'var(--glass-3)', border: '1px solid var(--glass-5)', borderRadius: '10px', padding: '10px', marginBottom: '8px' });
+                        $card.append('<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-1);margin-bottom:4px;">' +
+                            '<span>' + esc((k.ownerName || k.username || '?') + ' · ' + (k.name || '(未命名)')) + '</span>' +
+                            '<span style="font-size:11px;">' + (k.enabled ? '🟢' : '⏸️') + '</span></div>');
+                        $card.append('<div style="font-size:12px;color:var(--text-5);margin-bottom:6px;"><code style="color:var(--accent);">' + esc(k.maskedKey) + '</code> · 模型：' + esc(k.model || '跟随请求 / 默认') + '</div>');
+                        $card.append('<select class="h5-gw-admin-ov" data-id="' + k.id + '" style="width:100%;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">' +
+                            '<option value="auto"' + (ov === 'auto' ? ' selected' : '') + '>模型开关：跟随全局</option>' +
+                            '<option value="on"' + (ov === 'on' ? ' selected' : '') + '>模型开关：开（覆盖）</option>' +
+                            '<option value="off"' + (ov === 'off' ? ' selected' : '') + '>模型开关：关（覆盖）</option></select>');
+                        $l.append($card);
+                    });
+                });
+            }
+
+            $('#h5GwAdminKeys').on('change', '.h5-gw-admin-ov', function () {
+                var $sel = $(this);
+                postJSON('gateway/admin/keys/switch', { id: Number($sel.data('id')), override: $sel.val() }).done(function (res) {
+                    if (res.errorCode !== '000000') {
+                        toast(res.errorMsg || '设置失败');
+                        loadAdminKeys();
+                        return;
+                    }
+                    toast('已设置');
                 });
             });
             $('#h5GwStatus').off('click').on('click', refreshStatus);

@@ -54,7 +54,7 @@ public class WbOpenAiController {
         }
         String requestedModel = raw.getString("model");
         JSONObject internal = WbProtocol.openAiInboundToAnthropic(raw);
-        chatService.execute(res, internal, key, WbGatewayChatService.PROTO_OPENAI, requestedModel);
+        chatService.execute(res, internal, key, WbGatewayChatService.PROTO_OPENAI, requestedModel, raw.toJSONString());
     }
 
     /** GET /openai/v1/models（也接受 /openai/models） */

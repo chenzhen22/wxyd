@@ -50,7 +50,7 @@ public class WbAnthropicController {
                     "invalid_request_error", "请求体不是合法 JSON");
             return;
         }
-        chatService.execute(res, body, key, WbGatewayChatService.PROTO_ANTHROPIC, body.getString("model"));
+        chatService.execute(res, body, key, WbGatewayChatService.PROTO_ANTHROPIC, body.getString("model"), body.toJSONString());
     }
 
     /** POST /anthropic/v1/messages/count_tokens（本地粗估，不经上游） */

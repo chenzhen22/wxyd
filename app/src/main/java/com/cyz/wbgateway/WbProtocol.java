@@ -705,6 +705,29 @@ public final class WbProtocol {
         }
     }
 
+    /** 聚合结果 -> 紧凑的应答 trace JSON（详情弹框用） */
+    public static JSONObject toTraceJson(Aggregated agg) {
+        JSONObject out = new JSONObject();
+        if (!agg.reasoning.isEmpty()) out.put("reasoning", agg.reasoning);
+        out.put("content", agg.content);
+        if (agg.hasToolUse()) {
+            JSONArray calls = new JSONArray();
+            for (ToolCall tc : agg.toolCalls.values()) {
+                JSONObject call = new JSONObject();
+                call.put("name", tc.name);
+                call.put("arguments", tc.args.isEmpty() ? "{}" : tc.args);
+                calls.add(call);
+            }
+            out.put("tool_calls", calls);
+        }
+        out.put("finish_reason", agg.finishReason == null ? "stop" : agg.finishReason);
+        JSONObject usage = new JSONObject();
+        usage.put("input_tokens", agg.usageIn);
+        usage.put("output_tokens", agg.usageOut);
+        out.put("usage", usage);
+        return out;
+    }
+
     /** 聚合结果 -> Anthropic messages 响应体 */
     public static JSONObject toAnthropicResponse(Aggregated agg, String publicModel, long estimateIn) {
         JSONArray content = new JSONArray();

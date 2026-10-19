@@ -602,6 +602,7 @@ public class DataInitializer implements ApplicationRunner {
             jdbcTemplate.update("INSERT IGNORE INTO wb_gateway_config (id, model_switch) VALUES (1, 1)");
             ensureWbGatewayKeyOverrideColumn();
             ensureWbGatewayUsageTable();
+            ensureWbGatewayUsagePayloadColumns();
             log.info("[INIT] 已自动执行 V19-V21 迁移：wb_gateway_key / wb_gateway_config / wb_gateway_usage（模型网关）");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V19 迁移失败（请手动执行 sql/V19__wb_gateway.sql）：{}", e.getMessage());
@@ -645,6 +646,8 @@ public class DataInitializer implements ApplicationRunner {
                     "`duration_ms` BIGINT NOT NULL DEFAULT 0," +
                     "`status` VARCHAR(16) NOT NULL DEFAULT 'ok' COMMENT 'ok | error'," +
                     "`error_kind` VARCHAR(32) NULL COMMENT '失败类别（invalid_request/auth_error/...）'," +
+                    "`request_data` MEDIUMTEXT NULL COMMENT '客户端请求数据 JSON（超长截断）'," +
+                    "`response_data` MEDIUMTEXT NULL COMMENT '应答数据 JSON（聚合后的内容/工具调用/usage，超长截断）'," +
                     "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                     "PRIMARY KEY (`id`)," +
                     "KEY `idx_user` (`user_id`)," +
@@ -657,6 +660,26 @@ public class DataInitializer implements ApplicationRunner {
         }
     }
 
+    /**
+     * V22 升级兜底：wb_gateway_usage 若无 request_data / response_data 列则幂等补列。
+     */
+    private void ensureWbGatewayUsagePayloadColumns() {
+        try {
+            for (String[] col : new String[][]{
+                    {"request_data", "MEDIUMTEXT NULL COMMENT '客户端请求数据 JSON（超长截断）'"},
+                    {"response_data", "MEDIUMTEXT NULL COMMENT '应答数据 JSON（聚合后的内容/工具调用/usage，超长截断）'"}}) {
+                Integer cnt = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='wb_gateway_usage' AND COLUMN_NAME=?",
+                        Integer.class, col[0]);
+                if (cnt != null && cnt > 0) continue;
+                jdbcTemplate.execute("ALTER TABLE `wb_gateway_usage` ADD COLUMN `" + col[0] + "` " + col[1]);
+            }
+            log.info("[INIT] 已自动执行 V22 迁移：wb_gateway_usage 补 request_data / response_data 列");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V22 迁移失败（请手动执行 sql/V22__wb_gateway_usage_payload.sql）：{}", e.getMessage());
+        }
+    }
     private void ensureMenuItems() {
         try {
             Integer cnt = jdbcTemplate.queryForObject(

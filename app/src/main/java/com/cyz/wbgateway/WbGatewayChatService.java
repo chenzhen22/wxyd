@@ -1,5 +1,6 @@
 package com.cyz.wbgateway;
 
+import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.cyz.mapper.gateway.WbGatewayMapper;
@@ -46,7 +47,7 @@ public class WbGatewayChatService {
      * protocol 决定输出格式与错误形状（anthropic / openai）。
      */
     public void execute(HttpServletResponse res, JSONObject internal, WbGatewayKey key,
-                        String protocol, String requestedModel) throws IOException {
+                        String protocol, String requestedModel, String clientRequestJson) throws IOException {
         boolean wantStream = Boolean.TRUE.equals(internal.getBoolean("stream"));
         JSONArray messages = internal.getJSONArray("messages");
         if (messages == null || messages.isEmpty()) {
@@ -77,7 +78,7 @@ public class WbGatewayChatService {
         if (!selected.isEmpty() && !requested.isEmpty() && !selected.equalsIgnoreCase(requested)) {
             log.warn("[WBGATEWAY] 模型与 Key 配置不匹配 userId={} keyId={} 请求模型={} Key模型={}",
                     key.getUserId(), key.getId(), requested, selected);
-            recordUsage(key, protocol, requested, selected, wantStream, 0, 0, System.currentTimeMillis() - started, "error", "model_mismatch");
+            recordUsage(key, protocol, requested, selected, wantStream, 0, 0, System.currentTimeMillis() - started, "error", "model_mismatch", clientRequestJson, null);
             writeError(res, protocol, 400, "invalid_request_error",
                     "请求的模型 " + requested + " 与 Key 配置的模型 " + selected
                             + " 不匹配，请在 AI 工具中将模型名改为 Key 配置的模型");
@@ -156,7 +157,8 @@ public class WbGatewayChatService {
                 client.invalidateCredential();
             }
             recordUsage(key, protocol, requested, chain.get(chainIdx), wantStream, 0, 0,
-                    System.currentTimeMillis() - started, "error", failure.getKind());
+                    System.currentTimeMillis() - started, "error", failure.getKind(), clientRequestJson,
+                    JSON.toJSONString(java.util.Collections.singletonMap("error", detail)));
             writeError(res, protocol, failure.outboundStatus(), failure.outboundErrorType(),
                     failure.getKind() + ": " + detail);
             return;
@@ -171,46 +173,57 @@ public class WbGatewayChatService {
             res.setHeader("Cache-Control", "no-cache, no-transform");
             res.setHeader("X-Accel-Buffering", "no");
             res.setCharacterEncoding("UTF-8");
+            WbProtocol.Aggregated agg = new WbProtocol.Aggregated();
+            agg.usedModel = publicModel;
             if (PROTO_ANTHROPIC.equals(protocol)) {
                 WbAnthropicSseWriter writer = new WbAnthropicSseWriter(res, publicModel, estimateIn);
                 boolean streamOk = false;
                 try {
                     writer.start();
-                    WbUpstreamSseReader.read(upstream, chunk -> { try { writer.handleChunk(chunk); } catch (IOException ie) { throw new RuntimeException(ie); } });
+                    WbUpstreamSseReader.read(upstream, chunk -> {
+                        WbProtocol.feedChunk(agg, chunk);
+                        try { writer.handleChunk(chunk); } catch (IOException ie) { throw new RuntimeException(ie); }
+                    });
                     writer.finish();
                     streamOk = true;
                 } catch (IOException e) {
                     if (!writer.isClosed()) writer.fail("流失败: " + e.getMessage());
                 }
                 recordUsage(key, protocol, requested, publicModel, true,
-                        writer.getInputTokens() > 0 ? writer.getInputTokens() : estimateIn,
-                        writer.outputTokens(), System.currentTimeMillis() - started,
-                        streamOk ? "ok" : "error", streamOk ? null : "stream_interrupted");
+                        agg.usageIn > 0 ? agg.usageIn : estimateIn,
+                        agg.usageOut > 0 ? agg.usageOut : writer.outputTokens(), System.currentTimeMillis() - started,
+                        streamOk ? "ok" : "error", streamOk ? null : "stream_interrupted",
+                        clientRequestJson, WbProtocol.toTraceJson(agg).toJSONString());
             } else {
                 WbOpenAiSseWriter writer = new WbOpenAiSseWriter(res, publicModel);
                 boolean streamOk = false;
                 try {
-                    WbUpstreamSseReader.read(upstream, chunk -> { try { writer.handleChunk(chunk); } catch (IOException ie) { throw new RuntimeException(ie); } });
+                    WbUpstreamSseReader.read(upstream, chunk -> {
+                        WbProtocol.feedChunk(agg, chunk);
+                        try { writer.handleChunk(chunk); } catch (IOException ie) { throw new RuntimeException(ie); }
+                    });
                     writer.finish();
                     streamOk = true;
                 } catch (IOException e) {
                     log.warn("[WBGATEWAY] OpenAI 流式输出中断：{}", e.getMessage());
                 }
                 recordUsage(key, protocol, requested, publicModel, true,
-                        writer.getUsageIn() > 0 ? writer.getUsageIn() : estimateIn,
-                        writer.getUsageOut(), System.currentTimeMillis() - started,
-                        streamOk ? "ok" : "error", streamOk ? null : "stream_interrupted");
+                        agg.usageIn > 0 ? agg.usageIn : estimateIn,
+                        agg.usageOut, System.currentTimeMillis() - started,
+                        streamOk ? "ok" : "error", streamOk ? null : "stream_interrupted",
+                        clientRequestJson, WbProtocol.toTraceJson(agg).toJSONString());
             }
             log.info("[WBGATEWAY] 流式完成 ms={}", System.currentTimeMillis() - started);
             return;
         }
 
         WbProtocol.Aggregated agg = new WbProtocol.Aggregated();
+        agg.usedModel = chain.get(chainIdx);
         try {
             WbUpstreamSseReader.read(upstream, chunk -> WbProtocol.feedChunk(agg, chunk));
         } catch (IOException e) {
             recordUsage(key, protocol, requested, chain.get(chainIdx), false, 0, 0,
-                    System.currentTimeMillis() - started, "error", "parse_failed");
+                    System.currentTimeMillis() - started, "error", "parse_failed", clientRequestJson, null);
             writeError(res, protocol, 502, "api_error", "解析响应失败: " + e.getMessage());
             return;
         }
@@ -224,14 +237,23 @@ public class WbGatewayChatService {
         res.getWriter().write(out.toJSONString());
         res.flushBuffer();
         recordUsage(key, protocol, requested, chain.get(chainIdx), wantStream,
-                agg.usageIn > 0 ? agg.usageIn : estimateIn, agg.usageOut, System.currentTimeMillis() - started, "ok", null);
+                agg.usageIn > 0 ? agg.usageIn : estimateIn, agg.usageOut, System.currentTimeMillis() - started, "ok", null,
+                clientRequestJson, WbProtocol.toTraceJson(agg).toJSONString());
         log.info("[WBGATEWAY] 完成 ms={} in={} out={}", System.currentTimeMillis() - started,
                 agg.usageIn > 0 ? agg.usageIn : estimateIn, agg.usageOut);
     }
 
+    private static final int TRACE_MAX_CHARS = 400_000;
+
+    private static String capTrace(String s) {
+        if (s == null) return null;
+        return s.length() > TRACE_MAX_CHARS ? s.substring(0, TRACE_MAX_CHARS) + "\n...(已截断)" : s;
+    }
+
     /** 落一条令牌消耗记录（失败不影响主流程） */
     private void recordUsage(WbGatewayKey key, String protocol, String requestedModel, String usedModel,
-                             boolean stream, long in, long out, long durationMs, String status, String errorKind) {
+                             boolean stream, long in, long out, long durationMs, String status, String errorKind,
+                             String requestData, String responseData) {
         try {
             WbGatewayUsage u = new WbGatewayUsage();
             u.setUserId(key.getUserId());
@@ -245,6 +267,8 @@ public class WbGatewayChatService {
             u.setDurationMs(Math.max(0, durationMs));
             u.setStatus(status);
             u.setErrorKind(errorKind);
+            u.setRequestData(capTrace(requestData));
+            u.setResponseData(capTrace(responseData));
             wbGatewayMapper.insertUsage(u);
         } catch (Exception e) {
             log.warn("[WBGATEWAY] 用量记录失败：{}", e.getMessage());

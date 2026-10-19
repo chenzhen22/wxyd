@@ -20,4 +20,8 @@ public class WbGatewayUsage {
     private String status;
     private String errorKind;
     private String createTime;
+    /** 客户端请求数据 JSON（超长截断） */
+    private String requestData;
+    /** 应答数据 JSON（聚合后的内容/工具调用/usage，超长截断） */
+    private String responseData;
 }

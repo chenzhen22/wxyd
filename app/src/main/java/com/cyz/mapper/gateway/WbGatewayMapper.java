@@ -56,4 +56,7 @@ public interface WbGatewayMapper {
     List<Map<String, Object>> usageLogs(@Param("offset") int offset, @Param("limit") int limit);
 
     int usageLogsCount();
+
+    /** 单条用量详情（含请求/应答数据） */
+    Map<String, Object> usageDetail(@Param("id") Long id);
 }

@@ -307,6 +307,17 @@ public class WbGatewayManageController {
         return result;
     }
 
+    /** 单条调用详情（含请求/应答数据，仅管理员） */
+    @GetMapping("gateway/admin/usage/detail")
+    public Result usageDetail(@RequestParam Long id, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Map<String, Object> detail = wbGatewayMapper.usageDetail(id);
+        if (detail == null) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000022);
+        result.setBody(detail);
+        return result;
+    }
+
     /* ==================== 辅助 ==================== */
 
     private static Long userId(HttpSession session) {

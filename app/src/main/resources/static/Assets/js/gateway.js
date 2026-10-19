@@ -217,10 +217,18 @@
             var $tb = $('#gwUsageLogBody').html('');
             (b.list || []).forEach(function (x) {
                 var model = esc(x.usedModel || '?') + (x.requestedModel && x.requestedModel !== x.usedModel ? ' <span style="color:var(--text-5);">(' + esc(x.requestedModel) + ')</span>' : '');
-                $tb.append('<tr><td>' + esc(x.createTime) + '</td><td>' + esc(x.ownerName || x.userId) + '</td><td>' + model + '</td><td>' +
-                    esc(x.protocol) + '</td><td>' + (x.stream ? '是' : '否') + '</td><td>' + fmtNum(x.inputTokens) + '</td><td>' + fmtNum(x.outputTokens) + '</td><td>' +
-                    (x.durationMs != null ? Math.round(x.durationMs / 100) / 10 + 's' : '-') + '</td><td>' +
-                    (x.status === 'ok' ? '<span style="color:#4ade80;">成功</span>' : '<span style="color:#f87171;">失败</span>' + (x.errorKind ? ' <span style="font-size:11px;color:var(--text-5);">' + esc(x.errorKind) + '</span>' : '')) + '</td></tr>');
+                var $tr = $('<tr/>');
+                $tr.append('<td>' + esc(x.createTime) + '</td>');
+                $tr.append('<td>' + esc(x.ownerName || x.userId) + '</td>');
+                $tr.append('<td>' + model + '</td>');
+                $tr.append('<td>' + esc(x.protocol) + '</td>');
+                $tr.append('<td>' + (x.stream ? '是' : '否') + '</td>');
+                $tr.append('<td>' + fmtNum(x.inputTokens) + '</td>');
+                $tr.append('<td>' + fmtNum(x.outputTokens) + '</td>');
+                $tr.append('<td>' + (x.durationMs != null ? Math.round(x.durationMs / 100) / 10 + 's' : '-') + '</td>');
+                $tr.append('<td>' + (x.status === 'ok' ? '<span style="color:#4ade80;">成功</span>' : '<span style="color:#f87171;">失败</span>' + (x.errorKind ? ' <span style="font-size:11px;color:var(--text-5);">' + esc(x.errorKind) + '</span>' : '')) + '</td>');
+                $tr.append('<td><button class="btn-main gw-usage-detail" data-id="' + x.id + '" style="padding:2px 8px;font-size:12px;">详情</button></td>');
+                $tb.append($tr);
             });
             if (!(b.list || []).length) $tb.append('<tr><td colspan="9" style="color:var(--text-5);">暂无调用记录</td></tr>');
         });
@@ -312,6 +320,40 @@
                 gwAlert('已设置');
                 loadAdminKeys();
             });
+        });
+
+        /* 折叠区块：点击头部切换，默认全部收起 */
+        $('.gw-collapse-head').on('click', function () {
+            var sec = $('#' + $(this).data('sec'));
+            var open = sec.is(':visible');
+            sec.toggle(!open);
+            $(this).find('.gw-arrow').text(open ? '▸' : '▾');
+        });
+
+        /* 明细详情弹框 */
+        function openUsageDetail(id) {
+            $.getJSON('gateway/admin/usage/detail', { id: id }).done(function (res) {
+                if (res.errorCode !== '000000' || !res.body) {
+                    gwAlert(res.errorMsg || '详情获取失败');
+                    return;
+                }
+                var b = res.body;
+                $('#gwUsageDetailMeta').text((b.ownerName || '') + ' · ' + (b.createTime || '') + ' · ' + (b.usedModel || '?'));
+                var fmt = function (s) {
+                    if (!s) return '(无)';
+                    try { return JSON.stringify(JSON.parse(s), null, 2); } catch (e) { return s; }
+                };
+                $('#gwUsageDetailReq').text(fmt(b.requestData));
+                $('#gwUsageDetailResp').text(fmt(b.responseData));
+                $('#gwUsageDetailModal').show();
+            }).fail(function (xhr) {
+                var r = xhr.responseJSON || {};
+                gwAlert(r.errorMsg || '详情获取失败');
+            });
+        }
+        $('#gwUsageDetailClose').on('click', function () { $('#gwUsageDetailModal').hide(); });
+        $('#gwUsageLogBody').on('click', '.gw-usage-detail', function () {
+            openUsageDetail(Number($(this).data('id')));
         });
 
         $('#gwUsagePrev').on('click', function () {

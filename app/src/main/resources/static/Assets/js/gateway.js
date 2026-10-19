@@ -1,0 +1,254 @@
+(function () {
+
+    var initialized = false;
+    var state = { models: [], defaultModel: '', admin: false };
+
+    function esc(s) {
+        return s == null ? '' : String(s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function postJSON(url, body) {
+        return $.ajax({ url: url, type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ body: body || {} }) });
+    }
+
+    /* 弹框统一走应用默认样式：alterModal（提示）/ confirmModal（确认），index.js 提供 */
+    function gwAlert(msg) {
+        if (window.alterModal) alterModal(msg);
+        else alert(msg);
+    }
+
+    /* 复制文本：clipboard API 优先，http 非 localhost 环境退回 execCommand */
+    function copyText(text, okMsg) {
+        var done = function () { gwAlert(okMsg || '已复制到剪贴板'); };
+        var fail = function () {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                done();
+            } catch (e) {
+                window.prompt('请手动复制：', text);
+            }
+            document.body.removeChild(ta);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, fail);
+        } else {
+            fail();
+        }
+    }
+
+    /* ================= 状态徽标 ================= */
+
+    function refreshStatus() {
+        var $b = $('#gwStatusBadge').text('🟡 状态未知');
+        $.getJSON('gateway/status').done(function (res) {
+            if (res.errorCode !== '000000' || !res.body) {
+                $b.text('🔴 桥接不可用');
+                return;
+            }
+            var st = res.body;
+            var signedIn = st.signIn === 'signed-in' || st.signIn === true;
+            var credits = st.credits === 'unlimited' ? '无限' : (st.credits != null ? st.credits : '?');
+            $b.text((signedIn ? '🟢 已登录 · 积分 ' : '🔴 未登录 · 积分 ') + credits);
+        }).fail(function () {
+            $b.text('🔴 桥接不可用');
+        });
+    }
+
+    /* ================= 接入地址 ================= */
+
+    function fillUrls() {
+        var base = location.origin + '/api'; /* context-path 固定为 /api */
+        $('#gwUrlAnthropic').text(base + '/anthropic');
+        $('#gwUrlOpenai').text(base + '/openai/v1');
+    }
+
+    /* ================= Key 列表（模型只读展示，不可修改） ================= */
+
+    function renderKeys(list, max) {
+        var $tb = $('#gwKeyTableBody').html('');
+        $('#gwKeyEmpty').toggle(!list.length);
+        list.forEach(function (k) {
+            var $tr = $('<tr/>');
+            $tr.append('<td>' + esc(k.name || '(未命名)') + '</td>');
+            var keyTd = $('<td/>');
+            keyTd.append('<code style="color:var(--accent);">' + esc(k.maskedKey) + '</code> ');
+            keyTd.append('<button class="btn-main gw-copy" data-id="' + k.id + '" style="padding:2px 8px;font-size:12px;">复制</button>');
+            $tr.append(keyTd);
+            $tr.append('<td><input type="text" readonly value="' + esc(k.model || '跟随请求 / 默认') + '" ' +
+                'style="width:100%;padding:4px 6px;border-radius:6px;background:var(--glass-2);color:var(--text-2);border:1px solid var(--glass-5);font-size:12px;"></td>');
+            $tr.append('<td>' + (k.enabled ? '🟢 启用' : '⏸️ 停用') + '</td>');
+            $tr.append('<td>' + esc(k.lastUsedTime || '从未') + '</td>');
+            var ops = $('<td/>');
+            /* data-enabled 用 attr 读取，避免 jQuery .data() 把 "1" 自动转成数字导致判断失效 */
+            ops.append('<button class="btn-main gw-toggle" data-id="' + k.id + '" data-enabled="' + (k.enabled ? '1' : '0') + '" style="padding:3px 8px;font-size:12px;margin-right:4px;">' + (k.enabled ? '停用' : '启用') + '</button>');
+            ops.append('<button class="btn-main gw-del" data-id="' + k.id + '" style="padding:3px 8px;font-size:12px;">删除</button>');
+            $tr.append(ops);
+            $tb.append($tr);
+        });
+    }
+
+    function loadKeys() {
+        $.getJSON('gateway/keys').done(function (res) {
+            if (res.errorCode !== '000000') return;
+            var b = res.body || {};
+            renderKeys(b.list || [], b.max || 5);
+        });
+    }
+
+    function loadModels() {
+        return $.getJSON('gateway/models').done(function (res) {
+            if (res.errorCode !== '000000') return;
+            var b = res.body || {};
+            state.models = b.models || [];
+            state.defaultModel = b.default || '';
+            /* 创建 Key：模型必选，首项为「请选择模型」占位；目录默认模型在文字里标注 */
+            var $sel = $('#gwKeyModel').html('<option value="" selected>请选择模型</option>');
+            state.models.forEach(function (m) {
+                var label = (m === state.defaultModel && state.defaultModel) ? m + '（默认）' : m;
+                $sel.append('<option value="' + esc(m) + '">' + esc(label) + '</option>');
+            });
+        });
+    }
+
+    /* ================= 管理员区（非管理员不可见） ================= */
+
+    function loadAdmin() {
+        $.getJSON('gateway/admin/config').done(function (res) {
+            if (res.errorCode !== '000000') return; /* 非管理员：状态/刷新按钮与整个管理区块都保持隐藏 */
+            state.admin = true;
+            /* 状态徽标与刷新按钮仅管理员可见（gateway/status 接口也仅管理员可调） */
+            $('#gwStatusBadge, #gwRefreshBtn').show();
+            refreshStatus();
+            $('#gwAdminCard').show();
+            var on = res.body && res.body.modelSwitch;
+            $('#gwSwitch').prop('checked', !!on);
+            $('#gwSwitchLabel').text(on ? '开（用户自选模型生效）' : '关（静默映射免费模型）');
+            $.getJSON('gateway/admin/models').done(function (r2) {
+                if (r2.errorCode !== '000000') return;
+                var b = r2.body || {};
+                $('#gwModelsSource').text(b.source === 'live' ? '实时目录' : '内置兜底目录');
+                var $tb = $('#gwAdminModelBody').html('');
+                (b.list || []).forEach(function (m) {
+                    $tb.append('<tr><td>' + esc(m.id) + '</td><td>' + esc(m.name) + '</td><td>' +
+                        (m.free ? '<span style="color:#4ade80;">免费</span>' : '积分计费') + '</td></tr>');
+                });
+            });
+        }).fail(function () { /* 非管理员，保持隐藏 */ });
+    }
+
+    /* ================= 事件绑定 ================= */
+
+    function bindEvents() {
+        $('#gwRefreshBtn').on('click', function () {
+            refreshStatus();
+            loadKeys();
+            loadModels();
+            if (state.admin) loadAdmin();
+        });
+
+        $('#gwKeyAdd').on('click', function () {
+            var name = $.trim($('#gwKeyName').val() || '');
+            var model = $('#gwKeyModel').val() || '';
+            if (!model) {
+                gwAlert('请选择模型（模型为必选项）');
+                return;
+            }
+            postJSON('gateway/keys/add', { name: name, model: model }).done(function (res) {
+                if (res.errorCode !== '000000') {
+                    gwAlert(res.errorMsg || '创建失败');
+                    return;
+                }
+                $('#gwCreatedKey').text(res.body.apiKey);
+                $('#gwCreatedModal').show();
+                $('#gwKeyName').val('');
+                loadKeys();
+            }).fail(function (xhr) {
+                var r = xhr.responseJSON || {};
+                gwAlert(r.errorMsg || '创建失败，请重试');
+            });
+        });
+
+        /* 创建成功弹框：一键复制 */
+        $('#gwCreatedCopy').on('click', function () {
+            copyText($('#gwCreatedKey').text(), 'Key 已复制，请妥善保存');
+        });
+
+        $('#gwKeyTable').on('click', '.gw-copy', function () {
+            var id = Number($(this).data('id'));
+            postJSON('gateway/keys/reveal', { id: id }).done(function (res) {
+                if (res.errorCode !== '000000' || !res.body) {
+                    gwAlert(res.errorMsg || '获取 Key 失败');
+                    return;
+                }
+                copyText(res.body, 'Key 已复制到剪贴板');
+            }).fail(function (xhr) {
+                var r = xhr.responseJSON || {};
+                gwAlert(r.errorMsg || '获取 Key 失败');
+            });
+        });
+
+        $('#gwKeyTable').on('click', '.gw-toggle', function () {
+            var enabled = $(this).attr('data-enabled') === '1'; /* 用 attr，避免 .data() 类型转换 */
+            postJSON('gateway/keys/toggle', { id: Number($(this).data('id')), enabled: !enabled }).done(function (res) {
+                if (res.errorCode === '000000') loadKeys();
+                else gwAlert(res.errorMsg || '操作失败');
+            });
+        });
+
+        $('#gwKeyTable').on('click', '.gw-del', function () {
+            var id = Number($(this).data('id'));
+            if (window.confirmModal) {
+                confirmModal('确定删除这把 Key？使用它的 AI 工具将立即失效。', function () {
+                    postJSON('gateway/keys/delete', { id: id }).done(function (res) {
+                        if (res.errorCode === '000000') loadKeys();
+                        else gwAlert(res.errorMsg || '删除失败');
+                    });
+                });
+            } else if (window.confirm('确定删除这把 Key？')) {
+                postJSON('gateway/keys/delete', { id: id }).done(function (res) {
+                    if (res.errorCode === '000000') loadKeys();
+                    else gwAlert(res.errorMsg || '删除失败');
+                });
+            }
+        });
+
+        $('#gwSwitch').on('change', function () {
+            var on = $(this).prop('checked');
+            postJSON('gateway/admin/switch', { on: on }).done(function (res) {
+                if (res.errorCode !== '000000') {
+                    gwAlert(res.errorMsg || '切换失败');
+                    $('#gwSwitch').prop('checked', !on);
+                    return;
+                }
+                $('#gwSwitchLabel').text(on ? '开（用户自选模型生效）' : '关（静默映射免费模型）');
+            });
+        });
+    }
+
+    /* ================= 入口 ================= */
+
+    window.Gateway = {
+        init: function () {
+            fillUrls();
+            if (initialized) {
+                refreshStatus();
+                return;
+            }
+            initialized = true;
+            bindEvents();
+            refreshStatus();
+            loadModels().done(loadKeys);
+            loadAdmin();
+        }
+    };
+
+})();

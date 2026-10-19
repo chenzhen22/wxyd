@@ -1,0 +1,239 @@
+package com.cyz.wbgateway;
+
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
+import com.cyz.mapper.gateway.WbGatewayMapper;
+import com.cyz.pojo.WbGatewayKey;
+import com.cyz.service.WbGatewayKeyService;
+import lombok.extern.slf4j.Slf4j;
+import okhttp3.Response;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 网关执行管线（server.js handleMessages + handleWorkbuddy 的 Java 移植）：
+ * 内部 Anthropic 形态请求体 -> OpenAI 上游请求（WorkBuddy）-> 双协议响应/流。
+ * <p>
+ * 模型解析（管理员模型开关）：开=用户自选/请求模型命中目录，失败兜底免费链；
+ * 关=静默映射免费模型（按目录顺序重试），响应中的 model 字段回写为用户视角的名字，映射对用户不可见。
+ */
+@Service
+@Slf4j
+public class WbGatewayChatService {
+
+    public static final String PROTO_ANTHROPIC = "anthropic";
+    public static final String PROTO_OPENAI = "openai";
+
+    @Autowired
+    private WbWorkBuddyClient client;
+
+    @Autowired
+    private WbGatewayMapper wbGatewayMapper;
+
+    @Autowired
+    private WbGatewayKeyService keyService;
+
+
+    /**
+     * 执行一次对话并写响应。internal 为内部 Anthropic 形态请求体；
+     * protocol 决定输出格式与错误形状（anthropic / openai）。
+     */
+    public void execute(HttpServletResponse res, JSONObject internal, WbGatewayKey key,
+                        String protocol, String requestedModel) throws IOException {
+        boolean wantStream = Boolean.TRUE.equals(internal.getBoolean("stream"));
+        JSONArray messages = internal.getJSONArray("messages");
+        if (messages == null || messages.isEmpty()) {
+            writeError(res, protocol, 400, "invalid_request_error", "messages 不能为空");
+            return;
+        }
+        if (internal.getLong("max_tokens") == null) {
+            writeError(res, protocol, 400, "invalid_request_error", "max_tokens 必填");
+            return;
+        }
+        long estimateIn = WbProtocol.estimateRequestTokens(internal);
+        long started = System.currentTimeMillis();
+        log.info("[WBGATEWAY] messages userId={} keyId={} model={} stream={} msgs={} tools={} proto={}",
+                key.getUserId(), key.getId(), requestedModel, wantStream, messages.size(),
+                internal.getJSONArray("tools") == null ? 0 : internal.getJSONArray("tools").size(), protocol);
+
+        // ---- 模型候选链 + 对外模型名 ----
+        WbModelCatalog catalog = client.models();
+        boolean switchOn = !Integer.valueOf(0).equals(wbGatewayMapper.queryModelSwitch());
+        String selected = key.getModel() == null ? "" : key.getModel().trim();
+        String requested = requestedModel == null ? "" : requestedModel.trim();
+        // 校验：请求模型必须与 Key 在「模型网关」页面配置的模型匹配（大小写不敏感）；
+        // 请求未带模型名时放行，按 Key 配置的模型执行
+        if (!selected.isEmpty() && !requested.isEmpty() && !selected.equalsIgnoreCase(requested)) {
+            log.warn("[WBGATEWAY] 模型与 Key 配置不匹配 userId={} keyId={} 请求模型={} Key模型={}",
+                    key.getUserId(), key.getId(), requested, selected);
+            writeError(res, protocol, 400, "invalid_request_error",
+                    "请求的模型 " + requested + " 与 Key 配置的模型 " + selected
+                            + " 不匹配，请在 AI 工具中将模型名改为 Key 配置的模型");
+            return;
+        }
+        List<String> chain = new ArrayList<>();
+        String publicModel;
+        if (switchOn) {
+            String canon = catalog.match(selected);
+            if (canon != null) {
+                chain.add(canon);
+                publicModel = canon;
+            } else {
+                canon = catalog.match(requested);
+                if (canon != null) {
+                    chain.add(canon);
+                    publicModel = canon;
+                } else {
+                    String dflt = defaultOrFirst(catalog);
+                    chain.add(dflt);
+                    publicModel = requested.isEmpty() ? dflt : requested;
+                }
+            }
+            List<String> free = catalog.freeIds();
+            for (String id : free) if (!chain.contains(id)) chain.add(id);
+        } else {
+            // 开关关闭：静默映射到免费模型，用户不可知；对外仍显示用户视角的名字
+            chain.addAll(catalog.freeIds());
+            if (chain.isEmpty()) chain.add(defaultOrFirst(catalog));
+            publicModel = !selected.isEmpty() ? selected
+                    : (!requested.isEmpty() ? requested : client.getDefaultModel());
+            log.info("[WBGATEWAY] 模型开关关闭：静默映射 userId={} keyId={} 视角模型={} 实际链={}",
+                    key.getUserId(), key.getId(), publicModel, chain);
+        }
+
+        // ---- 组装上游请求（Anthropic -> OpenAI + WAF 清洗 + prepareBody）----
+        JSONObject openaiReq = WbProtocol.toOpenAIRequest(internal, chain.get(0));
+        openaiReq.put("stream", true); // 上游只接受流式，客户端要非流式时在网关聚合
+        WbProtocol.sanitizeOpenAiMessages(openaiReq);
+
+        // ---- 发起上游请求（候选链重试 + session_dead 重取凭据各一次）----
+        WbCredential cred = client.resolveCredential();
+        Response upstream = null;
+        WbUpstreamException failure = null;
+        int chainIdx = 0;
+        boolean credRetried = false;
+        while (true) {
+            openaiReq.put("model", chain.get(chainIdx));
+            String bodyJson = client.prepareBody(openaiReq.toJSONString());
+            try {
+                upstream = client.chatStream(cred, bodyJson);
+                break;
+            } catch (WbUpstreamException e) {
+                if (WbUpstreamException.KIND_SESSION_DEAD.equals(e.getKind()) && !credRetried) {
+                    // 令牌被上游判死：失效缓存重取一次（Windows 侧顺带刷新令牌）
+                    credRetried = true;
+                    client.invalidateCredential();
+                    cred = client.resolveCredential();
+                    log.warn("[WBGATEWAY] 凭据被上游判死，已重取重试 keyId={}", key.getId());
+                    continue;
+                }
+                if (chainIdx < chain.size() - 1 && WbWorkBuddyClient.isModelFallbackRetryable(e)) {
+                    log.warn("[WBGATEWAY] 模型 {} 失败（{}），切换候选链下一个 {}",
+                            chain.get(chainIdx), e.getKind(), chain.get(chainIdx + 1));
+                    chainIdx++;
+                    continue;
+                }
+                failure = e;
+                break;
+            }
+        }
+        if (failure != null) {
+            String detail = failure.getMessage() == null ? "" : failure.getMessage();
+            log.error("[WBGATEWAY] 上游错误 kind={} http={} detail={}", failure.getKind(), failure.getHttpStatus(), detail);
+            if (WbUpstreamException.KIND_SESSION_DEAD.equals(failure.getKind())) {
+                client.invalidateCredential();
+            }
+            writeError(res, protocol, failure.outboundStatus(), failure.outboundErrorType(),
+                    failure.getKind() + ": " + detail);
+            return;
+        }
+
+        keyService.touch(key.getId());
+
+        // ---- 输出 ----
+        if (wantStream) {
+            res.setStatus(200);
+            res.setContentType("text/event-stream; charset=utf-8");
+            res.setHeader("Cache-Control", "no-cache, no-transform");
+            res.setHeader("X-Accel-Buffering", "no");
+            res.setCharacterEncoding("UTF-8");
+            if (PROTO_ANTHROPIC.equals(protocol)) {
+                WbAnthropicSseWriter writer = new WbAnthropicSseWriter(res, publicModel, estimateIn);
+                try {
+                    writer.start();
+                    WbUpstreamSseReader.read(upstream, chunk -> { try { writer.handleChunk(chunk); } catch (IOException ie) { throw new RuntimeException(ie); } });
+                    writer.finish();
+                } catch (IOException e) {
+                    if (!writer.isClosed()) writer.fail("流失败: " + e.getMessage());
+                }
+            } else {
+                WbOpenAiSseWriter writer = new WbOpenAiSseWriter(res, publicModel);
+                try {
+                    WbUpstreamSseReader.read(upstream, chunk -> { try { writer.handleChunk(chunk); } catch (IOException ie) { throw new RuntimeException(ie); } });
+                    writer.finish();
+                } catch (IOException e) {
+                    log.warn("[WBGATEWAY] OpenAI 流式输出中断：{}", e.getMessage());
+                }
+            }
+            log.info("[WBGATEWAY] 流式完成 ms={}", System.currentTimeMillis() - started);
+            return;
+        }
+
+        WbProtocol.Aggregated agg = new WbProtocol.Aggregated();
+        try {
+            WbUpstreamSseReader.read(upstream, chunk -> WbProtocol.feedChunk(agg, chunk));
+        } catch (IOException e) {
+            writeError(res, protocol, 502, "api_error", "解析响应失败: " + e.getMessage());
+            return;
+        }
+        JSONObject out = PROTO_ANTHROPIC.equals(protocol)
+                ? WbProtocol.toAnthropicResponse(agg, publicModel, estimateIn)
+                : WbProtocol.toOpenAiResponse(agg, publicModel,
+                        "chatcmpl-" + WbProtocol.rand(20), System.currentTimeMillis() / 1000L);
+        res.setStatus(200);
+        res.setContentType("application/json; charset=utf-8");
+        res.setCharacterEncoding("UTF-8");
+        res.getWriter().write(out.toJSONString());
+        res.flushBuffer();
+        log.info("[WBGATEWAY] 完成 ms={} in={} out={}", System.currentTimeMillis() - started,
+                agg.usageIn > 0 ? agg.usageIn : estimateIn, agg.usageOut);
+    }
+
+    private String defaultOrFirst(WbModelCatalog catalog) {
+        String dflt = client.getDefaultModel();
+        String canon = catalog.match(dflt);
+        if (canon != null) return canon;
+        List<String> ids = catalog.ids();
+        return ids.isEmpty() ? dflt : ids.get(0);
+    }
+
+    /** 按协议输出错误形状 */
+    public static void writeError(HttpServletResponse res, String protocol, int status,
+                                  String type, String message) throws IOException {
+        JSONObject out = new JSONObject();
+        if (PROTO_OPENAI.equals(protocol)) {
+            JSONObject err = new JSONObject();
+            err.put("message", message);
+            err.put("type", type);
+            err.put("code", null);
+            out.put("error", err);
+        } else {
+            JSONObject err = new JSONObject();
+            err.put("type", type);
+            err.put("message", message);
+            out.put("type", "error");
+            out.put("error", err);
+        }
+        res.setStatus(status);
+        res.setContentType("application/json; charset=utf-8");
+        res.setCharacterEncoding("UTF-8");
+        res.getWriter().write(out.toJSONString());
+        res.flushBuffer();
+    }
+}

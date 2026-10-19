@@ -593,6 +593,65 @@
             </div>
         </div>
 
+        <div class="module-box" id="gateway">
+            <div class="page-title">模型网关 <span class="admin-badge" id="gwStatusBadge" style="cursor:pointer;display:none;">🟡 状态未知</span> <span class="admin-badge" id="gwRefreshBtn" style="cursor:pointer;display:none;">🔄 刷新</span></div>
+
+            <div class="cert-card" style="margin-bottom:14px;">
+                <div class="cert-card-tit">🔌 AI 工具接入 <span style="font-weight:400;color:var(--text-5);font-size:12px;">把你下面创建的 Key 配到任意支持 Anthropic / OpenAI 协议的 AI 工具</span></div>
+                <div style="font-size:13px;line-height:1.9;color:var(--text-2);">
+                    <div>[Anthropic 协议] BASE_URL = <code id="gwUrlAnthropic" style="color:var(--accent);"></code>（Claude Code：ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN）</div>
+                    <div>[OpenAI 协议]&nbsp;&nbsp;&nbsp; BASE_URL = <code id="gwUrlOpenai" style="color:var(--accent);"></code>（OPENAI_BASE_URL 指向 /openai/v1）</div>
+                </div>
+            </div>
+
+            <div class="cert-card" style="margin-bottom:14px;">
+                <div class="cert-card-tit">🔑 新建 Key <span style="font-weight:400;color:var(--text-5);font-size:12px;">每用户最多 5 把；模型必选（默认选中网关默认模型）；创建后可随时在列表里点「复制」</span></div>
+                <div class="cert-form-row">
+                    <input type="text" id="gwKeyName" placeholder="备注名（如：我的笔记本）" autocomplete="off"
+                           style="flex:1;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">
+                    <select id="gwKeyModel" required style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"><option value="" selected>请选择模型</option></select>
+                    <button class="btn-main" id="gwKeyAdd">创建 Key</button>
+                </div>
+
+            </div>
+
+            <table class="data-table" id="gwKeyTable">
+                <thead><tr><th width="18%">名称</th><th width="26%">Key</th><th width="20%">模型</th><th width="12%">状态</th><th width="12%">最近使用</th><th width="12%">操作</th></tr></thead>
+                <tbody id="gwKeyTableBody"></tbody>
+            </table>
+            <div id="gwKeyEmpty" style="display:none;color:var(--text-5);font-size:13px;margin:8px 0;">还没有 Key，上方创建一把即可接入 AI 工具</div>
+
+            <div class="cert-card" id="gwAdminCard" style="margin-top:18px;display:none;">
+                <div class="cert-card-tit">⚙️ 模型开关 <span class="admin-badge">仅管理员</span>
+                    <label style="cursor:pointer;font-weight:400;font-size:13px;margin-left:8px;">
+                        <input type="checkbox" id="gwSwitch"> <span id="gwSwitchLabel"></span>
+                    </label>
+                </div>
+                <div style="font-size:12px;color:var(--text-5);margin-bottom:8px;">
+                    开 = 用户自选模型生效；关 = 所有请求自动映射到 WorkBuddy 免费模型（对用户不可见，响应中的模型名保持用户视角）。
+                </div>
+                <div style="max-height:260px;overflow:auto;">
+                    <table class="data-table" id="gwAdminModelTable">
+                        <thead><tr><th width="40%">模型</th><th width="30%">说明</th><th width="30%">计费</th></tr></thead>
+                        <tbody id="gwAdminModelBody"></tbody>
+                    </table>
+                </div>
+                <div style="font-size:12px;color:var(--text-5);margin-top:6px;">目录来源：<span id="gwModelsSource">-</span></div>
+            </div>
+        </div>
+
+        <div class="modal" id="gwCreatedModal">
+            <div class="modal-content">
+                <div class="modal-title">创建成功<span class="close-modal" id="gwCreatedClose">×</span></div>
+                <div class="form-item"><span>Key 已创建，请立即复制保存：</span></div>
+                <div class="form-item"><code id="gwCreatedKey" style="word-break:break-all;color:var(--accent);"></code></div>
+                <div class="modal-btn-group">
+                    <button class="btn-primary" id="gwCreatedCopy">📋 复制</button>
+                </div>
+                <div style="color:var(--text-5);font-size:12px;text-align:center;">关闭后可在下方列表点「复制」随时取回明文</div>
+            </div>
+        </div>
+
         <div class="module-box" id="menuManage">
             <div class="page-title">菜单管理 <span class="admin-badge">仅管理员可见</span></div>
             <div id="menuManageBody"><!-- 由 Assets/js/menu-manage.js 渲染 --></div>
@@ -730,5 +789,6 @@
 <script src="Assets/js/sqltool.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/gateway.js?v=5" type="text/javascript"></script>
 </body>
 </html>

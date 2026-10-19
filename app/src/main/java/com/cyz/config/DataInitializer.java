@@ -53,6 +53,7 @@ public class DataInitializer implements ApplicationRunner {
         ensureRadarPatrolTables();
         ensureLoginLogTable();
         ensureDayInfoTables();
+        ensureWbGatewayTables();
         ensureMenuItems();
         int count = mysqlMapper.countUsers();
         if (count > 0) {
@@ -301,6 +302,7 @@ public class DataInitializer implements ApplicationRunner {
             {"archiveTool", "desktop", "归档下载", "📦", "#/archiveTool", "120", "0", "0"},
             {"welfare", "desktop", "福利专区", "🎁", "#/welfare", "130", "0", "0"},
             {"dayinfo", "desktop", "金融日报", "📈", "#/dayinfo", "135", "0", "0"},
+            {"gateway", "desktop", "模型网关", "🔑", "#/gateway", "137", "0", "0"},
             {"patrol", "desktop", "巡检日报", "🛡️", "#/patrol", "140", "1", "0"},
             {"loginLog", "desktop", "登录日志", "📜", "#/loginLog", "145", "0", "0"},
             {"menuManage", "desktop", "菜单管理", "🧩", "#/menuManage", "150", "1", "1"},
@@ -309,6 +311,7 @@ public class DataInitializer implements ApplicationRunner {
             {"user", "h5", "用户管理", "👤", "#/user", "110", "1", "0"},
             {"welfare", "h5", "福利专区", "🎁", "#/welfare", "120", "0", "0"},
             {"dayinfo", "h5", "金融日报", "📈", "#/dayinfo", "125", "0", "0"},
+            {"gateway", "h5", "模型网关", "🔑", "#/gateway", "127", "0", "0"},
             {"patrol", "h5", "巡检日报", "🛡️", "#/patrol", "130", "1", "0"},
             {"loginlog", "h5", "登录日志", "📜", "#/loginlog", "135", "0", "0"},
             {"robot", "h5", "钉钉机器人", "🤖", "#/robot", "140", "0", "0"},
@@ -569,6 +572,38 @@ public class DataInitializer implements ApplicationRunner {
      * 4. menu_config 升级 platform 维度；5. 存量 menu_config 权限迁移到 H5 key（仅当目标 h5 行存在且未软删）。
      * 失败仅记录提示，不阻断启动（菜单读取直接走 menu_item 表）。
      */
+    /**
+     * V19：AI 工具模型网关（wb_gateway_key 每用户 API Key + wb_gateway_config 模型开关）。
+     * 幂等建表 + 配置行播种；失败仅记录提示，可手动执行 sql/V19__wb_gateway.sql。
+     */
+    private void ensureWbGatewayTables() {
+        try {
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `wb_gateway_key` (" +
+                    "`id` BIGINT NOT NULL AUTO_INCREMENT," +
+                    "`user_id` BIGINT NOT NULL COMMENT 'Key 属主'," +
+                    "`name` VARCHAR(50) NOT NULL DEFAULT '' COMMENT '备注名'," +
+                    "`api_key` VARCHAR(255) NOT NULL COMMENT 'Key 明文的 SM4 密文（随机 IV，不可等值查询）'," +
+                    "`key_hash` CHAR(64) NOT NULL COMMENT 'Key 明文的 SM3 摘要（等值查询用）'," +
+                    "`model` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '用户自选模型（空=按请求模型/默认），仅模型开关开启时生效'," +
+                    "`enabled` TINYINT NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用'," +
+                    "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "`last_used_time` DATETIME NULL COMMENT '最近一次网关调用时间'," +
+                    "PRIMARY KEY (`id`)," +
+                    "UNIQUE KEY `uk_key_hash` (`key_hash`)," +
+                    "KEY `idx_user` (`user_id`)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 工具网关 API Key（每用户最多 5 把）'");
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `wb_gateway_config` (" +
+                    "`id` BIGINT NOT NULL COMMENT '固定单行 id=1'," +
+                    "`model_switch` TINYINT NOT NULL DEFAULT 1 COMMENT '1=开：用户自选模型生效 0=关：静默映射到 WorkBuddy 免费模型（对用户不可见）'," +
+                    "`update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+                    "PRIMARY KEY (`id`)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型网关全局配置（仅管理员可改）'");
+            jdbcTemplate.update("INSERT IGNORE INTO wb_gateway_config (id, model_switch) VALUES (1, 1)");
+            log.info("[INIT] 已自动执行 V19 迁移：wb_gateway_key / wb_gateway_config（模型网关）");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V19 迁移失败（请手动执行 sql/V19__wb_gateway.sql）：{}", e.getMessage());
+        }
+    }
     private void ensureMenuItems() {
         try {
             Integer cnt = jdbcTemplate.queryForObject(

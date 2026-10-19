@@ -1,0 +1,277 @@
+package com.cyz.controller;
+
+import com.cyz.pojo.Result;
+import com.cyz.pojo.WbGatewayKey;
+import com.cyz.service.WbGatewayKeyService;
+import com.cyz.wbgateway.WbModelCatalog;
+import com.cyz.wbgateway.WbWorkBuddyClient;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import javax.servlet.http.HttpSession;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 模型网关管理端点（/gateway/**，登录可见，已加入 WebMvcConfig 保护清单）。
+ * 每用户最多 5 把 Key；管理员专属：模型开关 + 目录免费标记视图。
+ */
+@RestController
+@Slf4j
+public class WbGatewayManageController {
+
+    @Autowired
+    private WbGatewayKeyService keyService;
+
+    @Autowired
+    private WbWorkBuddyClient client;
+
+    @Autowired
+    private com.cyz.mapper.gateway.WbGatewayMapper wbGatewayMapper;
+
+    @Autowired
+    private com.cyz.config.Sm4KeyHolder sm4KeyHolder;
+
+    /* ==================== Key 管理（登录用户本人） ==================== */
+
+    /** 我的 Key 列表（api_key 只回掩码） */
+    @GetMapping("gateway/keys")
+    public Result myKeys(HttpSession session) {
+        Result result = Result.getInstance();
+        Long userId = userId(session);
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (WbGatewayKey k : keyService.listByUser(userId)) {
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", k.getId());
+            m.put("name", k.getName());
+            m.put("model", k.getModel());
+            m.put("enabled", k.getEnabled() != null && k.getEnabled() == 1);
+            m.put("maskedKey", maskOf(k));
+            m.put("createTime", k.getCreateTime());
+            m.put("lastUsedTime", k.getLastUsedTime());
+            list.add(m);
+        }
+        Map<String, Object> body = new HashMap<>();
+        body.put("list", list);
+        body.put("max", WbGatewayKey.MAX_KEYS_PER_USER);
+        result.setBody(body);
+        return result;
+    }
+
+    /** 掩码展示：解密 SM4 密文后取 wb-****后4位；解密失败给占位 */
+    private String maskOf(WbGatewayKey k) {
+        try {
+            return WbGatewayKeyService.mask(sm4KeyHolder.decrypt(k.getApiKey()));
+        } catch (Exception e) {
+            return "wb-****";
+        }
+    }
+
+    /** 新增 Key（明文只返回这一次） */
+    @PostMapping("gateway/keys/add")
+    public Result addKey(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        Map<String, Object> body = body(req);
+        try {
+            String model = str(body.get("model"));
+            if (model == null || model.trim().isEmpty()) {
+                throw new IllegalArgumentException("请选择模型（模型为必选项）");
+            }
+            if (client.models().match(model) == null) {
+                throw new IllegalArgumentException("模型不在目录中：" + model);
+            }
+            WbGatewayKey key = keyService.create(userId(session), str(body.get("name")), model);
+            Map<String, Object> out = new HashMap<>();
+            out.put("id", key.getId());
+            out.put("name", key.getName());
+            out.put("model", key.getModel());
+            out.put("apiKey", key.getApiKey()); // 明文，仅此一次
+            result.setBody(out);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg(e.getMessage());
+        }
+        return result;
+    }
+
+    @PostMapping("gateway/keys/delete")
+    public Result deleteKey(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        Map<String, Object> body = body(req);
+        if (!keyService.delete(userId(session), longVal(body.get("id")))) {
+            return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        }
+        return result;
+    }
+
+    @PostMapping("gateway/keys/toggle")
+    public Result toggleKey(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        Map<String, Object> body = body(req);
+        Boolean enabled = boolVal(body.get("enabled"));
+        if (!keyService.toggle(userId(session), longVal(body.get("id")), Boolean.TRUE.equals(enabled))) {
+            return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        }
+        return result;
+    }
+
+    /** 查看本人 Key 明文（复制用；明文不再只在创建时显示一次） */
+    @PostMapping("gateway/keys/reveal")
+    public Result revealKey(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        Map<String, Object> body = body(req);
+        String raw = keyService.reveal(userId(session), longVal(body.get("id")));
+        if (raw == null) {
+            return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        }
+        result.setBody(raw);
+        return result;
+    }
+
+    /** 修改 Key 的自选模型 */
+    @PostMapping("gateway/keys/model")
+    public Result updateKeyModel(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        Map<String, Object> body = body(req);
+        try {
+            String model = str(body.get("model"));
+            if (model == null) model = "";
+            if (!model.isEmpty() && client.models().match(model) == null) {
+                throw new IllegalArgumentException("模型不在目录中：" + model);
+            }
+            if (!keyService.updateModel(userId(session), longVal(body.get("id")), model)) {
+                return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+            }
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg(e.getMessage());
+        }
+        return result;
+    }
+
+    /* ==================== 目录 / 状态（登录可见） ==================== */
+
+    /** 实时模型 id 列表 + 默认模型（不暴露免费标记——开关映射对用户不可知） */
+    @GetMapping("gateway/models")
+    public Result models() {
+        Result result = Result.getInstance();
+        WbModelCatalog catalog = client.models();
+        String dflt = client.getDefaultModel();
+        String canon = catalog.match(dflt);
+        if (canon == null && !catalog.ids().isEmpty()) canon = catalog.ids().get(0);
+        Map<String, Object> body = new HashMap<>();
+        body.put("models", catalog.ids());
+        body.put("default", canon == null ? "" : canon);
+        result.setBody(body);
+        return result;
+    }
+
+    /** 登录态 + 积分（Windows 侧诊断；仅管理员——暴露账号级登录态与积分） */
+    @GetMapping("gateway/status")
+    public Result status(HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        try {
+            result.setBody(client.bridgeStatus());
+        } catch (Exception e) {
+            result.setErrorMsg("桥接不可用：" + e.getMessage());
+            result.setErrorCode("000015");
+        }
+        return result;
+    }
+
+    /* ==================== 管理员专属 ==================== */
+
+    /** 模型开关当前状态（仅管理员） */
+    @GetMapping("gateway/admin/config")
+    public Result adminConfig(HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Integer sw = wbGatewayMapper.queryModelSwitch();
+        Map<String, Object> body = new HashMap<>();
+        body.put("modelSwitch", !Integer.valueOf(0).equals(sw));
+        result.setBody(body);
+        return result;
+    }
+
+    /** 切换模型开关：1=开（用户自选模型生效） 0=关（静默映射免费模型） */
+    @PostMapping("gateway/admin/switch")
+    public Result adminSwitch(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Map<String, Object> body = body(req);
+        Boolean on = boolVal(body.get("on"));
+        if (on == null) {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg("缺少 on 参数");
+            return result;
+        }
+        wbGatewayMapper.updateModelSwitch(Boolean.TRUE.equals(on) ? 1 : 0);
+        log.info("[WBGATEWAY] 模型开关切换为 {}（by user {}）", on, userId(session));
+        return result;
+    }
+
+    /** 目录全量视图（含免费标记，仅管理员——用于核对开关映射目标） */
+    @GetMapping("gateway/admin/models")
+    public Result adminModels(HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        WbModelCatalog catalog = client.models();
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (WbModelCatalog.ModelInfo m : catalog.getModels()) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", m.id);
+            row.put("name", m.name);
+            row.put("free", m.free);
+            list.add(row);
+        }
+        Map<String, Object> body = new HashMap<>();
+        body.put("list", list);
+        body.put("source", catalog.getSource());
+        result.setBody(body);
+        return result;
+    }
+
+    /* ==================== 辅助 ==================== */
+
+    private static Long userId(HttpSession session) {
+        Long id = (Long) session.getAttribute("userId");
+        return id == null ? 0L : id;
+    }
+
+    private static boolean isAdmin(HttpSession session) {
+        Integer role = (Integer) session.getAttribute("role");
+        return role != null && role == 0;
+    }
+
+    private static String str(Object o) {
+        return o == null ? null : String.valueOf(o);
+    }
+
+    private static Long longVal(Object o) {
+        if (o == null) return null;
+        if (o instanceof Number) return ((Number) o).longValue();
+        try {
+            return Long.valueOf(String.valueOf(o));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static Boolean boolVal(Object o) {
+        if (o == null) return null;
+        if (o instanceof Boolean) return (Boolean) o;
+        return Boolean.valueOf(String.valueOf(o));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> body(Result req) {
+        if (req == null || !(req.getBody() instanceof Map)) {
+            return new HashMap<>();
+        }
+        return (Map<String, Object>) req.getBody();
+    }
+}

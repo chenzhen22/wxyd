@@ -132,6 +132,14 @@ $(function () {
         if (target === "dayinfo" && window.DayInfo) {
             DayInfo.init();
         }
+        // 模型网关模块懒加载
+
+        if (target === "gateway" && window.Gateway) {
+
+            Gateway.init();
+
+        }
+
         // 菜单管理模块懒加载（仅管理员）
         if (target === "menuManage" && window.MenuManage) {
             MenuManage.mount($("#menuManageBody")[0]);

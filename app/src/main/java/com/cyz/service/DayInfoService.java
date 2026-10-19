@@ -287,8 +287,9 @@ public class DayInfoService {
 
     /**
      * 订阅提醒定时任务：每 10 分钟扫描首次入库（notified=0）的日报，
-     * 处于时间窗口（默认 8:00-22:00，wxyd.dayinfo.notify-window-start/end）内才发送——
-     * 深夜入库的日报顺延到次日窗口开启时推送；发送后置 notified=1，同日覆盖更新不重置（不重复提醒）。
+     * 处于时间窗口（默认 8:00-22:00，wxyd.dayinfo.notify-window-start/end）内才发送；
+     * 只推送当日（info_date=今天）的日报——深夜入库顺延到次日窗口的日报已非当日，不再推送，
+     * 直接标记 notified=1 防止反复扫描；发送后置 notified=1，同日覆盖更新不重置（不重复提醒）。
      */
     @Scheduled(cron = "0 */10 * * * *")
     public void notifyJob() {
@@ -300,8 +301,15 @@ public class DayInfoService {
         if (pending == null || pending.isEmpty()) {
             return;
         }
+        String today = LocalDate.now().toString();
         List<DayInfoSubscribe> subs = dayInfoMapper.listEnabledSubscribe();
         for (DayInfo info : pending) {
+            if (info.getInfoDate() == null || !today.equals(info.getInfoDate())) {
+                // 非当日日报不推送（含跨日顺延的），标记已处理避免每次扫描重复出现
+                dayInfoMapper.markNotified(info.getId());
+                log.info("[DAYINFO] 非当日日报跳过推送：info={} date={}", info.getId(), info.getInfoDate());
+                continue;
+            }
             if (subs != null && !subs.isEmpty()) {
                 for (DayInfoSubscribe s : subs) {
                     notifyExecutor.execute(() -> {

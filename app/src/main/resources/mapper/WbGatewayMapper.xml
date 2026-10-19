@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.cyz.mapper.gateway.WbGatewayMapper">
+
+	<!-- ===== wb_gateway_key ===== -->
+	<insert id="insertKey" parameterType="com.cyz.pojo.WbGatewayKey" useGeneratedKeys="true" keyProperty="id">
+		insert into `wb_gateway_key` (`user_id`,`name`,`api_key`,`key_hash`,`model`,`enabled`)
+		values (#{userId},#{name},#{apiKey},#{keyHash},#{model},#{enabled})
+	</insert>
+
+	<select id="countByUserId" parameterType="Long" resultType="Integer">
+		select count(1) from `wb_gateway_key` where `user_id`=#{userId}
+	</select>
+
+	<select id="listByUserId" parameterType="Long" resultType="com.cyz.pojo.WbGatewayKey">
+		select `id`,`user_id`,`name`,`api_key`,`key_hash`,`model`,`enabled`,
+		       date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime,
+		       date_format(`last_used_time`,'%Y-%m-%d %H:%i:%s') as lastUsedTime
+		from `wb_gateway_key` where `user_id`=#{userId} order by `id`
+	</select>
+
+	<select id="queryKeyById" resultType="com.cyz.pojo.WbGatewayKey">
+		select `id`,`user_id`,`name`,`api_key`,`key_hash`,`model`,`enabled`,
+		       date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime,
+		       date_format(`last_used_time`,'%Y-%m-%d %H:%i:%s') as lastUsedTime
+		from `wb_gateway_key` where `id`=#{id} and `user_id`=#{userId}
+	</select>
+
+	<select id="queryKeyByHash" parameterType="String" resultType="com.cyz.pojo.WbGatewayKey">
+		select `id`,`user_id`,`name`,`api_key`,`key_hash`,`model`,`enabled`,
+		       date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime,
+		       date_format(`last_used_time`,'%Y-%m-%d %H:%i:%s') as lastUsedTime
+		from `wb_gateway_key` where `key_hash`=#{keyHash} and `enabled`=1
+	</select>
+
+	<delete id="deleteKey">
+		delete from `wb_gateway_key` where `id`=#{id} and `user_id`=#{userId}
+	</delete>
+
+	<update id="updateKeyEnabled">
+		update `wb_gateway_key` set `enabled`=#{enabled} where `id`=#{id} and `user_id`=#{userId}
+	</update>
+
+	<update id="updateKeyModel">
+		update `wb_gateway_key` set `model`=#{model} where `id`=#{id} and `user_id`=#{userId}
+	</update>
+
+	<update id="touchKeyLastUsed" parameterType="Long">
+		update `wb_gateway_key` set `last_used_time`=now() where `id`=#{id}
+	</update>
+
+	<!-- ===== wb_gateway_config ===== -->
+	<select id="queryModelSwitch" resultType="Integer">
+		select `model_switch` from `wb_gateway_config` where `id`=1
+	</select>
+
+	<update id="updateModelSwitch" parameterType="Integer">
+		update `wb_gateway_config` set `model_switch`=#{modelSwitch} where `id`=1
+	</update>
+
+</mapper>

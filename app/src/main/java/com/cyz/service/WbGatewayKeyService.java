@@ -1,0 +1,141 @@
+package com.cyz.service;
+
+import com.cyz.config.Sm4KeyHolder;
+import com.cyz.mapper.gateway.WbGatewayMapper;
+import com.cyz.pojo.WbGatewayKey;
+import com.cyz.util.SMUtil;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.security.SecureRandom;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * AI 工具网关 API Key 管理：每用户最多 {@link WbGatewayKey#MAX_KEYS_PER_USER} 把。
+ * <p>
+ * 存储照 wxyd 惯例：api_key 列存 SM4 密文（随机 IV，展示时可解密回显掩码），
+ * key_hash 存明文 SM3 摘要供网关鉴权等值查询。
+ */
+@Service
+@Slf4j
+public class WbGatewayKeyService {
+
+    private static final char[] HEX = "0123456789abcdef".toCharArray();
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /** last_used_time 更新节流：同一 Key 60s 内只写一次，避免流式请求写风暴 */
+    private final Map<Long, Long> lastTouch = new ConcurrentHashMap<>();
+
+    @Autowired
+    private WbGatewayMapper wbGatewayMapper;
+
+    @Autowired
+    private Sm4KeyHolder sm4KeyHolder;
+
+    public int countByUser(Long userId) {
+        Integer n = wbGatewayMapper.countByUserId(userId);
+        return n == null ? 0 : n;
+    }
+
+    public List<WbGatewayKey> listByUser(Long userId) {
+        return wbGatewayMapper.listByUserId(userId);
+    }
+
+    /** 生成新 Key（明文只在此返回一次），model 可空 */
+    public WbGatewayKey create(Long userId, String name, String model) {
+        if (countByUser(userId) >= WbGatewayKey.MAX_KEYS_PER_USER) {
+            throw new IllegalArgumentException("每个用户最多创建 " + WbGatewayKey.MAX_KEYS_PER_USER + " 把 Key");
+        }
+        String raw = generateKey();
+        WbGatewayKey key = new WbGatewayKey();
+        key.setUserId(userId);
+        key.setName(name == null ? "" : name.trim());
+        key.setApiKey(sm4KeyHolder.encrypt(raw));
+        key.setKeyHash(SMUtil.sm3(raw));
+        key.setModel(model == null ? "" : model.trim());
+        key.setEnabled(1);
+        wbGatewayMapper.insertKey(key);
+        key.setApiKey(raw); // 返回明文，前端只展示这一次
+        return key;
+    }
+
+    /**
+     * 删除（先验归属；行存在即成功——避免 MySQL useAffectedRows 下同值更新 0 行被误判无权）
+     */
+    public boolean delete(Long userId, Long id) {
+        if (wbGatewayMapper.queryKeyById(id, userId) == null) return false;
+        wbGatewayMapper.deleteKey(id, userId);
+        return true;
+    }
+
+    /** 启用/停用（先验归属再无条件更新，幂等） */
+    public boolean toggle(Long userId, Long id, boolean enabled) {
+        if (wbGatewayMapper.queryKeyById(id, userId) == null) return false;
+        wbGatewayMapper.updateKeyEnabled(id, userId, enabled ? 1 : 0);
+        return true;
+    }
+
+    /** 修改自选模型（先验归属再无条件更新，幂等） */
+    public boolean updateModel(Long userId, Long id, String model) {
+        if (wbGatewayMapper.queryKeyById(id, userId) == null) return false;
+        wbGatewayMapper.updateKeyModel(id, userId, model == null ? "" : model.trim());
+        return true;
+    }
+
+    /** 本人 Key 明文（复制用；非本人返回 null） */
+    public String reveal(Long userId, Long id) {
+        WbGatewayKey key = wbGatewayMapper.queryKeyById(id, userId);
+        if (key == null) return null;
+        try {
+            return sm4KeyHolder.decrypt(key.getApiKey());
+        } catch (Exception e) {
+            log.error("[WBGATEWAY] Key 解密失败 id={}", id);
+            return null;
+        }
+    }
+
+    /** 网关鉴权：明文 Key -> Key 行（未命中/已停用/已删除返回 null） */
+    public WbGatewayKey verify(String rawKey) {
+        if (rawKey == null || rawKey.isEmpty()) return null;
+        WbGatewayKey key = wbGatewayMapper.queryKeyByHash(SMUtil.sm3(rawKey));
+        if (key == null) return null;
+        try {
+            String stored = sm4KeyHolder.decrypt(key.getApiKey());
+            if (!stored.equals(rawKey)) return null; // 哈希碰撞兜底（概率可忽略）
+        } catch (Exception e) {
+            log.error("[WBGATEWAY] Key 解密校验失败 id={}", key.getId());
+            return null;
+        }
+        return key;
+    }
+
+    /** 掩码展示：wb-****abcd */
+    public static String mask(String rawKey) {
+        if (rawKey == null || rawKey.length() < 8) return "wb-****";
+        return rawKey.substring(0, 3) + "****" + rawKey.substring(rawKey.length() - 4);
+    }
+
+    /** 最近使用时间节流更新 */
+    public void touch(Long keyId) {
+        long now = System.currentTimeMillis();
+        Long prev = lastTouch.get(keyId);
+        if (prev != null && now - prev < 60_000L) return;
+        lastTouch.put(keyId, now);
+        try {
+            wbGatewayMapper.touchKeyLastUsed(keyId);
+        } catch (Exception e) {
+            log.warn("[WBGATEWAY] 更新 last_used_time 失败 id={}", keyId);
+        }
+    }
+
+    private static String generateKey() {
+        byte[] buf = new byte[16];
+        RANDOM.nextBytes(buf);
+        char[] out = new char[32];
+        for (int i = 0; i < 32; i++) out[i] = HEX[(buf[i / 2] >> ((i % 2) * 4)) & 0xf];
+        return "wb-" + new String(out);
+    }
+}

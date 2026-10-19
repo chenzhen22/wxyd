@@ -115,6 +115,10 @@
 		select count(1) from `wb_gateway_usage`
 	</select>
 
+	<delete id="deleteUsageExpired" parameterType="Integer">
+		delete from `wb_gateway_usage` where `create_time` &lt; DATE_SUB(NOW(), INTERVAL #{days} DAY)
+	</delete>
+
 	<select id="usageDetail" resultType="java.util.HashMap">
 		select g.`id`, g.`user_id` as "userId",
 		       COALESCE(NULLIF(u.`display_name`,''), u.`username`) as "ownerName",

@@ -57,6 +57,9 @@ public interface WbGatewayMapper {
 
     int usageLogsCount();
 
+    /** 清理超过保留期的用量记录 */
+    int deleteUsageExpired(@Param("days") int days);
+
     /** 单条用量详情（含请求/应答数据） */
     Map<String, Object> usageDetail(@Param("id") Long id);
 }

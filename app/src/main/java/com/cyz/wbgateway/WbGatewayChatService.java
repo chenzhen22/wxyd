@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import okhttp3.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletResponse;
@@ -31,6 +32,10 @@ public class WbGatewayChatService {
 
     public static final String PROTO_ANTHROPIC = "anthropic";
     public static final String PROTO_OPENAI = "openai";
+
+    /** 用量记录保留天数（wb_gateway_usage），默认 7 天 */
+    @Value("${wxyd.wbgateway.usage-retention-days:7}")
+    private int usageRetentionDays;
 
     @Autowired
     private WbWorkBuddyClient client;
@@ -272,6 +277,27 @@ public class WbGatewayChatService {
             wbGatewayMapper.insertUsage(u);
         } catch (Exception e) {
             log.warn("[WBGATEWAY] 用量记录失败：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 用量记录过期清理：每日 03:30 删除超过保留期（默认 7 天，wxyd.wbgateway.usage-retention-days）的记录；
+     * 启动时也清一次。
+     */
+    @Scheduled(cron = "0 30 3 * * ?")
+    public void cleanupUsage() {
+        int n = wbGatewayMapper.deleteUsageExpired(Math.max(1, usageRetentionDays));
+        if (n > 0) {
+            log.info("[WBGATEWAY] 已清理 {} 条过期用量记录（保留 {} 天）", n, usageRetentionDays);
+        }
+    }
+
+    @javax.annotation.PostConstruct
+    public void cleanupUsageOnStartup() {
+        try {
+            cleanupUsage();
+        } catch (Exception e) {
+            log.warn("[WBGATEWAY] 启动清理用量记录失败：{}", e.getMessage());
         }
     }
 

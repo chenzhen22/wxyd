@@ -142,6 +142,14 @@ public class WbOpenAiSseWriter {
         }
     }
 
+    public long getUsageIn() {
+        return usageIn;
+    }
+
+    public long getUsageOut() {
+        return usageOut;
+    }
+
     public void finish() throws IOException {
         if (!started) ensureStarted();
         String finish;

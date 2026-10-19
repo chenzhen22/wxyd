@@ -58,6 +58,63 @@
 		update `wb_gateway_config` set `model_switch`=#{modelSwitch} where `id`=1
 	</update>
 
+	<!-- ===== 令牌消耗统计 ===== -->
+	<insert id="insertUsage" parameterType="com.cyz.pojo.WbGatewayUsage" useGeneratedKeys="true" keyProperty="id">
+		insert into `wb_gateway_usage` (`user_id`,`key_id`,`protocol`,`requested_model`,`used_model`,`stream`,`input_tokens`,`output_tokens`,`duration_ms`,`status`,`error_kind`)
+		values (#{userId},#{keyId},#{protocol},#{requestedModel},#{usedModel},#{stream},#{inputTokens},#{outputTokens},#{durationMs},#{status},#{errorKind})
+	</insert>
+
+	<select id="usageTotals" resultType="java.util.HashMap">
+		select count(1) as "count",
+		       COALESCE(sum(`input_tokens`),0) as "inputTokens",
+		       COALESCE(sum(`output_tokens`),0) as "outputTokens"
+		from `wb_gateway_usage`
+	</select>
+
+	<select id="usageTotalsToday" resultType="java.util.HashMap">
+		select count(1) as "count",
+		       COALESCE(sum(`input_tokens`),0) as "inputTokens",
+		       COALESCE(sum(`output_tokens`),0) as "outputTokens"
+		from `wb_gateway_usage` where `create_time` >= CURDATE()
+	</select>
+
+	<select id="usageByUser" resultType="java.util.HashMap">
+		select g.`user_id` as "userId",
+		       COALESCE(NULLIF(u.`display_name`,''), u.`username`) as "ownerName",
+		       count(1) as "count",
+		       COALESCE(sum(g.`input_tokens`),0) as "inputTokens",
+		       COALESCE(sum(g.`output_tokens`),0) as "outputTokens"
+		from `wb_gateway_usage` g left join `users` u on g.`user_id` = u.`id`
+		group by g.`user_id`, COALESCE(NULLIF(u.`display_name`,''), u.`username`)
+		order by count(1) desc
+	</select>
+
+	<select id="usageByModel" resultType="java.util.HashMap">
+		select `used_model` as "usedModel",
+		       count(1) as "count",
+		       COALESCE(sum(`input_tokens`),0) as "inputTokens",
+		       COALESCE(sum(`output_tokens`),0) as "outputTokens"
+		from `wb_gateway_usage`
+		group by `used_model`
+		order by count(1) desc
+	</select>
+
+	<select id="usageLogs" resultType="java.util.HashMap">
+		select g.`id`, g.`user_id` as "userId",
+		       COALESCE(NULLIF(u.`display_name`,''), u.`username`) as "ownerName",
+		       g.`protocol`, g.`requested_model` as "requestedModel", g.`used_model` as "usedModel",
+		       g.`stream`, g.`input_tokens` as "inputTokens", g.`output_tokens` as "outputTokens",
+		       g.`duration_ms` as "durationMs", g.`status`, g.`error_kind` as "errorKind",
+		       date_format(g.`create_time`,'%Y-%m-%d %H:%i:%s') as "createTime"
+		from `wb_gateway_usage` g left join `users` u on g.`user_id` = u.`id`
+		order by g.`id` desc
+		limit #{limit} offset #{offset}
+	</select>
+
+	<select id="usageLogsCount" resultType="Integer">
+		select count(1) from `wb_gateway_usage`
+	</select>
+
 	<!-- ===== 管理员（全部用户 Key） ===== -->
 	<select id="adminListKeys" resultType="java.util.HashMap">
 		select k.`id`, k.`user_id` as "userId",

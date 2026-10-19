@@ -106,7 +106,8 @@
             $.getJSON('gateway/admin/models').done(function (r2) {
                 if (r2.errorCode !== '000000') return;
                 var b = r2.body || {};
-                $('#h5GwModelsSource').text('目录：' + (b.source === 'live' ? '实时' : '兜底'));
+                loadUsage();
+            $('#h5GwModelsSource').text('目录：' + (b.source === 'live' ? '实时' : '兜底'));
                 var $l = $('#h5GwAdminModels').html('');
                 (b.list || []).forEach(function (m) {
                     $l.append('<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-2);padding:3px 0;">' +
@@ -140,6 +141,10 @@
             '<input type="checkbox" id="h5GwSwitch"> <span id="h5GwSwitchLabel"></span></label>' +
             '<div style="font-size:11px;color:var(--text-5);margin:6px 0 8px;">关 = 所有请求自动映射到 WorkBuddy 免费模型（对用户不可见）</div>' +
             '<div id="h5GwAdminModels"></div>' +
+            '<div style="font-weight:600;color:var(--text-1);margin:10px 0 6px;">📊 令牌消耗统计</div>' +
+            '<div id="h5GwUsageChips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"></div>' +
+            '<div id="h5GwUsageLogs"></div>' +
+            '<div class="h5-empty" id="h5GwUsageEmpty" style="display:none;">暂无调用记录</div>' +
             '<div style="font-weight:600;color:var(--text-1);margin:10px 0 6px;">🗂️ 全部用户 Key</div>' +
             '<div id="h5GwAdminKeys"></div>' +
             '<div class="h5-empty" id="h5GwAdminKeysEmpty" style="display:none;">还没有用户创建 Key</div></div>');
@@ -201,7 +206,32 @@
                     $('#h5GwSwitchLabel').text(on ? '开（用户自选模型生效）' : '关（静默映射免费模型）');
                 });
             });
-            function loadAdminKeys() {
+            function loadUsage() {
+            $.getJSON('gateway/admin/usage/summary').done(function (res) {
+                if (res.errorCode !== '000000') return;
+                var b = res.body || {};
+                var t = b.totals || {}, td = b.today || {};
+                var fmt = function (n) { n = Number(n) || 0; return n >= 10000 ? (n / 1000).toFixed(1) + 'k' : String(n); };
+                var chip = function (l, v) { return '<span style="padding:4px 10px;border-radius:8px;background:var(--glass-3);border:1px solid var(--glass-5);font-size:11px;color:var(--text-5);">' + l + ' <b style="color:var(--accent);">' + esc(v) + '</b></span>'; };
+                $('#h5GwUsageChips').html(chip('总请求', t.count || 0) + chip('输入', fmt(t.inputTokens)) + chip('输出', fmt(t.outputTokens)) + chip('今日', td.count || 0));
+                $.getJSON('gateway/admin/usage/logs', { pageNum: 1, pageSize: 20 }).done(function (r2) {
+                    if (r2.errorCode !== '000000') return;
+                    var logs = (r2.body && r2.body.list) || [];
+                    var $l = $('#h5GwUsageLogs').html('');
+                    $('#h5GwUsageEmpty').toggle(!logs.length);
+                    logs.forEach(function (x) {
+                        var $row = $('<div/>').css({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--glass-5)', fontSize: '12px' });
+                        $row.append('<div><span style="color:var(--text-1);">' + esc(x.ownerName || x.userId) + '</span>' +
+                            ' <span style="color:var(--text-5);">' + esc(x.usedModel || '?') + '</span>' +
+                            '<div style="color:var(--text-5);font-size:11px;">' + esc(x.createTime) + ' · in ' + fmt(x.inputTokens) + ' / out ' + fmt(x.outputTokens) + ' · ' + Math.round(x.durationMs / 100) / 10 + 's</div></div>');
+                        $row.append('<div style="font-size:11px;">' + (x.status === 'ok' ? '<span style="color:#4ade80;">✓</span>' : '<span style="color:#f87171;">✗ ' + esc(x.errorKind || '') + '</span>') + '</div>');
+                        $l.append($row);
+                    });
+                });
+            });
+        }
+
+        function loadAdminKeys() {
                 $.getJSON('gateway/admin/keys').done(function (res) {
                     if (res.errorCode !== '000000') return;
                     var list = (res.body && res.body.list) || [];

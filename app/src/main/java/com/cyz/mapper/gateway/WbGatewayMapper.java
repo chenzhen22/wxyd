@@ -40,4 +40,20 @@ public interface WbGatewayMapper {
 
     /** 管理员：设置单条 Key 的模型开关（null=跟随全局） */
     int adminUpdateKeyModelOverride(@Param("id") Long id, @Param("modelOverride") Integer modelOverride);
+
+    /* ===== 令牌消耗统计 ===== */
+
+    int insertUsage(com.cyz.pojo.WbGatewayUsage usage);
+
+    Map<String, Object> usageTotals();
+
+    Map<String, Object> usageTotalsToday();
+
+    List<Map<String, Object>> usageByUser();
+
+    List<Map<String, Object>> usageByModel();
+
+    List<Map<String, Object>> usageLogs(@Param("offset") int offset, @Param("limit") int limit);
+
+    int usageLogsCount();
 }

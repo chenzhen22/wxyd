@@ -273,6 +273,40 @@ public class WbGatewayManageController {
         return result;
     }
 
+    /* ==================== 令牌消耗统计（仅管理员） ==================== */
+
+    /** 汇总：总量 + 今日 + 按用户 + 按模型 */
+    @GetMapping("gateway/admin/usage/summary")
+    public Result usageSummary(HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Map<String, Object> body = new HashMap<>();
+        body.put("totals", wbGatewayMapper.usageTotals());
+        body.put("today", wbGatewayMapper.usageTotalsToday());
+        body.put("byUser", wbGatewayMapper.usageByUser());
+        body.put("byModel", wbGatewayMapper.usageByModel());
+        result.setBody(body);
+        return result;
+    }
+
+    /** 明细日志（分页） */
+    @GetMapping("gateway/admin/usage/logs")
+    public Result usageLogs(@RequestParam(defaultValue = "1") Integer pageNum,
+                            @RequestParam(defaultValue = "20") Integer pageSize,
+                            HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        int pn = pageNum == null || pageNum < 1 ? 1 : pageNum;
+        int ps = pageSize == null || pageSize < 1 ? 20 : Math.min(pageSize, 100);
+        Map<String, Object> body = new HashMap<>();
+        body.put("total", wbGatewayMapper.usageLogsCount());
+        body.put("list", wbGatewayMapper.usageLogs((pn - 1) * ps, ps));
+        body.put("pageNum", pn);
+        body.put("pageSize", ps);
+        result.setBody(body);
+        return result;
+    }
+
     /* ==================== 辅助 ==================== */
 
     private static Long userId(HttpSession session) {

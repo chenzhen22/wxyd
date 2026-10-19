@@ -1,7 +1,7 @@
 (function () {
 
     var initialized = false;
-    var state = { models: [], defaultModel: '', admin: false };
+    var state = { models: [], defaultModel: '', admin: false, usagePage: 1 };
 
     function esc(s) {
         return s == null ? '' : String(s)
@@ -133,6 +133,7 @@
             $('#gwSwitch').prop('checked', !!on);
             $('#gwSwitchLabel').text(on ? '开（用户自选模型生效）' : '关（静默映射免费模型）');
             loadAdminKeys();
+            loadUsage(1);
             $.getJSON('gateway/admin/models').done(function (r2) {
                 if (r2.errorCode !== '000000') return;
                 var b = r2.body || {};
@@ -171,6 +172,57 @@
                 $tr.append('<td>' + esc(k.lastUsedTime || '从未') + '</td>');
                 $tb.append($tr);
             });
+        });
+    }
+
+    /* ================= 令牌消耗统计 ================= */
+
+    function fmtNum(n) {
+        n = Number(n) || 0;
+        return n >= 10000 ? (n / 1000).toFixed(1) + 'k' : String(n);
+    }
+
+    function chip(label, value) {
+        return '<div style="padding:8px 14px;border-radius:10px;background:var(--glass-2);border:1px solid var(--glass-5);font-size:12px;color:var(--text-5);">' +
+            label + ' <span style="color:var(--accent);font-size:15px;font-weight:600;margin-left:4px;">' + esc(value) + '</span></div>';
+    }
+
+    function loadUsage(page) {
+        state.usagePage = page || 1;
+        $.getJSON('gateway/admin/usage/summary').done(function (res) {
+            if (res.errorCode !== '000000') return;
+            var b = res.body || {};
+            var t = b.totals || {}, td = b.today || {};
+            $('#gwUsageChips').html(
+                chip('总请求', t.count || 0) + chip('输入 tokens', fmtNum(t.inputTokens)) + chip('输出 tokens', fmtNum(t.outputTokens)) +
+                chip('今日请求', td.count || 0) + chip('今日输入', fmtNum(td.inputTokens)) + chip('今日输出', fmtNum(td.outputTokens)));
+            var row = function (cols) { return '<tr>' + cols.map(function (c) { return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; };
+            var $u = $('#gwUsageByUser').html('');
+            (b.byUser || []).forEach(function (x) {
+                $u.append(row([x.ownerName || x.userId, x.count, fmtNum(x.inputTokens), fmtNum(x.outputTokens)]));
+            });
+            if (!(b.byUser || []).length) $u.append('<tr><td colspan="4" style="color:var(--text-5);">暂无数据</td></tr>');
+            var $m = $('#gwUsageByModel').html('');
+            (b.byModel || []).forEach(function (x) {
+                $m.append(row([x.usedModel || '(未知)', x.count, fmtNum(x.inputTokens), fmtNum(x.outputTokens)]));
+            });
+            if (!(b.byModel || []).length) $m.append('<tr><td colspan="4" style="color:var(--text-5);">暂无数据</td></tr>');
+        });
+        $.getJSON('gateway/admin/usage/logs', { pageNum: state.usagePage, pageSize: 20 }).done(function (res) {
+            if (res.errorCode !== '000000') return;
+            var b = res.body || {};
+            var total = b.total || 0;
+            var pages = Math.max(1, Math.ceil(total / (b.pageSize || 20)));
+            $('#gwUsagePageInfo').text('第 ' + (b.pageNum || 1) + ' / ' + pages + ' 页 · 共 ' + total + ' 条');
+            var $tb = $('#gwUsageLogBody').html('');
+            (b.list || []).forEach(function (x) {
+                var model = esc(x.usedModel || '?') + (x.requestedModel && x.requestedModel !== x.usedModel ? ' <span style="color:var(--text-5);">(' + esc(x.requestedModel) + ')</span>' : '');
+                $tb.append('<tr><td>' + esc(x.createTime) + '</td><td>' + esc(x.ownerName || x.userId) + '</td><td>' + model + '</td><td>' +
+                    esc(x.protocol) + '</td><td>' + (x.stream ? '是' : '否') + '</td><td>' + fmtNum(x.inputTokens) + '</td><td>' + fmtNum(x.outputTokens) + '</td><td>' +
+                    (x.durationMs != null ? Math.round(x.durationMs / 100) / 10 + 's' : '-') + '</td><td>' +
+                    (x.status === 'ok' ? '<span style="color:#4ade80;">成功</span>' : '<span style="color:#f87171;">失败</span>' + (x.errorKind ? ' <span style="font-size:11px;color:var(--text-5);">' + esc(x.errorKind) + '</span>' : '')) + '</td></tr>');
+            });
+            if (!(b.list || []).length) $tb.append('<tr><td colspan="9" style="color:var(--text-5);">暂无调用记录</td></tr>');
         });
     }
 
@@ -260,6 +312,13 @@
                 gwAlert('已设置');
                 loadAdminKeys();
             });
+        });
+
+        $('#gwUsagePrev').on('click', function () {
+            if (state.usagePage > 1) loadUsage(state.usagePage - 1);
+        });
+        $('#gwUsageNext').on('click', function () {
+            loadUsage(state.usagePage + 1);
         });
 
         $('#gwSwitch').on('change', function () {

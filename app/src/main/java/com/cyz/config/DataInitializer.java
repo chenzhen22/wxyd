@@ -601,7 +601,8 @@ public class DataInitializer implements ApplicationRunner {
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型网关全局配置（仅管理员可改）'");
             jdbcTemplate.update("INSERT IGNORE INTO wb_gateway_config (id, model_switch) VALUES (1, 1)");
             ensureWbGatewayKeyOverrideColumn();
-            log.info("[INIT] 已自动执行 V19 迁移：wb_gateway_key / wb_gateway_config（模型网关）");
+            ensureWbGatewayUsageTable();
+            log.info("[INIT] 已自动执行 V19-V21 迁移：wb_gateway_key / wb_gateway_config / wb_gateway_usage（模型网关）");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V19 迁移失败（请手动执行 sql/V19__wb_gateway.sql）：{}", e.getMessage());
         }
@@ -623,6 +624,36 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] 已自动执行 V20 迁移：wb_gateway_key 补 model_override 列（Key 级模型开关）");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V20 迁移失败（请手动执行 sql/V20__wb_gateway_key_override.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * V21：模型网关令牌消耗统计表（每次对话请求一条）。
+     */
+    private void ensureWbGatewayUsageTable() {
+        try {
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `wb_gateway_usage` (" +
+                    "`id` BIGINT NOT NULL AUTO_INCREMENT," +
+                    "`user_id` BIGINT NOT NULL COMMENT '调用者'," +
+                    "`key_id` BIGINT NOT NULL COMMENT '使用的网关 Key'," +
+                    "`protocol` VARCHAR(16) NOT NULL DEFAULT 'anthropic' COMMENT 'anthropic | openai'," +
+                    "`requested_model` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '客户端请求的模型名'," +
+                    "`used_model` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '实际使用的上游模型（映射后）'," +
+                    "`stream` TINYINT NOT NULL DEFAULT 0 COMMENT '1=流式 0=非流式'," +
+                    "`input_tokens` BIGINT NOT NULL DEFAULT 0," +
+                    "`output_tokens` BIGINT NOT NULL DEFAULT 0," +
+                    "`duration_ms` BIGINT NOT NULL DEFAULT 0," +
+                    "`status` VARCHAR(16) NOT NULL DEFAULT 'ok' COMMENT 'ok | error'," +
+                    "`error_kind` VARCHAR(32) NULL COMMENT '失败类别（invalid_request/auth_error/...）'," +
+                    "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "PRIMARY KEY (`id`)," +
+                    "KEY `idx_user` (`user_id`)," +
+                    "KEY `idx_create_time` (`create_time`)," +
+                    "KEY `idx_used_model` (`used_model`)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型网关令牌消耗统计'");
+            log.info("[INIT] 已自动执行 V21 迁移：wb_gateway_usage（令牌消耗统计）");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V21 迁移失败（请手动执行 sql/V21__wb_gateway_usage.sql）：{}", e.getMessage());
         }
     }
 

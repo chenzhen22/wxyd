@@ -267,6 +267,11 @@ public class WbAnthropicSseWriter {
         return closed;
     }
 
+    /** 输入 token（上游 usage，缺省 0） */
+    public long getInputTokens() {
+        return usageIn;
+    }
+
     public long outputTokens() {
         return usageOut > 0 ? usageOut : countedOut;
     }

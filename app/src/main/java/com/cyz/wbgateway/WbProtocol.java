@@ -632,6 +632,7 @@ public final class WbProtocol {
     /** 上游 OpenAI SSE 聚合结果（客户端要非流式时用） */
     public static class Aggregated {
         public String content = "";
+        public String usedModel = "";
         public String reasoning = "";
         public final Map<Integer, ToolCall> toolCalls = new LinkedHashMap<>();
         public String finishReason;

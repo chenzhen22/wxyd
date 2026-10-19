@@ -647,6 +647,29 @@
                     <div id="gwAdminKeysEmpty" style="display:none;color:var(--text-5);font-size:13px;">还没有用户创建 Key</div>
                 </div>
                 <div style="font-size:12px;color:var(--text-5);margin-top:6px;">Key 级开关优先于全局模型开关：「开/关（覆盖）」对该用户强制生效，「跟随全局」则按上面的全局开关处理。</div>
+
+                <div style="font-weight:600;color:var(--text-1);margin:16px 0 8px;">📊 令牌消耗统计</div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;" id="gwUsageChips"></div>
+                <div style="display:flex;gap:20px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:280px;">
+                        <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:6px;">按用户</div>
+                        <table class="data-table"><thead><tr><th>用户</th><th>请求数</th><th>输入 tok</th><th>输出 tok</th></tr></thead><tbody id="gwUsageByUser"></tbody></table>
+                    </div>
+                    <div style="flex:1;min-width:280px;">
+                        <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:6px;">按模型</div>
+                        <table class="data-table"><thead><tr><th>模型</th><th>请求数</th><th>输入 tok</th><th>输出 tok</th></tr></thead><tbody id="gwUsageByModel"></tbody></table>
+                    </div>
+                </div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-2);margin:12px 0 6px;">最近调用明细</div>
+                <table class="data-table">
+                    <thead><tr><th>时间</th><th>用户</th><th>模型</th><th>协议</th><th>流式</th><th>输入</th><th>输出</th><th>耗时</th><th>状态</th></tr></thead>
+                    <tbody id="gwUsageLogBody"></tbody>
+                </table>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+                    <button class="btn-main" id="gwUsagePrev" style="padding:3px 10px;font-size:12px;">上一页</button>
+                    <span id="gwUsagePageInfo" style="font-size:12px;color:var(--text-5);"></span>
+                    <button class="btn-main" id="gwUsageNext" style="padding:3px 10px;font-size:12px;">下一页</button>
+                </div>
             </div>
         </div>
 
@@ -799,6 +822,6 @@
 <script src="Assets/js/sqltool.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
-<script src="Assets/js/gateway.js?v=6" type="text/javascript"></script>
+<script src="Assets/js/gateway.js?v=7" type="text/javascript"></script>
 </body>
 </html>

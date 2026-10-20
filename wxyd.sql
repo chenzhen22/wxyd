@@ -210,24 +210,7 @@ CREATE TABLE IF NOT EXISTS `radar_subscribe` (
   KEY `idx_user` (`user_id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '羊毛雷达订阅';
 
-CREATE TABLE IF NOT EXISTS `patrol_asset` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL,
-  `name` varchar(64) NOT NULL COMMENT '资产展示名',
-  `asset_type` varchar(10) NOT NULL COMMENT 'url | domain | server',
-  `target` varchar(255) NOT NULL COMMENT 'url:完整URL / domain:域名 / server:host',
-  `port` int DEFAULT NULL COMMENT 'server 的 SSH 端口，默认 22',
-  `ssh_user` varchar(32) DEFAULT NULL COMMENT 'SSH 用户',
-  `ssh_password` varchar(256) DEFAULT NULL COMMENT 'SSH 密码，SM4 密文',
-  `enabled` tinyint NOT NULL DEFAULT '1',
-  `last_status` varchar(10) DEFAULT NULL COMMENT 'ok | warn | fail | unknown',
-  `last_detail` varchar(1000) DEFAULT NULL,
-  `last_check_time` datetime DEFAULT NULL,
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_user` (`user_id`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '巡检资产';
-
+-- patrol_asset 已废弃（巡检改为零配置系统自检），由 DataInitializer 启动时 DROP
 CREATE TABLE IF NOT EXISTS `patrol_setting` (
   `user_id` bigint NOT NULL,
   `push_hour` tinyint NOT NULL DEFAULT '8' COMMENT '日报推送小时（0-23）',

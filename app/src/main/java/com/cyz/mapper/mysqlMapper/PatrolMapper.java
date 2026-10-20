@@ -1,28 +1,17 @@
 package com.cyz.mapper.mysqlMapper;
 
-import com.cyz.patrol.model.PatrolAsset;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * 巡检资产/设置 mapper（patrol_asset / patrol_setting 表）。
+ * 巡检日报 mapper（patrol_setting 表；巡检结果不落库，存内存）。
  */
 public interface PatrolMapper {
 
-    List<PatrolAsset> listByUser(@Param("userId") Long userId);
-
-    List<PatrolAsset> listEnabledByUser(@Param("userId") Long userId);
-
-    PatrolAsset getById(@Param("id") Long id);
-
-    int insert(PatrolAsset a);
-
-    int delete(@Param("id") Long id, @Param("userId") Long userId);
-
-    int updateCheckResult(@Param("id") Long id, @Param("status") String status,
-                          @Param("detail") String detail);
+    /** 校验钉钉机器人归属（日报设置绑定的机器人是否仍有效） */
+    int countRobot(@Param("userId") Long userId, @Param("robotId") Long robotId);
 
     /* ---- 日报设置 ---- */
 

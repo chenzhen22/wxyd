@@ -1,217 +1,270 @@
 package com.cyz.patrol.service;
 
-import com.cyz.config.Sm4KeyHolder;
-import com.cyz.patrol.model.PatrolAsset;
-import com.jcraft.jsch.ChannelExec;
-import com.jcraft.jsch.JSch;
-import com.jcraft.jsch.Session;
+import com.cyz.mapper.mysqlMapper.PatrolMapper;
+import com.cyz.patrol.model.PatrolReport;
+import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.HikariPoolMXBean;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
-import javax.net.ssl.HttpsURLConnection;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.Socket;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import javax.sql.DataSource;
+import java.io.File;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * 巡检探测器：url 存活（顺带 SSL 到期）/ domain WHOIS 到期 / server SSH 磁盘内存。
- * 全部纯 Java 实现；任何异常都归一化为 CheckResult，不向上抛。
+ * 系统自检探测器（零配置固定四项）：远程 MySQL 健康 / 应用自身 / 磁盘水位 / 推送通道。
+ * 全部纯 Java 实现；任何异常都归一化为 CheckResult（fail），不向上抛。
  */
 @Service
 @Slf4j
 public class PatrolProbe {
 
-    private static final OkHttpClient HTTP = new OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS).readTimeout(5, TimeUnit.SECONDS).build();
+    /** SELECT 1 延迟超此值报警告（ms） */
+    private static final long MYSQL_SLOW_MS = 500;
+    /** 堆内存使用率告警阈值（%） */
+    private static final int HEAP_WARN_PCT = 80;
+    /** 磁盘已用率告警阈值（%） */
+    private static final int DISK_WARN_PCT = 85;
 
-    /** 主流注册商的到期日期字段（取首个命中） */
-    private static final Pattern WHOIS_EXPIRY = Pattern.compile(
-            "(?:Registry Expiry Date|Expiration Date|Expiry Date|Expiration Time)\\s*[:：]\\s*(\\d{4}-\\d{2}-\\d{2})");
+    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Resource
-    private Sm4KeyHolder sm4KeyHolder;
+    @Qualifier("mysqlDataSource")
+    private DataSource dataSource;
 
-    public PatrolAsset.CheckResult check(PatrolAsset asset) {
-        PatrolAsset.CheckResult r = new PatrolAsset.CheckResult();
-        r.setAssetId(asset.getId());
-        r.setName(asset.getName());
-        r.setAssetType(asset.getAssetType());
-        r.setTarget(asset.getTarget());
+    @Resource
+    private PatrolMapper patrolMapper;
+
+    /** SMTP 未配置时为空串（与 MailService 同源 env 配置） */
+    @Value("${wxyd.smtp.host:}")
+    private String smtpHost;
+
+    /** 跑一轮全部固定巡检项，聚合为报告（含计数与时间戳） */
+    public PatrolReport runAll(long userId) {
+        List<PatrolReport.CheckResult> results = new ArrayList<>();
+        results.add(checkMysql());
+        results.add(checkJvm());
+        results.add(checkDisk());
+        results.add(checkChannel(userId));
+        PatrolReport report = new PatrolReport();
+        report.setResults(results);
+        int fail = 0, warn = 0;
+        for (PatrolReport.CheckResult r : results) {
+            if ("fail".equals(r.getStatus())) fail++;
+            else if ("warn".equals(r.getStatus())) warn++;
+        }
+        report.setFailCount(fail);
+        report.setWarnCount(warn);
+        report.setLastRunTime(LocalDateTime.now().format(TS));
+        return report;
+    }
+
+    /** 远程 MySQL：SELECT 1 实测延迟 + HikariCP 池状态 + 版本/uptime/Threads_connected */
+    public PatrolReport.CheckResult checkMysql() {
+        PatrolReport.CheckResult r = item("远程 MySQL");
         try {
-            switch (asset.getAssetType() == null ? "" : asset.getAssetType()) {
-                case "url": checkUrl(asset, r); break;
-                case "domain": checkDomain(asset, r); break;
-                case "server": checkServer(asset, r); break;
-                default:
-                    r.setStatus("unknown");
-                    r.setDetail("未知资产类型：" + asset.getAssetType());
+            long start = System.currentTimeMillis();
+            try (Connection conn = dataSource.getConnection();
+                 Statement st = conn.createStatement()) {
+                st.executeQuery("SELECT 1");
+                long cost = System.currentTimeMillis() - start;
+
+                StringBuilder d = new StringBuilder("延迟 ").append(cost).append("ms");
+                appendPoolStats(d);
+                appendServerInfo(st, d); // 版本/uptime/连接数：global_status 无权限时静默降级
+                r.setDetail(d.toString());
+                r.setStatus(cost > MYSQL_SLOW_MS ? "warn" : "ok");
             }
         } catch (Exception e) {
-            log.warn("[PATROL] 探测异常：{} / {}", asset.getName(), e.getMessage());
+            log.warn("[PATROL] MySQL 巡检失败：{}", e.getMessage());
             r.setStatus("fail");
-            r.setDetail("探测异常：" + brief(e.getMessage()));
+            r.setDetail("连接失败：" + brief(e.getMessage()));
         }
         return r;
     }
 
-    /** url 存活 + HTTPS 顺带查证书剩余天数 */
-    private void checkUrl(PatrolAsset a, PatrolAsset.CheckResult r) throws Exception {
-        String target = a.getTarget();
-        Request req = new Request.Builder().url(target)
-                .header("User-Agent", "wxyd-patrol/1.0").head().build();
-        long start = System.currentTimeMillis();
-        try (Response resp = HTTP.newCall(req).execute()) {
-            int code = resp.code();
-            long cost = System.currentTimeMillis() - start;
-            boolean ok = code >= 200 && code < 400;
-            r.setStatus(ok ? "ok" : "fail");
-            r.setDetail("HTTP " + code + " · " + cost + "ms");
-            // HTTPS 证书剩余天数（同一次探测顺带完成，不单独建资产）
-            if (target.startsWith("https://")) {
-                int days = sslDaysLeft(target);
-                if (days >= 0) {
-                    r.setDetail(r.getDetail() + " · 证书剩 " + days + " 天");
-                    if (days < 7) r.setStatus("fail");
-                    else if (days < 30 && "ok".equals(r.getStatus())) r.setStatus("warn");
+    /** 版本 / uptime / Threads_connected（performance_schema 无权限时静默跳过） */
+    private void appendServerInfo(Statement st, StringBuilder d) {
+        try {
+            String version = "";
+            long uptime = -1, threads = -1;
+            try (ResultSet rs = st.executeQuery(
+                    "SELECT VERSION() AS v, " +
+                    "(SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME='Uptime') AS up, " +
+                    "(SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME='Threads_connected') AS tc")) {
+                if (rs.next()) {
+                    version = rs.getString(1);
+                    uptime = rs.getLong(2);
+                    threads = rs.getLong(3);
                 }
             }
+            if (!version.isEmpty()) d.append(" · MySQL ").append(version);
+            if (uptime >= 0) d.append(" · 已运行 ").append(fmtUptime(uptime * 1000));
+            if (threads >= 0) d.append(" · 连接数 ").append(threads);
+        } catch (Exception e) {
+            log.debug("[PATROL] 服务器信息读取失败（不影响判定）：{}", e.getMessage());
         }
     }
 
-    private int sslDaysLeft(String url) {
+    /** HikariCP 活跃/空闲/等待（池未启动或非 Hikari 实现时静默跳过） */
+    private void appendPoolStats(StringBuilder d) {
         try {
-            HttpsURLConnection conn = (HttpsURLConnection) new URL(url).openConnection();
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(5000);
-            conn.connect();
-            Certificate[] certs = conn.getServerCertificates();
-            conn.disconnect();
-            if (certs.length > 0 && certs[0] instanceof X509Certificate) {
-                Date notAfter = ((X509Certificate) certs[0]).getNotAfter();
-                long days = (notAfter.getTime() - System.currentTimeMillis()) / 86400000L;
-                return (int) days;
+            if (dataSource instanceof HikariDataSource) {
+                HikariPoolMXBean pool = ((HikariDataSource) dataSource).getHikariPoolMXBean();
+                if (pool != null) {
+                    d.append(" · 池 活跃").append(pool.getActiveConnections())
+                     .append("/空闲").append(pool.getIdleConnections())
+                     .append("/等待").append(pool.getThreadsAwaitingConnection());
+                }
             }
         } catch (Exception e) {
-            log.debug("[PATROL] SSL 读取失败（不影响存活判定）：{}", e.getMessage());
+            log.debug("[PATROL] 池状态读取失败（不影响判定）：{}", e.getMessage());
         }
-        return -1;
     }
 
-    /** domain WHOIS 到期（Socket 43，主流注册商正则；解析失败=unknown 不误报） */
-    private void checkDomain(PatrolAsset a, PatrolAsset.CheckResult r) throws Exception {
-        String domain = a.getTarget().trim().toLowerCase();
-        String whois;
-        try (Socket sock = new Socket()) {
-            sock.connect(new java.net.InetSocketAddress("whois.iana.org", 43), 5000);
-            sock.setSoTimeout(5000);
-            java.io.OutputStream out = sock.getOutputStream();
-            out.write((domain + "\r\n").getBytes(StandardCharsets.UTF_8));
-            out.flush();
-            BufferedReader br = new BufferedReader(new InputStreamReader(sock.getInputStream(), StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) sb.append(line).append('\n');
-            whois = sb.toString();
-        }
-        // IANA 返回 refer 指向注册商 WHOIS 服务器时需二次查询
-        Matcher refer = Pattern.compile("(?i)whois:\\s*(\\S+)").matcher(whois);
-        if (refer.find()) {
-            String server = refer.group(1);
-            try (Socket sock = new Socket()) {
-                sock.connect(new java.net.InetSocketAddress(server, 43), 5000);
-                sock.setSoTimeout(5000);
-                sock.getOutputStream().write((domain + "\r\n").getBytes(StandardCharsets.UTF_8));
-                sock.getOutputStream().flush();
-                BufferedReader br = new BufferedReader(new InputStreamReader(sock.getInputStream(), StandardCharsets.UTF_8));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) sb.append(line).append('\n');
-                whois = sb.toString();
-            }
-        }
-        Matcher m = WHOIS_EXPIRY.matcher(whois);
-        if (!m.find()) {
-            r.setStatus("unknown");
-            r.setDetail("WHOIS 未解析出到期日（注册商响应格式未覆盖），可人工确认");
-            return;
-        }
-        java.time.LocalDate expiry = java.time.LocalDate.parse(m.group(1));
-        long days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), expiry);
-        r.setDetail("域名 " + expiry + " 到期，剩 " + days + " 天");
-        if (days < 7) r.setStatus("fail");
-        else if (days < 30) r.setStatus("warn");
-        else r.setStatus("ok");
-    }
-
-    /** server SSH：磁盘（根分区）+ 内存使用率；≥80 warn、≥90 fail */
-    private void checkServer(PatrolAsset a, PatrolAsset.CheckResult r) throws Exception {
-        if (a.getSshUser() == null || a.getSshPassword() == null) {
-            r.setStatus("unknown");
-            r.setDetail("未配置 SSH 用户/密码");
-            return;
-        }
-        JSch jsch = new JSch();
-        Session session = jsch.getSession(a.getSshUser(), a.getTarget(),
-                a.getPort() == null ? 22 : a.getPort());
-        session.setPassword(sm4KeyHolder.decrypt(a.getSshPassword()));
-        session.setConfig("StrictHostKeyChecking", "no");
-        session.setConfig("PreferredAuthentications", "password");
-        session.connect(6000);
+    /** 应用自身：JVM 运行时长 + 堆使用率 + CPU 负载 */
+    public PatrolReport.CheckResult checkJvm() {
+        PatrolReport.CheckResult r = item("应用自身");
         try {
-            String disk = exec(session, "df -h / | awk 'NR==2{print $5}'");
-            String mem = exec(session, "free -m | awk 'NR==2{printf \"%.0f\", $3/$2*100}'");
-            int diskPct = parsePct(disk);
-            int memPct = parsePct(mem);
-            if (diskPct < 0 || memPct < 0) {
+            long uptimeMs = ManagementFactory.getRuntimeMXBean().getUptime();
+            MemoryMXBean mem = ManagementFactory.getMemoryMXBean();
+            MemoryUsage heap = mem.getHeapMemoryUsage();
+            long max = heap.getMax() > 0 ? heap.getMax() : heap.getCommitted();
+            int heapPct = (int) (heap.getUsed() * 100 / max);
+
+            StringBuilder d = new StringBuilder("已运行 ").append(fmtUptime(uptimeMs))
+                    .append(" · 堆 ").append(fmtGb(heap.getUsed())).append("/").append(fmtGb(max))
+                    .append("（").append(heapPct).append("%）");
+            java.lang.management.OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
+            if (osBean instanceof com.sun.management.OperatingSystemMXBean) {
+                double cpu = ((com.sun.management.OperatingSystemMXBean) osBean).getSystemCpuLoad();
+                if (cpu >= 0) d.append(" · CPU ").append(Math.round(cpu * 100)).append("%");
+            }
+            double load = osBean.getSystemLoadAverage();
+            if (load >= 0) d.append(" · load ").append(String.format("%.2f", load));
+
+            r.setDetail(d.toString());
+            r.setStatus(heapPct > HEAP_WARN_PCT ? "warn" : "ok");
+        } catch (Exception e) {
+            r.setStatus("fail");
+            r.setDetail("读取失败：" + brief(e.getMessage()));
+        }
+        return r;
+    }
+
+    /** 磁盘水位：应用工作目录所在盘 */
+    public PatrolReport.CheckResult checkDisk() {
+        PatrolReport.CheckResult r = item("磁盘水位");
+        try {
+            File dir = new File(System.getProperty("user.dir"));
+            long total = dir.getTotalSpace();
+            long usable = dir.getUsableSpace();
+            if (total <= 0) {
                 r.setStatus("unknown");
-                r.setDetail("命令输出解析失败（disk=" + brief(disk) + " mem=" + brief(mem) + "）");
-                return;
+                r.setDetail("无法获取磁盘空间（" + brief(dir.getAbsolutePath()) + "）");
+                return r;
             }
-            int worst = Math.max(diskPct, memPct);
-            r.setDetail("磁盘 " + diskPct + "% · 内存 " + memPct + "%");
-            if (worst >= 90) r.setStatus("fail");
-            else if (worst >= 80) r.setStatus("warn");
-            else r.setStatus("ok");
-        } finally {
-            session.disconnect();
-        }
-    }
-
-    private String exec(Session session, String cmd) throws Exception {
-        ChannelExec ch = (ChannelExec) session.openChannel("exec");
-        ch.setCommand(cmd);
-        ch.setErrStream(null);
-        InputStream in = ch.getInputStream();
-        ch.connect(4000);
-        StringBuilder sb = new StringBuilder();
-        byte[] buf = new byte[256];
-        int n;
-        while ((n = in.read(buf)) != -1) sb.append(new String(buf, 0, n, StandardCharsets.UTF_8));
-        ch.disconnect();
-        return sb.toString().trim();
-    }
-
-    private static int parsePct(String s) {
-        try {
-            return Integer.parseInt(s.trim().replace("%", ""));
+            long used = total - usable;
+            int pct = (int) (used * 100 / total);
+            r.setDetail("工作目录所在盘 已用 " + pct + "%（余 " + fmtGb(usable) + " / 共 " + fmtGb(total) + "）");
+            r.setStatus(pct >= DISK_WARN_PCT ? "warn" : "ok");
         } catch (Exception e) {
-            return -1;
+            r.setStatus("fail");
+            r.setDetail("读取失败：" + brief(e.getMessage()));
         }
+        return r;
+    }
+
+    /** 推送通道：SMTP 配置 + 日报设置绑定的钉钉机器人/邮箱有效性 */
+    public PatrolReport.CheckResult checkChannel(long userId) {
+        PatrolReport.CheckResult r = item("推送通道");
+        try {
+            boolean smtpOk = smtpHost != null && !smtpHost.trim().isEmpty();
+            StringBuilder d = new StringBuilder("SMTP ").append(smtpOk ? "已配置" : "未配置");
+            r.setStatus("ok");
+
+            java.util.Map<String, Object> setting = patrolMapper.getSetting(userId);
+            if (setting == null) {
+                d.append(" · 日报推送未保存设置");
+            } else {
+                Number enabled = (Number) setting.get("enabled");
+                String channel = (String) setting.get("channel");
+                if (enabled == null || enabled.intValue() != 1) {
+                    d.append(" · 日报推送已停用");
+                } else if ("dingtalk".equals(channel)) {
+                    Number robotId = (Number) setting.get("robot_id");
+                    if (robotId == null) {
+                        d.append(" · 钉钉通道未绑定机器人");
+                        r.setStatus("warn");
+                    } else if (patrolMapper.countRobot(userId, robotId.longValue()) > 0) {
+                        d.append(" · 钉钉通道 · 机器人#").append(robotId).append(" 有效");
+                    } else {
+                        d.append(" · 绑定的机器人#").append(robotId).append("已不存在");
+                        r.setStatus("warn");
+                    }
+                } else if ("email".equals(channel)) {
+                    String email = (String) setting.get("email");
+                    if (email == null || email.trim().isEmpty()) {
+                        d.append(" · 邮件通道未填邮箱");
+                        r.setStatus("warn");
+                    } else if (!smtpOk) {
+                        d.append(" · 收件 ").append(email).append("，但 SMTP 未配置");
+                        r.setStatus("warn");
+                    } else {
+                        d.append(" · 邮件通道 · ").append(email).append(" 有效");
+                    }
+                } else {
+                    d.append(" · 日报通道非法（").append(channel).append("）");
+                    r.setStatus("warn");
+                }
+            }
+            r.setDetail(d.toString());
+        } catch (Exception e) {
+            r.setStatus("fail");
+            r.setDetail("读取失败：" + brief(e.getMessage()));
+        }
+        return r;
+    }
+
+    /* ---------------- 工具 ---------------- */
+
+    private static PatrolReport.CheckResult item(String name) {
+        PatrolReport.CheckResult r = new PatrolReport.CheckResult();
+        r.setName(name);
+        r.setStatus("unknown");
+        return r;
+    }
+
+    /** ms → 「3天2小时5分」/「18分」/「42秒」 */
+    private static String fmtUptime(long ms) {
+        long sec = ms / 1000;
+        long d = sec / 86400;
+        long h = sec % 86400 / 3600;
+        long m = sec % 3600 / 60;
+        if (d > 0) return d + "天" + h + "小时" + m + "分";
+        if (h > 0) return h + "小时" + m + "分";
+        if (m > 0) return m + "分";
+        return sec + "秒";
+    }
+
+    private static String fmtGb(long bytes) {
+        double gb = bytes / 1073741824.0;
+        if (gb >= 1) return String.format("%.1fGB", gb);
+        return String.format("%.0fMB", bytes / 1048576.0);
     }
 
     private static String brief(String msg) {

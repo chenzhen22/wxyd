@@ -90,11 +90,6 @@
             <version>1.17.2</version>
         </dependency>
         <dependency>
-            <groupId>com.jcraft</groupId>
-            <artifactId>jsch</artifactId>
-            <version>0.1.55</version>
-        </dependency>
-        <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
             <version>5.8.34</version>
@@ -104,7 +99,6 @@
             <artifactId>okhttp</artifactId>
             <version>4.9.3</version>
         </dependency>
-        <!-- 巡检日报：SSH 探测复用项目原有 jsch 依赖（pom 中已有声明） -->
         <dependency>
             <groupId>net.sf.json-lib</groupId>
             <artifactId>json-lib</artifactId>

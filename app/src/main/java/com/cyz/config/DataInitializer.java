@@ -237,7 +237,8 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
-     * 幂等确保羊毛雷达/巡检日报三表存在（对应 sql/V12__radar_patrol.sql）。
+     * 幂等确保羊毛雷达/巡检日报表存在（对应 sql/V12__radar_patrol.sql）；
+     * patrol_asset 已废弃（零配置系统自检），启动时 DROP 清理。
      */
     private void ensureRadarPatrolTables() {
         try {
@@ -255,22 +256,8 @@ public class DataInitializer implements ApplicationRunner {
                     "UNIQUE KEY `uk_user_keyword_channel` (`user_id`,`keyword`,`channel`)," +
                     "KEY `idx_user` (`user_id`)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='羊毛雷达订阅'");
-            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `patrol_asset` (" +
-                    "`id` BIGINT NOT NULL AUTO_INCREMENT," +
-                    "`user_id` BIGINT NOT NULL," +
-                    "`name` VARCHAR(64) NOT NULL COMMENT '资产展示名'," +
-                    "`asset_type` VARCHAR(10) NOT NULL COMMENT 'url | domain | server'," +
-                    "`target` VARCHAR(255) NOT NULL COMMENT 'url:完整URL / domain:域名 / server:host'," +
-                    "`port` INT NULL COMMENT 'server 的 SSH 端口，默认 22'," +
-                    "`ssh_user` VARCHAR(32) NULL," +
-                    "`ssh_password` VARCHAR(256) NULL COMMENT 'SSH 密码，SM4 密文'," +
-                    "`enabled` TINYINT NOT NULL DEFAULT 1," +
-                    "`last_status` VARCHAR(10) NULL COMMENT 'ok | warn | fail | unknown'," +
-                    "`last_detail` VARCHAR(1000) NULL," +
-                    "`last_check_time` DATETIME NULL," +
-                    "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-                    "PRIMARY KEY (`id`),KEY `idx_user` (`user_id`)" +
-                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检资产'");
+            // 巡检已改为零配置系统自检（2026-10-20），patrol_asset 废弃：幂等 DROP 清理旧表
+            jdbcTemplate.execute("DROP TABLE IF EXISTS `patrol_asset`");
             jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `patrol_setting` (" +
                     "`user_id` BIGINT NOT NULL," +
                     "`push_hour` TINYINT NOT NULL DEFAULT 8 COMMENT '日报推送小时（0-23）'," +
@@ -280,7 +267,7 @@ public class DataInitializer implements ApplicationRunner {
                     "`enabled` TINYINT NOT NULL DEFAULT 1," +
                     "PRIMARY KEY (`user_id`)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检日报推送设置'");
-            log.info("[INIT] 已自动执行 V12 迁移：radar_subscribe / patrol_asset / patrol_setting");
+            log.info("[INIT] 已自动执行 V12 迁移：radar_subscribe / patrol_setting（patrol_asset 已 DROP 清理）");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V12 迁移失败（请手动执行 sql/V12__radar_patrol.sql）：{}", e.getMessage());
         }

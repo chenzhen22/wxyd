@@ -1,7 +1,6 @@
 package com.cyz.patrol.controller;
 
 import com.cyz.constant.ErrorEnum;
-import com.cyz.patrol.model.PatrolAsset;
 import com.cyz.patrol.service.PatrolService;
 import com.cyz.pojo.Result;
 import lombok.extern.slf4j.Slf4j;
@@ -33,49 +32,21 @@ public class PatrolController {
         return role == null || role != 0;
     }
 
-    @GetMapping("list")
-    public Result list(HttpSession session) {
+    /** 最近一次系统自检结果（从未巡检过返回 null，前端显示"尚未巡检"） */
+    @GetMapping("status")
+    public Result status(HttpSession session) {
         Result result = Result.getInstance();
         if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
-        result.setBody(patrolService.list(userId(session)));
+        result.setBody(patrolService.getStatus());
         return result;
     }
 
-    @PostMapping("add")
-    public Result add(@RequestBody(required = false) Result req, HttpSession session) {
-        Result result = Result.getInstance();
-        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
-        Map<String, Object> body = body(req);
-        try {
-            PatrolAsset a = patrolService.add(userId(session),
-                    str(body.get("name")), str(body.get("assetType")), str(body.get("target")),
-                    intVal(body.get("port")), str(body.get("sshUser")), str(body.get("sshPassword")));
-            a.setSshPassword(null); // 密文永不下发
-            result.setBody(a);
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            result.setErrorEnum(ErrorEnum.ERROR000015);
-            result.setErrorMsg(e.getMessage());
-        }
-        return result;
-    }
-
-    @PostMapping("delete")
-    public Result delete(@RequestBody(required = false) Result req, HttpSession session) {
-        Result result = Result.getInstance();
-        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
-        Map<String, Object> body = body(req);
-        if (!patrolService.delete(userId(session), longVal(body.get("id")))) {
-            return result.setErrorEnum(ErrorEnum.ERROR000014);
-        }
-        return result;
-    }
-
-    /** 立即巡检全部启用资产，返回结果（同时更新 last_*，页面可见） */
+    /** 立即巡检固定四项，返回报告（同时刷新内存最近结果） */
     @PostMapping("runNow")
     public Result runNow(HttpSession session) {
         Result result = Result.getInstance();
         if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
-        result.setBody(patrolService.runForUser(userId(session)));
+        result.setBody(patrolService.runAll(userId(session)));
         return result;
     }
 

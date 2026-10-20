@@ -2,40 +2,10 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.cyz.mapper.mysqlMapper.PatrolMapper">
 
-	<select id="listByUser" resultType="com.cyz.patrol.model.PatrolAsset">
-		select `id`,`user_id`,`name`,`asset_type`,`target`,`port`,`ssh_user`,`enabled`,
-		       `last_status`,`last_detail`,date_format(`last_check_time`,'%Y-%m-%d %H:%i') as `last_check_time`,
-		       date_format(`create_time`,'%Y-%m-%d %H:%i') as `create_time`
-		from `patrol_asset` where `user_id`=#{userId} order by `id` desc
+	<!-- 钉钉机器人归属校验（日报设置绑定有效性） -->
+	<select id="countRobot" resultType="int">
+		select count(1) from `ding_robot` where `id`=#{robotId} and `user_id`=#{userId}
 	</select>
-
-	<select id="listEnabledByUser" resultType="com.cyz.patrol.model.PatrolAsset">
-		select `id`,`user_id`,`name`,`asset_type`,`target`,`port`,`ssh_user`,`ssh_password`,`enabled`
-		from `patrol_asset` where `user_id`=#{userId} and `enabled`=1
-	</select>
-
-	<select id="getById" resultType="com.cyz.patrol.model.PatrolAsset">
-		select `id`,`user_id`,`name`,`asset_type`,`target`,`port`,`ssh_user`,`ssh_password`,`enabled`
-		from `patrol_asset` where `id`=#{id}
-	</select>
-
-	<insert id="insert" parameterType="com.cyz.patrol.model.PatrolAsset" useGeneratedKeys="true" keyProperty="id">
-		insert into `patrol_asset`
-		(`user_id`,`name`,`asset_type`,`target`,`port`,`ssh_user`,`ssh_password`,`enabled`)
-		values (#{userId},#{name},#{assetType},#{target},#{port},#{sshUser},#{sshPassword},#{enabled})
-	</insert>
-
-	<delete id="delete">
-		delete from `patrol_asset` where `id`=#{id} and `user_id`=#{userId}
-	</delete>
-
-	<update id="updateCheckResult">
-		update `patrol_asset`
-		set `last_status`=#{status},
-		    `last_detail`=#{detail},
-		    `last_check_time`=now()
-		where `id`=#{id}
-	</update>
 
 	<!-- 日报设置 -->
 	<select id="getSetting" resultType="java.util.HashMap">

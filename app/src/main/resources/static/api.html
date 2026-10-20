@@ -712,25 +712,7 @@
                 <span class="admin-badge" id="patrolSettingBtn" style="cursor:pointer;">⚙ 日报设置</span>
             </div>
             <div class="patrol-status-legend">状态：<span class="patrol-dot ok"></span>正常　<span class="patrol-dot warn"></span>警告　<span class="patrol-dot fail"></span>异常　<span class="patrol-dot unknown"></span>未知</div>
-            <div id="patrolAssetList"></div>
-            <div class="cert-card" id="patrolAddCard">
-                <div class="cert-card-tit">＋ 添加巡检资产</div>
-                <div class="cert-form-row">
-                    <input type="text" id="patrolName" placeholder="资产名（如：生产库 MySQL）" maxlength="64" style="flex:1;">
-                    <select id="patrolType" style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">
-                        <option value="url">URL 存活</option>
-                        <option value="domain">域名到期</option>
-                        <option value="server">服务器资源（SSH）</option>
-                    </select>
-                </div>
-                <div class="cert-form-row"><input type="text" id="patrolTarget" placeholder="探测目标" style="width:100%;"></div>
-                <div class="cert-form-row" id="patrolServerFields" style="display:none;">
-                    <input type="number" id="patrolPort" placeholder="SSH 端口（默认22）" style="width:140px;">
-                    <input type="text" id="patrolSshUser" placeholder="SSH 用户" style="width:140px;">
-                    <input type="password" id="patrolSshPwd" placeholder="SSH 密码（SM4 加密存储）" style="flex:1;">
-                </div>
-                <div class="cert-btn-group"><button class="btn-main" id="patrolAddBtn">添加资产</button></div>
-            </div>
+            <div id="patrolReportList"><div class="welfare-empty">尚未巡检，点上方「立即巡检」</div></div>
             <div class="cert-card" id="patrolSettingCard" style="display:none;">
                 <div class="cert-card-tit">⚙ 日报设置</div>
                 <div class="cert-form-row">

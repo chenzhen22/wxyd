@@ -207,65 +207,26 @@ public class WbWorkBuddyClient {
         }
     }
 
-    /** 单账号积分查询（xdpool fetchCredits 的 Java 版，仅余额聚合所需字段） */
+    /** 单账号积分查询（xdpool fetchCredits 的 Java 版）：401 会先刷新令牌重试一次 */
     private CreditsInfo creditsFor(String accountId) {
         long now = System.currentTimeMillis();
         CreditsInfo cached = creditsCache.get(accountId);
         if (cached != null && now - cached.at < 600_000L) return cached;
         CreditsInfo ci = new CreditsInfo();
         try {
-            com.cyz.wbgateway.pool.WbPoolAccount acc = accountPool.get(accountId);
-            if (acc == null) throw new IllegalStateException("账号不在池内");
-            WbCredential cred = acc.getCredential().toWbCredential();
-            String fmt = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
-            String end = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-                    .format(new java.util.Date(now + 365L * 101 * 24 * 3600 * 1000));
-            JSONObject body = new JSONObject();
-            body.put("PageNumber", 1);
-            body.put("PageSize", 100);
-            body.put("ProductCode", "p_tcaca");
-            body.put("Status", new int[]{0, 3});
-            body.put("PackageEndTimeRangeBegin", fmt);
-            body.put("PackageEndTimeRangeEnd", end);
-            Request.Builder rb = new Request.Builder()
-                    .url(billingBase(cred) + "/v2/billing/meter/get-user-resource")
-                    .header("Authorization", "Bearer " + cred.getAccessToken())
-                    .header("Accept", "application/json")
-                    .header("Content-Type", "application/json")
-                    .post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), body.toJSONString()));
-            if (!cred.getUid().isEmpty()) rb.header("X-User-Id", cred.getUid());
-            if (!cred.getEnterpriseId().isEmpty()) {
-                rb.header("X-Enterprise-Id", cred.getEnterpriseId());
-                rb.header("X-Tenant-Id", cred.getEnterpriseId());
-            }
-            if (!cred.getDomain().isEmpty()) rb.header("X-Domain", cred.getDomain());
-            try (Response resp = http.newCall(rb.build()).execute()) {
-                String text = resp.body() == null ? "" : resp.body().string();
-                JSONObject envelope = JSON.parseObject(text);
-                if (!resp.isSuccessful() || envelope == null || envelope.getIntValue("code") != 0) {
-                    String msg = envelope == null ? "空响应" : envelope.getString("msg");
-                    throw new IllegalStateException(excerpt(msg));
+            ci.value = queryCredits(accountId);
+        } catch (WbUpstreamException e) {
+            if (WbUpstreamException.KIND_SESSION_DEAD.equals(e.getKind())) {
+                // 死 token（存量 expires 是假象）：刷新一次再重试；仍失败则账号判死
+                try {
+                    refreshAccount(accountId);
+                    ci.value = queryCredits(accountId);
+                } catch (Exception e2) {
+                    accountPool.onCredentialDead(accountId, "积分查询 401 且刷新失败");
+                    ci.error = "登录态失效且刷新失败，需在桌面 App 重新登录";
                 }
-                JSONObject data = envelope.getJSONObject("data");
-                JSONObject resp0 = data == null ? null : data.getJSONObject("Response");
-                JSONObject d = resp0 == null ? null : resp0.getJSONObject("Data");
-                JSONArray accounts = d == null ? null : d.getJSONArray("Accounts");
-                long total = 0;
-                if (accounts != null) {
-                    for (int i = 0; i < accounts.size(); i++) {
-                        JSONObject a = accounts.getJSONObject(i);
-                        if (a == null) continue;
-                        boolean monthly = a.getIntValue("CapacityType") == 4;
-                        long remain = monthly ? a.getLongValue("CycleCapacityRemain") : a.getLongValue("CapacityRemain");
-                        if (remain < 0) remain = 0;
-                        if (!monthly) {
-                            long expMs = parseApiDate(a.getString("ExpiredTime"));
-                            if (remain <= 0 || (expMs > 0 && expMs <= now)) continue;
-                        }
-                        total += remain;
-                    }
-                }
-                ci.value = total;
+            } else {
+                ci.error = brief(e.getMessage());
             }
         } catch (Exception e) {
             ci.error = brief(e.getMessage());
@@ -273,6 +234,73 @@ public class WbWorkBuddyClient {
         ci.at = now;
         creditsCache.put(accountId, ci);
         return ci;
+    }
+
+    private long queryCredits(String accountId) throws Exception {
+        com.cyz.wbgateway.pool.WbPoolAccount acc = accountPool.get(accountId);
+        if (acc == null) throw new IllegalStateException("账号不在池内");
+        WbCredential cred = acc.getCredential().toWbCredential();
+        String fmt = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
+        String end = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+                .format(new java.util.Date(System.currentTimeMillis() + 365L * 101 * 24 * 3600 * 1000));
+        JSONObject body = new JSONObject();
+        body.put("PageNumber", 1);
+        body.put("PageSize", 100);
+        body.put("ProductCode", "p_tcaca");
+        body.put("Status", new int[]{0, 3});
+        body.put("PackageEndTimeRangeBegin", fmt);
+        body.put("PackageEndTimeRangeEnd", end);
+        Request.Builder rb = new Request.Builder()
+                .url(billingBase(cred) + "/v2/billing/meter/get-user-resource")
+                .header("Authorization", "Bearer " + cred.getAccessToken())
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), body.toJSONString()));
+        if (!cred.getUid().isEmpty()) rb.header("X-User-Id", cred.getUid());
+        if (!cred.getEnterpriseId().isEmpty()) {
+            rb.header("X-Enterprise-Id", cred.getEnterpriseId());
+            rb.header("X-Tenant-Id", cred.getEnterpriseId());
+        }
+        if (!cred.getDomain().isEmpty()) rb.header("X-Domain", cred.getDomain());
+        try (Response resp = http.newCall(rb.build()).execute()) {
+            String text = resp.body() == null ? "" : resp.body().string();
+            JSONObject envelope = null;
+            try {
+                envelope = JSON.parseObject(text);
+            } catch (Exception parseError) {
+                // WAF/网关返回 HTML 等非 JSON：只保留状态码，不透传原文
+                throw new WbUpstreamException(classify(resp.code(), text), resp.code(),
+                        "HTTP " + resp.code() + " 非 JSON 响应");
+            }
+            if (!resp.isSuccessful() || envelope == null || envelope.getIntValue("code") != 0) {
+                String msg = envelope == null ? "空响应" : envelope.getString("msg");
+                throw new WbUpstreamException(classify(resp.code(), text), resp.code(), excerpt(msg));
+            }
+            JSONObject data = envelope.getJSONObject("data");
+            JSONObject resp0 = data == null ? null : data.getJSONObject("Response");
+            JSONObject d = resp0 == null ? null : resp0.getJSONObject("Data");
+            JSONArray accounts = d == null ? null : d.getJSONArray("Accounts");
+            long total = 0;
+            if (accounts != null) {
+                for (int i = 0; i < accounts.size(); i++) {
+                    JSONObject a = accounts.getJSONObject(i);
+                    if (a == null) continue;
+                    boolean monthly = a.getIntValue("CapacityType") == 4;
+                    long remain = monthly ? a.getLongValue("CycleCapacityRemain") : a.getLongValue("CapacityRemain");
+                    if (remain < 0) remain = 0;
+                    if (!monthly) {
+                        long expMs = parseApiDate(a.getString("ExpiredTime"));
+                        if (remain <= 0 || (expMs > 0 && expMs <= now())) continue;
+                    }
+                    total += remain;
+                }
+            }
+            return total;
+        }
+    }
+
+    private static long now() {
+        return System.currentTimeMillis();
     }
 
     private static long parseApiDate(String s) {

@@ -59,6 +59,30 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        // 页面 HTML 一律 no-cache：菜单/模块结构随版本演进，浏览器缓存的旧 HTML 会与
+
+
+
+        // 新版 JS 错配（如新菜单项指向旧 HTML 里不存在的模块盒，表现为点击页面空白）。
+
+
+
+        // JS/CSS 仍走默认缓存，由 html 里的 ?v= 版本号控制更新。
+
+
+
+        registry.addResourceHandler("/*.html")
+
+
+
+                .addResourceLocations("classpath:/static/")
+
+
+
+                .setCacheControl(org.springframework.http.CacheControl.noCache());
+
+
+
         // 福利专区图片：dataScan 已把正文图片下载到本地（按 topic_id 建子目录）。
         // 公开访问（分享链接免登录），仅暴露该目录内容；
         // ResourceHttpRequestHandler 会规范化路径并拒绝 ../ 越界，不会读到目录之外。

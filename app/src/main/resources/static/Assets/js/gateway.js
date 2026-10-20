@@ -187,11 +187,31 @@
             label + ' <span style="color:var(--accent);font-size:15px;font-weight:600;margin-left:4px;">' + esc(value) + '</span></div>';
     }
 
+    /** 用筛选下拉填充用户选项（保留当前选择） */
+    function fillUsageUserOptions(byUser) {
+        var cur = $('#gwUsageUser').val() || '';
+        var opts = '<option value="">全部用户</option>';
+        var seen = {};
+        byUser.forEach(function (x) {
+            var id = String(x.userId);
+            if (seen[id]) return;
+            seen[id] = true;
+            opts += '<option value="' + id + '">' + esc(x.ownerName || id) + '</option>';
+        });
+        $('#gwUsageUser').html(opts);
+        // 当前筛选的用户若不在统计里（如 7 天前调用过），补上避免选项丢失
+        if (cur && !seen[cur]) {
+            $('#gwUsageUser').append('<option value="' + esc(cur) + '">用户#' + esc(cur) + '</option>');
+        }
+        $('#gwUsageUser').val(cur);
+    }
+
     function loadUsage(page) {
         state.usagePage = page || 1;
         $.getJSON('gateway/admin/usage/summary').done(function (res) {
             if (res.errorCode !== '000000') return;
             var b = res.body || {};
+            fillUsageUserOptions(b.byUser || []);
             var t = b.totals || {}, td = b.today || {};
             $('#gwUsageChips').html(
                 chip('总请求', t.count || 0) + chip('输入 tokens', fmtNum(t.inputTokens)) + chip('输出 tokens', fmtNum(t.outputTokens)) +
@@ -208,7 +228,12 @@
             });
             if (!(b.byModel || []).length) $m.append('<tr><td colspan="4" style="color:var(--text-5);">暂无数据</td></tr>');
         });
-        $.getJSON('gateway/admin/usage/logs', { pageNum: state.usagePage, pageSize: 20 }).done(function (res) {
+        var filterUser = $('#gwUsageUser').val() || '';
+        var filterDate = $('#gwUsageDate').val() || '';
+        $.getJSON('gateway/admin/usage/logs', {
+            pageNum: state.usagePage, pageSize: 20,
+            userId: filterUser, date: filterDate
+        }).done(function (res) {
             if (res.errorCode !== '000000') return;
             var b = res.body || {};
             var total = b.total || 0;
@@ -361,6 +386,16 @@
         });
         $('#gwUsageNext').on('click', function () {
             loadUsage(state.usagePage + 1);
+        });
+
+        $('#gwUsageUser').on('change', function () {
+            loadUsage(1);
+        });
+        $('#gwUsageDate').on('change', function () {
+            loadUsage(1);
+        });
+        $('#gwUsageRefresh').on('click', function () {
+            loadUsage(state.usagePage);
         });
 
         $('#gwSwitch').on('change', function () {

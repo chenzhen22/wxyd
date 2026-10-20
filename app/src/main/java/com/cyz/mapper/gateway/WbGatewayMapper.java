@@ -53,9 +53,10 @@ public interface WbGatewayMapper {
 
     List<Map<String, Object>> usageByModel();
 
-    List<Map<String, Object>> usageLogs(@Param("offset") int offset, @Param("limit") int limit);
+    List<Map<String, Object>> usageLogs(@Param("userId") Long userId, @Param("date") String date,
+                                        @Param("offset") int offset, @Param("limit") int limit);
 
-    int usageLogsCount();
+    int usageLogsCount(@Param("userId") Long userId, @Param("date") String date);
 
     /** 清理超过保留期的用量记录 */
     int deleteUsageExpired(@Param("days") int days);

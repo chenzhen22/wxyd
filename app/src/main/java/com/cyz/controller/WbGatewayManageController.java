@@ -289,18 +289,30 @@ public class WbGatewayManageController {
         return result;
     }
 
-    /** 明细日志（分页） */
+    /** 明细日志（分页，支持用户/日期筛选；date 格式 yyyy-MM-dd） */
     @GetMapping("gateway/admin/usage/logs")
     public Result usageLogs(@RequestParam(defaultValue = "1") Integer pageNum,
                             @RequestParam(defaultValue = "20") Integer pageSize,
+                            @RequestParam(required = false) Long userId,
+                            @RequestParam(required = false) String date,
                             HttpSession session) {
         Result result = Result.getInstance();
         if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
         int pn = pageNum == null || pageNum < 1 ? 1 : pageNum;
         int ps = pageSize == null || pageSize < 1 ? 20 : Math.min(pageSize, 100);
+        String day = null;
+        if (date != null && !date.trim().isEmpty()) {
+            try {
+                day = java.time.LocalDate.parse(date.trim()).toString();
+            } catch (Exception e) {
+                result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+                result.setErrorMsg("日期格式需为 yyyy-MM-dd");
+                return result;
+            }
+        }
         Map<String, Object> body = new HashMap<>();
-        body.put("total", wbGatewayMapper.usageLogsCount());
-        body.put("list", wbGatewayMapper.usageLogs((pn - 1) * ps, ps));
+        body.put("total", wbGatewayMapper.usageLogsCount(userId, day));
+        body.put("list", wbGatewayMapper.usageLogs(userId, day, (pn - 1) * ps, ps));
         body.put("pageNum", pn);
         body.put("pageSize", ps);
         result.setBody(body);

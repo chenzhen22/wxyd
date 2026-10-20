@@ -664,7 +664,14 @@
                             <table class="data-table"><thead><tr><th>模型</th><th>请求数</th><th>输入 tok</th><th>输出 tok</th></tr></thead><tbody id="gwUsageByModel"></tbody></table>
                         </div>
                     </div>
-                    <div style="font-size:13px;font-weight:600;color:var(--text-2);margin:12px 0 6px;">最近调用明细</div>
+                    <div style="display:flex;gap:8px;align-items:center;margin:12px 0 6px;flex-wrap:wrap;">
+                        <span style="font-size:13px;font-weight:600;color:var(--text-2);">最近调用明细</span>
+                        <select id="gwUsageUser" style="padding:4px 8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;">
+                            <option value="">全部用户</option>
+                        </select>
+                        <input type="date" id="gwUsageDate" style="padding:4px 8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;color-scheme:dark;">
+                        <button class="btn-main" id="gwUsageRefresh" style="padding:3px 10px;font-size:12px;">刷新</button>
+                    </div>
                     <table class="data-table">
                         <thead><tr><th>时间</th><th>用户</th><th>模型</th><th>协议</th><th>流式</th><th>输入</th><th>输出</th><th>耗时</th><th>状态</th><th></th></tr></thead>
                         <tbody id="gwUsageLogBody"></tbody>
@@ -820,6 +827,6 @@
 <script src="Assets/js/sqltool.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
-<script src="Assets/js/gateway.js?v=8" type="text/javascript"></script>
+<script src="Assets/js/gateway.js?v=9" type="text/javascript"></script>
 </body>
 </html>

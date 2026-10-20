@@ -2552,3 +2552,7 @@ select option { background: var(--select-bg); color: var(--select-fg); }
 .dayinfo-empty { padding: 22px 0; text-align: center; color: #999; font-size: 13px; }
 .dayinfo-main { flex: 1; min-width: 0; }
 @media (max-width: 900px) { .dayinfo-wrap { flex-direction: column; } .dayinfo-side { flex: none; width: 100%; position: static; } .dayinfo-list { max-height: 260px; } }
+
+/* 积分自动化执行中转圈 */
+.gw-spin{display:inline-block;width:12px;height:12px;border:2px solid var(--glass-5);border-top-color:var(--accent);border-radius:50%;animation:gwspin .8s linear infinite;vertical-align:-2px;margin-right:4px;}
+@keyframes gwspin{to{transform:rotate(360deg)}}

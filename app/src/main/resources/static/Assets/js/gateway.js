@@ -1,7 +1,7 @@
 (function () {
 
     var initialized = false;
-    var state = { models: [], defaultModel: '', admin: false, usagePage: 1 };
+    var state = { models: [], defaultModel: '', admin: false, usagePage: 1, autoRunning: {}, autoData: null };
 
     function esc(s) {
         return s == null ? '' : String(s)
@@ -309,25 +309,31 @@
 
     var AUTO_KIND_LABEL = { checkin: '签到', report: '活跃上报', tasks: '任务领奖', streak: '连登兑换+抽奖', travel: '猫猫旅行', compensation: '故障补偿' };
 
+    function renderAuto(b) {
+        b = b || state.autoData || {};
+        $('#gwAutoEnabled').prop('checked', !!b.enabled);
+        $('#gwAutoEnabledLabel').text(b.enabled ? '已开启（按配置小时自动执行）' : '已关闭');
+        var $t = $('#gwAutoBody').html('');
+        (b.jobs || []).forEach(function (j) {
+            var running = !!state.autoRunning[j.kind];
+            var $tr = $('<tr/>');
+            $tr.append('<td>' + esc(AUTO_KIND_LABEL[j.kind] || j.kind) + '</td>');
+            var hs = (j.hours || []).join(' 点, ') + ' 点';
+            $tr.append('<td>' + esc(hs) + '</td>');
+            var run = running ? '<span class="gw-spin"></span>执行中…' : (j.lastRunAtMs ? fmtMs(j.lastRunAtMs) : '尚未运行');
+            $tr.append('<td>' + run + ' <div style="color:var(--text-5);font-size:11px;">' + esc(j.message || '') + '</div></td>');
+            var det = (j.detail || []);
+            $tr.append('<td style="font-size:11px;color:var(--text-2);">' + (det.length ? det.map(esc).join('<br>') : '<span style="color:var(--text-5);">-</span>') + '</td>');
+            $tr.append('<td><button class="btn-main gw-auto-run" data-kind="' + esc(j.kind) + '"' + (running ? ' disabled' : '') + ' style="padding:2px 8px;font-size:12px;">立即执行</button></td>');
+            $t.append($tr);
+        });
+    }
+
     function loadAutomation() {
         $.getJSON('gateway/admin/automation').done(function (res) {
             if (res.errorCode !== '000000') return;
-            var b = res.body || {};
-            $('#gwAutoEnabled').prop('checked', !!b.enabled);
-            $('#gwAutoEnabledLabel').text(b.enabled ? '已开启（按配置小时自动执行）' : '已关闭');
-            var $t = $('#gwAutoBody').html('');
-            (b.jobs || []).forEach(function (j) {
-                var $tr = $('<tr/>');
-                $tr.append('<td>' + esc(AUTO_KIND_LABEL[j.kind] || j.kind) + '</td>');
-                var hs = (j.hours || []).join(' 点, ') + ' 点';
-                $tr.append('<td>' + esc(hs) + '</td>');
-                var run = j.lastRunAtMs ? fmtMs(j.lastRunAtMs) : '尚未运行';
-                $tr.append('<td>' + run + ' <div style="color:var(--text-5);font-size:11px;">' + esc(j.message || '') + '</div></td>');
-                var det = (j.detail || []);
-                $tr.append('<td style="font-size:11px;color:var(--text-2);">' + (det.length ? det.map(esc).join('<br>') : '<span style="color:var(--text-5);">-</span>') + '</td>');
-                $tr.append('<td><button class="btn-main gw-auto-run" data-kind="' + esc(j.kind) + '" style="padding:2px 8px;font-size:12px;">立即执行</button></td>');
-                $t.append($tr);
-            });
+            state.autoData = res.body || {};
+            renderAuto(state.autoData);
         });
     }
 
@@ -485,32 +491,38 @@
         $('#gwAutoRunAll').on('click', function () {
             var $btn = $(this);
             $btn.text('执行中…（约 1 分钟）').prop('disabled', true);
+            Object.keys(AUTO_KIND_LABEL).forEach(function (k) { state.autoRunning[k] = true; });
+            renderAuto();
             postJSON('gateway/admin/automation/runAll', {}).done(function (res) {
                 $btn.text('▶ 一键执行全部').prop('disabled', false);
+                state.autoRunning = {};
                 if (res.errorCode === '000000') {
                     var rows = res.body || [];
                     alterModal(rows.map(function (s) { return (AUTO_KIND_LABEL[s.kind] || s.kind) + '：' + (s.message || ''); }).join('\n'));
                     loadAutomation();
-                } else alterModal(res.errorMsg || '执行失败');
+                } else { alterModal(res.errorMsg || '执行失败'); renderAuto(); }
             }).fail(function () {
                 $btn.text('▶ 一键执行全部').prop('disabled', false);
+                state.autoRunning = {};
+                renderAuto();
                 alterModal('执行失败');
             });
         });
 
         $('#gwAutoBody').on('click', '.gw-auto-run', function () {
-            var $btn = $(this);
-            var kind = $btn.data('kind');
-            $btn.text('执行中…').prop('disabled', true);
+            var kind = $(this).data('kind');
+            state.autoRunning[kind] = true;
+            renderAuto();
             postJSON('gateway/admin/automation/run', { kind: kind }).done(function (res) {
-                $btn.text('立即执行').prop('disabled', false);
+                delete state.autoRunning[kind];
                 if (res.errorCode === '000000') {
                     var b = res.body || {};
                     alterModal('执行完成：' + (b.message || ''));
                     loadAutomation();
-                } else alterModal(res.errorMsg || '执行失败');
+                } else { alterModal(res.errorMsg || '执行失败'); renderAuto(); }
             }).fail(function () {
-                $btn.text('立即执行').prop('disabled', false);
+                delete state.autoRunning[kind];
+                renderAuto();
                 alterModal('执行失败');
             });
         });

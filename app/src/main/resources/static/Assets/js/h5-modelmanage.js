@@ -1,7 +1,7 @@
 (function () {
 
     var initialized = false;
-    var state = { models: [], defaultModel: '', admin: false };
+    var state = { models: [], defaultModel: '', admin: false, autoRunning: {}, autoData: null };
 
     function esc(s) {
         return s == null ? '' : String(s)
@@ -184,25 +184,31 @@
 
     var AUTO_KIND_LABEL = { checkin: '签到', report: '活跃上报', tasks: '任务领奖', streak: '连登兑换+抽奖', travel: '猫猫旅行', compensation: '故障补偿' };
 
+    function renderAuto(b) {
+        b = b || state.autoData || {};
+        $('#h5MmAutoEnabled').prop('checked', !!b.enabled);
+        $('#h5MmAutoEnabledLabel').text(b.enabled ? '已开启' : '已关闭');
+        var $l = $('#h5MmAutoList').html('');
+        (b.jobs || []).forEach(function (j) {
+            var running = !!state.autoRunning[j.kind];
+            var $card = $('<div/>').css({ background: 'var(--glass-3)', border: '1px solid var(--glass-5)', borderRadius: '10px', padding: '10px', marginBottom: '8px' });
+            var hs = (j.hours || []).join(',') + ' 点';
+            var run = running ? '<span class="gw-spin"></span>执行中…' : (j.lastRunAtMs ? fmtMs(j.lastRunAtMs) : '尚未运行');
+            $card.append('<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-1);margin-bottom:4px;">' +
+                '<span>' + esc(AUTO_KIND_LABEL[j.kind] || j.kind) + ' <span style="font-size:11px;color:var(--text-5);">' + esc(hs) + '</span></span>' +
+                (running ? '<span style="font-size:11px;color:var(--text-5);">执行中</span>' : '<span class="h5-btn-ghost h5-btn-sm h5-mm-auto-run" data-kind="' + esc(j.kind) + '">立即执行</span>') + '</div>');
+            $card.append('<div style="font-size:11px;color:var(--text-5);margin-bottom:2px;">' + run + ' · ' + esc(j.message || '') + '</div>');
+            var det = (j.detail || []);
+            if (det.length) $card.append('<div style="font-size:11px;color:var(--text-2);">' + det.map(esc).join('<br>') + '</div>');
+            $l.append($card);
+        });
+    }
+
     function loadAutomation() {
         $.getJSON('gateway/admin/automation').done(function (res) {
             if (res.errorCode !== '000000') return;
-            var b = res.body || {};
-            $('#h5MmAutoEnabled').prop('checked', !!b.enabled);
-            $('#h5MmAutoEnabledLabel').text(b.enabled ? '已开启' : '已关闭');
-            var $l = $('#h5MmAutoList').html('');
-            (b.jobs || []).forEach(function (j) {
-                var $card = $('<div/>').css({ background: 'var(--glass-3)', border: '1px solid var(--glass-5)', borderRadius: '10px', padding: '10px', marginBottom: '8px' });
-                var hs = (j.hours || []).join(',') + ' 点';
-                var run = j.lastRunAtMs ? fmtMs(j.lastRunAtMs) : '尚未运行';
-                $card.append('<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-1);margin-bottom:4px;">' +
-                    '<span>' + esc(AUTO_KIND_LABEL[j.kind] || j.kind) + ' <span style="font-size:11px;color:var(--text-5);">' + esc(hs) + '</span></span>' +
-                    '<span class="h5-btn-ghost h5-btn-sm h5-mm-auto-run" data-kind="' + esc(j.kind) + '">立即执行</span></div>');
-                $card.append('<div style="font-size:11px;color:var(--text-5);margin-bottom:2px;">' + run + ' · ' + esc(j.message || '') + '</div>');
-                var det = (j.detail || []);
-                if (det.length) $card.append('<div style="font-size:11px;color:var(--text-2);">' + det.map(esc).join('<br>') + '</div>');
-                $l.append($card);
-            });
+            state.autoData = res.body || {};
+            renderAuto(state.autoData);
         });
     }
 
@@ -297,19 +303,22 @@
             $('#h5MmAutoRunAll').on('click', function () {
                 var $btn = $(this);
                 $btn.text('执行中…');
+                Object.keys(AUTO_KIND_LABEL).forEach(function (k) { state.autoRunning[k] = true; });
+                renderAuto();
                 postJSON('gateway/admin/automation/runAll', {}).done(function (res) {
                     $btn.text('▶ 一键执行全部');
+                    state.autoRunning = {};
                     if (res.errorCode === '000000') {
                         var rows = res.body || [];
                         toast(rows.map(function (s) { return (AUTO_KIND_LABEL[s.kind] || s.kind) + ': ' + (s.message || ''); }).join(' | '));
                         loadAutomation();
-                    } else toast(res.errorMsg || '执行失败');
-                }).fail(function () { $btn.text('▶ 一键执行全部'); toast('执行失败'); });
+                    } else { toast(res.errorMsg || '执行失败'); renderAuto(); }
+                }).fail(function () { $btn.text('▶ 一键执行全部'); state.autoRunning = {}; renderAuto(); toast('执行失败'); });
             });
             $('#h5MmAutoList').on('click', '.h5-mm-auto-run', function () {
-                var $btn = $(this);
-                var kind = $btn.data('kind');
-                $btn.text('执行中…');
+                var kind = $(this).data('kind');
+                state.autoRunning[kind] = true;
+                renderAuto();
                 postJSON('gateway/admin/automation/run', { kind: kind }).done(function (res) {
                     $btn.text('立即执行');
                     if (res.errorCode === '000000') {

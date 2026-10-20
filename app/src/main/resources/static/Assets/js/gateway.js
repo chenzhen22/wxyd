@@ -171,7 +171,7 @@
             if (res.errorCode !== '000000') return; /* 非管理员：状态/刷新按钮与整个管理区块都保持隐藏 */
             state.admin = true;
             /* 状态徽标与刷新按钮仅管理员可见（gateway/status 接口也仅管理员可调） */
-            $('#gwStatusBadge, #gwRefreshBtn').show();
+            $('#gwStatusBadge, #gwRefreshBtn, #mmRefreshBtn').show();
             refreshStatus();
             $('#gwAdminCard').show();
             var on = res.body && res.body.modelSwitch;
@@ -311,6 +311,10 @@
             refreshStatus();
             loadKeys();
             loadModels();
+            if (state.admin) loadAdmin();
+        });
+        $('#mmRefreshBtn').on('click', function () {
+            refreshStatus();
             if (state.admin) loadAdmin();
         });
 
@@ -467,6 +471,12 @@
             }
             initialized = true;
             bindEvents();
+            /* 调用明细日期默认当日（本地时区） */
+            if (!$('#gwUsageDate').val()) {
+                var d = new Date();
+                function p2(n) { return n < 10 ? '0' + n : n; }
+                $('#gwUsageDate').val(d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()));
+            }
             refreshStatus();
             loadModels().done(loadKeys);
             loadAdmin();

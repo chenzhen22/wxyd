@@ -140,6 +140,14 @@ $(function () {
 
         }
 
+        // 模型管理模块懒加载（仅管理员菜单，管理员专用接口均有服务端守卫）
+
+        if (target === "modelManage" && window.Gateway) {
+
+            Gateway.init();
+
+        }
+
         // 菜单管理模块懒加载（仅管理员）
         if (target === "menuManage" && window.MenuManage) {
             MenuManage.mount($("#menuManageBody")[0]);

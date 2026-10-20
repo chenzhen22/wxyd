@@ -290,6 +290,8 @@ public class DataInitializer implements ApplicationRunner {
             {"welfare", "desktop", "福利专区", "🎁", "#/welfare", "130", "0", "0"},
             {"dayinfo", "desktop", "金融日报", "📈", "#/dayinfo", "135", "0", "0"},
             {"gateway", "desktop", "模型网关", "🔑", "#/gateway", "137", "0", "0"},
+
+            {"modelManage", "desktop", "模型管理", "🧩", "#/modelManage", "139", "1", "0"},
             {"patrol", "desktop", "巡检日报", "🛡️", "#/patrol", "140", "1", "0"},
             {"loginLog", "desktop", "登录日志", "📜", "#/loginLog", "145", "0", "0"},
             {"menuManage", "desktop", "菜单管理", "🧩", "#/menuManage", "150", "1", "1"},

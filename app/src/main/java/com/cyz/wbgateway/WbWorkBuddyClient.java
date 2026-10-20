@@ -8,11 +8,13 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import com.cyz.wbgateway.pool.WbPoolCredential;
 import okhttp3.MediaType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.Resource;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -27,10 +29,9 @@ import java.util.concurrent.TimeUnit;
 /**
  * WorkBuddy 上游客户端（dsh-claude-gateway 的 Java 移植）。
  * <p>
- * 凭据解密依赖 Windows 侧 WorkBuddy 桌面 App（密钥派生在桌面端完成），因此本类经 WSL interop
- * 调 Windows node.exe 执行 win-bridge.mjs（resolve/status），凭据本地按 TTL 缓存；
- * 上游 HTTP（chat SSE / 模型目录）由本类经 OkHttp 直连 copilot.tencent.com 完成。
- * 协议细节照 dsh-workbuddy-connect 插件 0.7.x 逆向对齐，WorkBuddy 更新可能需要随之调整。
+ * 凭据来自 com.cyz.wbgateway.pool.WbAccountPool（纯 Java 解密桌面 App auth 文件，
+ * 多账号自动容错；dsh-xdpool 的 Java 移植），本类只做上游 HTTP（chat SSE / 目录 / 令牌刷新 / 积分）。
+ * 协议细节照 dsh-workbuddy-connect 0.7.x 与 dsh-xdpool 逆向对齐，WorkBuddy 更新可能需要随之调整。
  */
 @Component
 @Slf4j
@@ -58,37 +59,23 @@ public class WbWorkBuddyClient {
     /** 会话失效标记：命中说明桌面登录态被上游判死，需重新桥接取新令牌 */
     private static final String[] SESSION_DEAD_MARKERS = {"Offline user session not found", "12153"};
 
-    @Value("${wxyd.wbgateway.win-node:}")
-    private String winNode;
-
-    @Value("${wxyd.wbgateway.win-bridge-script:/mnt/d/app/dsh-claude-gateway/workbuddy/win-bridge.mjs}")
-    private String winBridgeScript;
-
-    @Value("${wxyd.wbgateway.bridge-ttl-minutes:10}")
-    private int bridgeTtlMinutes;
-
     @Value("${wxyd.wbgateway.client-version:5.5.6}")
     private String clientVersion;
 
     @Value("${wxyd.wbgateway.chat-timeout-seconds:300}")
     private int chatTimeoutSeconds;
 
-    @Value("${wxyd.wbgateway.bridge-timeout-seconds:60}")
-    private int bridgeTimeoutSeconds;
-
     @Value("${wxyd.wbgateway.default-model:glm-5.3}")
     private String defaultModel;
 
-    @Value("${wxyd.wbgateway.electron-bin:}")
-    private String electronBin;
+    @Resource
+    private com.cyz.wbgateway.pool.WbAccountPool accountPool;
 
     private OkHttpClient http;
 
     // ---- 凭据缓存（TTL）与模型目录缓存 ----
-    private final Object credLock = new Object();
-    private WbCredential cachedCredential;
-    private long cachedCredentialAt;
-    private boolean credInflight;
+    /** accountId -> 积分（10 分钟/号缓存） */
+    private final Map<String, CreditsInfo> creditsCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private final Object modelLock = new Object();
     private WbModelCatalog cachedModels;
@@ -108,162 +95,199 @@ public class WbWorkBuddyClient {
         http = b.build();
     }
 
-    /* ==================== 凭据（win-bridge 桥接） ==================== */
-
-    /** 找可用的 Windows node.exe（interop 桥接必需） */
-    private String findWinNode() {
-        List<String> candidates = new ArrayList<>();
-        if (winNode != null && !winNode.trim().isEmpty()) candidates.add(winNode.trim());
-        boolean onWindows = System.getProperty("os.name", "").toLowerCase().contains("windows");
-        if (onWindows) candidates.add("node.exe");
-        candidates.add("/mnt/c/Program Files/nodejs/node.exe");
-        candidates.add("/mnt/c/Program Files (x86)/nodejs/node.exe");
-        for (String c : candidates) {
-            try {
-                ProcessBuilder pb = new ProcessBuilder(c, "--version").redirectErrorStream(true);
-                Process proc = pb.start();
-                if (proc.waitFor(15, TimeUnit.SECONDS) && proc.exitValue() == 0) return c;
-                proc.destroyForcibly();
-            } catch (Exception ignore) {
-                // 试下一个
-            }
-        }
-        throw new IllegalStateException("找不到可用的 Windows node.exe（WSL interop 桥接需要）。"
-                + "请确认 WSL interop 已开启，或配置 wxyd.wbgateway.win-node 指定 Windows node 路径。已尝试：" + candidates);
-    }
-
-    /** /mnt/x/... -> X:\...；其余原样返回（Windows 本机跑或已是 Windows 路径） */
-    static String toWinPath(String p) {
-        if (p == null) return null;
-        java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("^/mnt/([a-zA-Z])/(.+)$").matcher(p);
-        if (m.matches()) {
-            return m.group(1).toUpperCase() + ":\\" + m.group(2).replace('/', '\\');
-        }
-        return p;
-    }
-
-    /** 调 Windows 侧 win-bridge helper，返回解析后的 JSON */
-    private JSONObject callWinBridge(String cmd) {
-        String node = findWinNode();
-        String script = toWinPath(winBridgeScript);
-        boolean onLinux = System.getProperty("os.name", "").toLowerCase().contains("linux");
-        if (onLinux && !winBridgeScript.startsWith("/mnt/")
-                && !winBridgeScript.matches("^[A-Za-z]:[\\\\/].*")) {
-            throw new IllegalStateException("win-bridge 脚本路径无法换算成 Windows 路径（需 /mnt/x/... 或 X:\\... 形式）："
-                    + winBridgeScript + "，可用 wxyd.wbgateway.win-bridge-script 配置");
-        }
-        try {
-            ProcessBuilder pb = new ProcessBuilder(node, script, cmd);
-            pb.redirectErrorStream(true);
-            if (electronBin != null && !electronBin.trim().isEmpty()) {
-                pb.environment().put("WORKBUDDY_ELECTRON_BIN", electronBin.trim());
-            }
-            Process p = pb.start();
-            StringBuilder out = new StringBuilder();
-            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = r.readLine()) != null) {
-                    out.append(line).append('\n');
-                }
-            }
-            if (!p.waitFor(bridgeTimeoutSeconds, TimeUnit.SECONDS)) {
-                p.destroyForcibly();
-                throw new IllegalStateException("win-bridge 超时（" + bridgeTimeoutSeconds + "s）");
-            }
-            String text = out.toString();
-            int brace = text.indexOf('{');
-            if (brace >= 0) {
-                try {
-                    return JSON.parseObject(text.substring(brace));
-                } catch (Exception ignore) {
-                    // 落到下面的兜底
-                }
-            }
-            throw new IllegalStateException("win-bridge 无有效输出：" + text.substring(0, Math.min(text.length(), 300)));
-        } catch (IllegalStateException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalStateException("win-bridge 调用失败：" + e.getMessage(), e);
-        }
-    }
+    /* ==================== 凭据（多账号池） ==================== */
 
     /**
-     * 取当前凭据（TTL 缓存；过期或被上游判死后重新桥接）。
-     * Windows 侧 store 在 resolve 时顺带刷新令牌并持久化，本侧不做刷新。
+     * 选一个可用账号并返回；令牌临期（<60s）自动刷新。
+     * 刷新失败抛 WbUpstreamException(session_dead)，由调用方决定换号。
      */
-    public WbCredential resolveCredential() {
-        synchronized (credLock) {
-            long ttlMs = bridgeTtlMinutes * 60_000L;
-            long now = System.currentTimeMillis();
-            if (cachedCredential != null && now - cachedCredentialAt < ttlMs
-                    && cachedCredential.getExpiresAtMs() != null && cachedCredential.getExpiresAtMs() > now + 60_000L) {
-                return cachedCredential;
+    public com.cyz.wbgateway.pool.WbPoolAccount acquireAccount(String model) {
+        accountPool.scanIfNeeded();
+        com.cyz.wbgateway.pool.WbPoolAccount acc = accountPool.pick(model, null);
+        WbPoolCredential c = acc.getCredential();
+        long now = System.currentTimeMillis();
+        boolean expiring = c.getExpiresAtMs() <= 0 || c.getExpiresAtMs() < now + 60_000L;
+        if (expiring && c.getRefreshToken() != null && !c.getRefreshToken().isEmpty()) {
+            refreshAccount(acc.getId());
+        }
+        return acc;
+    }
+
+    /** 调上游刷新端点换新令牌（xdpool refreshToken 的 Java 版），成功回写池并清冷却 */
+    public void refreshAccount(String accountId) {
+        com.cyz.wbgateway.pool.WbPoolAccount acc = accountPool.get(accountId);
+        if (acc == null) throw new WbUpstreamException(WbUpstreamException.KIND_SESSION_DEAD, 0, "account gone: " + accountId);
+        WbPoolCredential c = acc.getCredential();
+        if (c.getRefreshToken() == null || c.getRefreshToken().isEmpty()) {
+            throw new WbUpstreamException(WbUpstreamException.KIND_SESSION_DEAD, 0, "no refresh token（需在桌面 App 重新登录）");
+        }
+        try {
+            Request req = new Request.Builder()
+                    .url(chatBase(c.toWbCredential()) + "/v2/plugin/auth/token/refresh")
+                    .header("Authorization", "Bearer " + c.getAccessToken())
+                    .header("Accept", "application/json")
+                    .header("X-Refresh-Token", c.getRefreshToken())
+                    .header("X-Auth-Refresh-Source", "workbuddy")
+                    .header("X-Requested-With", "XMLHttpRequest")
+                    .header("Origin", originReferer(c.toWbCredential()))
+                    .header("Referer", originReferer(c.toWbCredential()) + "/")
+                    .header("User-Agent", chatUserAgent(c.toWbCredential()))
+                    .header(c.getUid() == null || c.getUid().isEmpty() ? "X-No-User-Id" : "X-User-Id",
+                            c.getUid() == null || c.getUid().isEmpty() ? "1" : c.getUid())
+                    .header(c.getEnterpriseId() == null || c.getEnterpriseId().isEmpty() ? "X-No-Enterprise-Id" : "X-Enterprise-Id",
+                            c.getEnterpriseId() == null || c.getEnterpriseId().isEmpty() ? "1" : c.getEnterpriseId())
+                    .header(c.getDomain() == null || c.getDomain().isEmpty() ? "X-No-Department-Info" : "X-Domain",
+                            c.getDomain() == null || c.getDomain().isEmpty() ? "1" : c.getDomain())
+                    .header("X-IDE-Type", "WorkBuddy")
+                    .header("X-IDE-Name", "WorkBuddy")
+                    .header("X-IDE-Version", clientVersion)
+                    .header("X-Product", "SaaS")
+                    .post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), new byte[0]))
+                    .build();
+            try (Response resp = http.newCall(req).execute()) {
+                String text = resp.body() == null ? "" : resp.body().string();
+                if (!resp.isSuccessful()) throw new WbUpstreamException(classify(resp.code(), text), resp.code(), excerpt(text));
+                JSONObject envelope = JSON.parseObject(text);
+                if (envelope == null || envelope.getIntValue("code") != 0) {
+                    String msg = envelope == null ? "空响应" : envelope.getString("msg");
+                    throw new WbUpstreamException(classify(resp.code(), msg), resp.code(), excerpt(msg));
+                }
+                JSONObject data = envelope.getJSONObject("data");
+                String access = data == null ? null : data.getString("accessToken");
+                if (access == null || access.isEmpty()) {
+                    throw new WbUpstreamException(WbUpstreamException.KIND_SESSION_DEAD, 0, "refresh 无 accessToken（需重新登录）");
+                }
+                WbPoolCredential n = new WbPoolCredential();
+                n.setAccessToken(access);
+                n.setRefreshToken(data.getString("refreshToken") != null ? data.getString("refreshToken") : c.getRefreshToken());
+                Integer expiresIn = data == null ? null : data.getInteger("expiresIn");
+                n.setExpiresAtMs(expiresIn != null && expiresIn > 0
+                        ? System.currentTimeMillis() + expiresIn * 1000L
+                        : (c.getExpiresAtMs() == null ? 0L : c.getExpiresAtMs()));
+                n.setDomain(data != null && data.getString("domain") != null ? data.getString("domain") : c.getDomain());
+                n.setUid(c.getUid());
+                n.setEnterpriseId(c.getEnterpriseId());
+                n.setUin(c.getUin());
+                n.setNickname(c.getNickname());
+                n.setLastRefreshAtMs(System.currentTimeMillis());
+                accountPool.onRefreshed(accountId, n);
             }
-            if (credInflight) {
-                // 极端并发下的兜底：直接再解析一次（正常不会走到）
-                return doResolve();
-            }
-            credInflight = true;
-            try {
-                WbCredential c = doResolve();
-                cachedCredential = c;
-                cachedCredentialAt = System.currentTimeMillis();
-                return c;
-            } finally {
-                credInflight = false;
-            }
+        } catch (WbUpstreamException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new WbUpstreamException(WbUpstreamException.KIND_SERVER, 0, "refresh transport error: " + e.getMessage());
         }
     }
 
-    private WbCredential doResolve() {
-        JSONObject resp = callWinBridge("resolve");
-        if (resp == null || !Boolean.TRUE.equals(resp.getBoolean("ok"))) {
-            String err = resp == null ? "无输出" : resp.getString("error");
-            throw new IllegalStateException("凭据不可用：" + err);
-        }
-        WbCredential c = WbCredential.parse(resp.getJSONObject("credential"));
-        if (c.getAccessToken() == null || c.getAccessToken().isEmpty()) {
-            throw new IllegalStateException("凭据缺少accessToken");
-        }
-        return c;
-    }
-
-    /** 令牌被上游判死（session_dead）后失效缓存，下次 resolve 重新向 Windows 桥接取新令牌 */
-    public void invalidateCredential() {
-        synchronized (credLock) {
-            cachedCredential = null;
-        }
-    }
-
-    /** 登录态 + 积分 + 模型来源（Windows 侧诊断，短缓存 60s） */
+    /** 池概览：每账号登录态/积分/冷却（积分 10 分钟/号缓存，整体 60s 缓存） */
     public Map<String, Object> bridgeStatus() {
         synchronized (statusLock) {
             long now = System.currentTimeMillis();
             if (cachedStatus != null && now - cachedStatusAt < 60_000L) return cachedStatus;
-            JSONObject resp = callWinBridge("status");
-            if (resp == null || !Boolean.TRUE.equals(resp.getBoolean("ok"))) {
-                String err = resp == null ? "无输出" : resp.getString("error");
-                throw new IllegalStateException("状态诊断失败：" + err);
+            accountPool.scanIfNeeded();
+            List<Map<String, Object>> rows = accountPool.statusRows();
+            long healthy = 0;
+            for (Map<String, Object> row : rows) {
+                String id = String.valueOf(row.get("id"));
+                CreditsInfo ci = creditsFor(id);
+                row.put("credits", ci.value);
+                row.put("creditsError", ci.error);
+                boolean alive = row.get("cooldownUntilMs") == null && row.get("credentialDeadUntilMs") == null;
+                if (alive) healthy++;
             }
-            JSONObject st = resp.getJSONObject("status");
             Map<String, Object> m = new LinkedHashMap<>();
-            if (st != null) {
-                m.put("provider", st.getString("provider"));
-                m.put("displayName", st.getString("displayName"));
-                m.put("region", st.getString("region"));
-                m.put("signIn", st.getString("signIn"));
-                m.put("nickname", st.getString("nickname"));
-                m.put("source", st.getString("source"));
-                m.put("credits", st.get("credits"));
-                m.put("creditsError", st.getString("creditsError"));
-                m.put("expiresAtMs", st.getLong("expiresAtMs"));
-            }
+            m.put("poolSize", rows.size());
+            m.put("healthy", healthy);
+            m.put("accounts", rows);
+            m.put("skipped", accountPool.skipped());
             m.put("modelsSource", cachedModels != null ? cachedModels.source : null);
             cachedStatus = m;
-            cachedStatusAt = System.currentTimeMillis();
+            cachedStatusAt = now;
             return m;
         }
+    }
+
+    /** 单账号积分查询（xdpool fetchCredits 的 Java 版，仅余额聚合所需字段） */
+    private CreditsInfo creditsFor(String accountId) {
+        long now = System.currentTimeMillis();
+        CreditsInfo cached = creditsCache.get(accountId);
+        if (cached != null && now - cached.at < 600_000L) return cached;
+        CreditsInfo ci = new CreditsInfo();
+        try {
+            com.cyz.wbgateway.pool.WbPoolAccount acc = accountPool.get(accountId);
+            if (acc == null) throw new IllegalStateException("账号不在池内");
+            WbCredential cred = acc.getCredential().toWbCredential();
+            String fmt = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
+            String end = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+                    .format(new java.util.Date(now + 365L * 101 * 24 * 3600 * 1000));
+            JSONObject body = new JSONObject();
+            body.put("PageNumber", 1);
+            body.put("PageSize", 100);
+            body.put("ProductCode", "p_tcaca");
+            body.put("Status", new int[]{0, 3});
+            body.put("PackageEndTimeRangeBegin", fmt);
+            body.put("PackageEndTimeRangeEnd", end);
+            Request.Builder rb = new Request.Builder()
+                    .url(billingBase(cred) + "/v2/billing/meter/get-user-resource")
+                    .header("Authorization", "Bearer " + cred.getAccessToken())
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), body.toJSONString()));
+            if (!cred.getUid().isEmpty()) rb.header("X-User-Id", cred.getUid());
+            if (!cred.getEnterpriseId().isEmpty()) {
+                rb.header("X-Enterprise-Id", cred.getEnterpriseId());
+                rb.header("X-Tenant-Id", cred.getEnterpriseId());
+            }
+            if (!cred.getDomain().isEmpty()) rb.header("X-Domain", cred.getDomain());
+            try (Response resp = http.newCall(rb.build()).execute()) {
+                String text = resp.body() == null ? "" : resp.body().string();
+                JSONObject envelope = JSON.parseObject(text);
+                if (!resp.isSuccessful() || envelope == null || envelope.getIntValue("code") != 0) {
+                    String msg = envelope == null ? "空响应" : envelope.getString("msg");
+                    throw new IllegalStateException(excerpt(msg));
+                }
+                JSONObject data = envelope.getJSONObject("data");
+                JSONObject resp0 = data == null ? null : data.getJSONObject("Response");
+                JSONObject d = resp0 == null ? null : resp0.getJSONObject("Data");
+                JSONArray accounts = d == null ? null : d.getJSONArray("Accounts");
+                long total = 0;
+                if (accounts != null) {
+                    for (int i = 0; i < accounts.size(); i++) {
+                        JSONObject a = accounts.getJSONObject(i);
+                        if (a == null) continue;
+                        boolean monthly = a.getIntValue("CapacityType") == 4;
+                        long remain = monthly ? a.getLongValue("CycleCapacityRemain") : a.getLongValue("CapacityRemain");
+                        if (remain < 0) remain = 0;
+                        if (!monthly) {
+                            long expMs = parseApiDate(a.getString("ExpiredTime"));
+                            if (remain <= 0 || (expMs > 0 && expMs <= now)) continue;
+                        }
+                        total += remain;
+                    }
+                }
+                ci.value = total;
+            }
+        } catch (Exception e) {
+            ci.error = brief(e.getMessage());
+        }
+        ci.at = now;
+        creditsCache.put(accountId, ci);
+        return ci;
+    }
+
+    private static long parseApiDate(String s) {
+        if (s == null || s.isEmpty()) return 0;
+        try {
+            return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(s).getTime();
+        } catch (Exception e) {
+            try { return Long.parseLong(s.trim()); } catch (Exception ignore) { return 0; }
+        }
+    }
+
+    private static class CreditsInfo {
+        Object value;
+        String error;
+        long at;
     }
 
     /* ==================== 模型目录 ==================== */
@@ -274,7 +298,7 @@ public class WbWorkBuddyClient {
             long now = System.currentTimeMillis();
             if (cachedModels != null && now - cachedModelsAt < 600_000L) return cachedModels;
             try {
-                WbCredential cred = resolveCredential();
+                WbCredential cred = acquireAccount("catalog").getCredential().toWbCredential();
                 Request req = new Request.Builder()
                         .url(chatBase(cred) + "/v3/config")
                         .header("Authorization", "Bearer " + cred.getAccessToken())
@@ -504,6 +528,10 @@ public class WbWorkBuddyClient {
         return cred.isGlobal() ? "https://www.workbuddy.ai" : CN_CHAT_BASE;
     }
 
+    private String billingBase(WbCredential cred) {
+        return cred.isGlobal() ? "https://www.workbuddy.ai" : CN_BILLING_BASE;
+    }
+
     private String originReferer(WbCredential cred) {
         return cred.isGlobal() ? "https://www.workbuddy.ai" : CN_BILLING_BASE;
     }
@@ -512,6 +540,21 @@ public class WbWorkBuddyClient {
     private String chatUserAgent(WbCredential cred) {
         String product = cred.isGlobal() ? "WorkBuddy AI" : "WorkBuddy";
         return "WorkBuddy/" + clientVersion + " " + product + "/" + clientVersion;
+    }
+
+    /* ---------------- 池记账委托（ChatService 调用） ---------------- */
+
+    public void onSuccess(String accountId) { accountPool.onSuccess(accountId); }
+
+    public void onCredentialDead(String accountId, String reason) { accountPool.onCredentialDead(accountId, reason); }
+
+    public void onModelRateLimited(String accountId, String model) { accountPool.onModelRateLimited(accountId, model); }
+
+    public void onHardCredit(String accountId) { accountPool.onHardCredit(accountId); }
+
+    private static String brief(String s) {
+        if (s == null) return "";
+        return s.length() > 160 ? s.substring(0, 160) : s;
     }
 
     private static String excerpt(String s) {

@@ -124,31 +124,71 @@ public class WbGatewayChatService {
         openaiReq.put("stream", true); // 上游只接受流式，客户端要非流式时在网关聚合
         WbProtocol.sanitizeOpenAiMessages(openaiReq);
 
-        // ---- 发起上游请求（候选链重试 + session_dead 重取凭据各一次）----
-        WbCredential cred = client.resolveCredential();
+        // ---- 发起上游请求（候选链重试 + 账号池自动换号）----
         Response upstream = null;
         WbUpstreamException failure = null;
         int chainIdx = 0;
-        boolean credRetried = false;
+        com.cyz.wbgateway.pool.WbPoolAccount acc = null;
+        WbCredential cred = null;
+        boolean refreshedOnce = false; // 当前账号令牌刷新过一次
+        int switched = 0;
+        int maxSwitch = 8; // 换号/换模型总步数上限（池会跳过冷却号，理论到不了）
         while (true) {
             openaiReq.put("model", chain.get(chainIdx));
             String bodyJson = client.prepareBody(openaiReq.toJSONString());
             try {
+                if (acc == null) {
+                    try {
+                        acc = client.acquireAccount(chain.get(chainIdx));
+                    } catch (IllegalStateException ne) {
+                        failure = new WbUpstreamException(WbUpstreamException.KIND_SESSION_DEAD, 0, ne.getMessage());
+                        break;
+                    }
+                    cred = acc.getCredential().toWbCredential();
+                    refreshedOnce = false;
+                }
                 upstream = client.chatStream(cred, bodyJson);
+                client.onSuccess(acc.getId());
                 break;
             } catch (WbUpstreamException e) {
-                if (WbUpstreamException.KIND_SESSION_DEAD.equals(e.getKind()) && !credRetried) {
-                    // 令牌被上游判死：失效缓存重取一次（Windows 侧顺带刷新令牌）
-                    credRetried = true;
-                    client.invalidateCredential();
-                    cred = client.resolveCredential();
-                    log.warn("[WBGATEWAY] 凭据被上游判死，已重取重试 keyId={}", key.getId());
-                    continue;
+                boolean canChain = chainIdx < chain.size() - 1 && WbWorkBuddyClient.isModelFallbackRetryable(e);
+                if (WbUpstreamException.KIND_SESSION_DEAD.equals(e.getKind()) && !refreshedOnce && acc != null) {
+                    // 令牌被上游判死：先刷新当前账号重试一次
+                    refreshedOnce = true;
+                    try {
+                        client.refreshAccount(acc.getId());
+                        cred = acc.getCredential().toWbCredential();
+                        log.warn("[WBGATEWAY] 账号 {} 令牌被上游判死，已刷新重试", acc.getLabel());
+                        continue;
+                    } catch (Exception re) {
+                        client.onCredentialDead(acc.getId(), re.getMessage());
+                        acc = null;
+                        continue;
+                    }
                 }
-                if (chainIdx < chain.size() - 1 && WbWorkBuddyClient.isModelFallbackRetryable(e)) {
+                if (WbUpstreamException.KIND_SOFT_RATE.equals(e.getKind()) && acc != null) {
+                    // 限流是模型级的：冷却该号该模型，池自动跳到下一号
+                    client.onModelRateLimited(acc.getId(), chain.get(chainIdx));
+                    acc = null;
+                    if (switched++ < maxSwitch) continue;
+                    if (canChain) { chainIdx++; continue; }
+                    failure = e;
+                    break;
+                }
+                if (WbUpstreamException.KIND_HARD_CREDIT.equals(e.getKind()) && acc != null) {
+                    // 积分耗尽：账号级冷却，换号
+                    client.onHardCredit(acc.getId());
+                    acc = null;
+                    if (switched++ < maxSwitch) continue;
+                    if (canChain) { chainIdx++; continue; }
+                    failure = e;
+                    break;
+                }
+                if (canChain) {
                     log.warn("[WBGATEWAY] 模型 {} 失败（{}），切换候选链下一个 {}",
                             chain.get(chainIdx), e.getKind(), chain.get(chainIdx + 1));
                     chainIdx++;
+                    acc = null;
                     continue;
                 }
                 failure = e;
@@ -158,8 +198,8 @@ public class WbGatewayChatService {
         if (failure != null) {
             String detail = failure.getMessage() == null ? "" : failure.getMessage();
             log.error("[WBGATEWAY] 上游错误 kind={} http={} detail={}", failure.getKind(), failure.getHttpStatus(), detail);
-            if (WbUpstreamException.KIND_SESSION_DEAD.equals(failure.getKind())) {
-                client.invalidateCredential();
+            if (WbUpstreamException.KIND_SESSION_DEAD.equals(failure.getKind()) && acc != null) {
+                client.onCredentialDead(acc.getId(), failure.getMessage());
             }
             recordUsage(key, protocol, requested, chain.get(chainIdx), wantStream, 0, 0,
                     System.currentTimeMillis() - started, "error", failure.getKind(), clientRequestJson,

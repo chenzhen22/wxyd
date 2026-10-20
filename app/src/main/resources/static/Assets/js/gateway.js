@@ -51,15 +51,57 @@
         var $b = $('#gwStatusBadge').text('🟡 状态未知');
         $.getJSON('gateway/status').done(function (res) {
             if (res.errorCode !== '000000' || !res.body) {
-                $b.text('🔴 桥接不可用');
+                $b.text('🔴 凭据不可用');
+                renderPool([]);
                 return;
             }
             var st = res.body;
-            var signedIn = st.signIn === 'signed-in' || st.signIn === true;
-            var credits = st.credits === 'unlimited' ? '无限' : (st.credits != null ? st.credits : '?');
-            $b.text((signedIn ? '🟢 已登录 · 积分 ' : '🔴 未登录 · 积分 ') + credits);
+            var rows = st.accounts || [];
+            var totalCredits = 0, hasErr = false;
+            rows.forEach(function (r) {
+                if (typeof r.credits === 'number') totalCredits += r.credits;
+                else hasErr = true;
+            });
+            if (!rows.length) {
+                $b.text('🔴 账号池为空（桌面 App 未登录？）');
+            } else {
+                $b.text('🟢 池 ' + (st.healthy || 0) + '/' + rows.length + ' 可用 · 总积分 ' + totalCredits + (hasErr ? '（部分积分查询失败）' : ''));
+            }
+            renderPool(rows);
         }).fail(function () {
-            $b.text('🔴 桥接不可用');
+            $b.text('🔴 凭据不可用');
+            renderPool([]);
+        });
+    }
+
+    function fmtMs(ms) {
+        if (!ms) return '-';
+        var d = new Date(Number(ms));
+        function p(n) { return n < 10 ? '0' + n : n; }
+        return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    function renderPool(rows) {
+        var $t = $('#gwPoolBody').html('');
+        if (!rows || !rows.length) {
+            $t.append('<tr><td colspan="7" style="color:var(--text-5);">池内没有账号：在桌面 App 登录后点「刷新」，或检查 wxyd.wbgateway.workbuddy-exe 配置</td></tr>');
+            return;
+        }
+        rows.forEach(function (r) {
+            var $tr = $('<tr/>');
+            var state, color = '#4ade80';
+            if (r.credentialDeadUntilMs) { state = '🔴 登录态失效'; color = '#f87171'; }
+            else if (r.cooldownUntilMs) { state = '🟠 积分冷却'; color = '#e0a800'; }
+            else { state = '🟢 可用'; }
+            var credits = typeof r.credits === 'number' ? r.credits : ('<span style="color:var(--text-5);">' + esc(r.creditsError || '?') + '</span>');
+            $tr.append('<td>' + esc(r.label || r.id) + '</td>');
+            $tr.append('<td>' + esc(r.domain || '(默认)') + ' <span style="color:var(--text-5);">' + esc(r.source || '') + '</span></td>');
+            $tr.append('<td>' + credits + '</td>');
+            $tr.append('<td>' + fmtMs(r.expiresAtMs) + '</td>');
+            $tr.append('<td style="color:' + color + '">' + state + (r.lastError ? ' <span style="font-size:11px;color:var(--text-5);">' + esc(r.lastError) + '</span>' : '') + '</td>');
+            $tr.append('<td>' + fmtMs(r.lastSuccessAtMs) + '</td>');
+            $tr.append('<td>' + (r.rateLimitHits || 0) + '</td>');
+            $t.append($tr);
         });
     }
 

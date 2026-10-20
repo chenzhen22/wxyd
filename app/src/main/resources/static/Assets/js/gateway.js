@@ -317,6 +317,7 @@
             refreshStatus();
             if (state.admin) loadAdmin();
         });
+        /* 说明：调用明细的刷新由日期选择框/用户下拉 change 事件触发，无独立按钮 */
 
         $('#gwKeyAdd').on('click', function () {
             var name = $.trim($('#gwKeyName').val() || '');
@@ -442,9 +443,6 @@
         });
         $('#gwUsageDate').on('change', function () {
             loadUsage(1);
-        });
-        $('#gwUsageRefresh').on('click', function () {
-            loadUsage(state.usagePage);
         });
 
         $('#gwSwitch').on('change', function () {

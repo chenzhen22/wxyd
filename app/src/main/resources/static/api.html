@@ -594,7 +594,7 @@
         </div>
 
         <div class="module-box" id="gateway">
-            <div class="page-title">模型网关 <span class="admin-badge" id="gwStatusBadge" style="cursor:pointer;display:none;">🟡 状态未知</span> <span class="admin-badge" id="gwRefreshBtn" style="cursor:pointer;display:none;">🔄 刷新</span></div>
+            <div class="page-title">模型网关</div>
 
             <div class="cert-card" style="margin-bottom:14px;">
                 <div class="cert-card-tit">🔌 AI 工具接入 <span style="font-weight:400;color:var(--text-5);font-size:12px;">把你下面创建的 Key 配到任意支持 Anthropic / OpenAI 协议的 AI 工具</span></div>
@@ -624,9 +624,9 @@
         </div>
 
         <div class="module-box" id="modelManage">
-            <div class="page-title">模型管理 <span class="admin-badge">仅管理员</span> <span class="admin-badge" id="mmRefreshBtn" style="cursor:pointer;display:none;">🔄 刷新</span></div>
+            <div class="page-title">模型管理 <span class="admin-badge" id="gwStatusBadge" style="cursor:pointer;display:none;">🟡 状态未知</span> <span class="admin-badge" id="gwRefreshBtn" style="cursor:pointer;display:none;">🔄 刷新</span></div>
             <div class="cert-card" id="gwAdminCard" style="margin-top:18px;display:none;">
-                <div class="gw-collapse-head" data-sec="gwSecSwitch">⚙️ 模型开关 <span class="admin-badge">仅管理员</span> <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
+                <div class="gw-collapse-head" data-sec="gwSecSwitch">⚙️ 模型开关 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
                 <div id="gwSecSwitch" style="display:none;">
                     <label style="cursor:pointer;font-weight:400;font-size:13px;display:block;margin-bottom:8px;">
                         全局开关：<input type="checkbox" id="gwSwitch"> <span id="gwSwitchLabel"></span>
@@ -683,7 +683,6 @@
                             <option value="">全部用户</option>
                         </select>
                         <input type="date" id="gwUsageDate" style="padding:4px 8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;color-scheme:dark;">
-                        <button class="btn-main" id="gwUsageRefresh" style="padding:3px 10px;font-size:12px;">刷新</button>
                     </div>
                     <table class="data-table">
                         <thead><tr><th>时间</th><th>用户</th><th>模型</th><th>协议</th><th>流式</th><th>输入</th><th>输出</th><th>耗时</th><th>状态</th><th></th></tr></thead>

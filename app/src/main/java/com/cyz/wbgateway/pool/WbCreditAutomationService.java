@@ -110,6 +110,14 @@ public class WbCreditAutomationService {
         return runJob(kind, LocalDate.now().toString(), false);
     }
 
+    /** 一键执行全部任务（按 checkin→report→tasks→streak→travel→compensation 串行；不消耗当日档位） */
+    public List<JobState> runAllNow() {
+        List<JobState> out = new ArrayList<>();
+        String today = LocalDate.now().toString();
+        for (String kind : KINDS) out.add(runJob(kind, today, false));
+        return out;
+    }
+
     /* ==================== 执行 ==================== */
 
     private JobState runJob(String kind, String today, boolean scheduled) {

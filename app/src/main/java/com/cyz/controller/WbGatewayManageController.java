@@ -362,6 +362,20 @@ public class WbGatewayManageController {
         return result;
     }
 
+    /** 一键执行全部自动化任务（串行，约 1 分钟；不消耗当日定时档位） */
+    @PostMapping("gateway/admin/automation/runAll")
+    public Result automationRunAll(HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        try {
+            result.setBody(automationService.runAllNow());
+        } catch (Exception e) {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg("执行失败：" + e.getMessage());
+        }
+        return result;
+    }
+
     @PostMapping("gateway/admin/automation/enabled")
     public Result automationEnabled(@RequestBody(required = false) Result req, HttpSession session) {
         Result result = Result.getInstance();

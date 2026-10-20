@@ -667,9 +667,12 @@
 
                     <div class="gw-collapse-head" data-sec="gwSecAuto" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">🎁 积分自动化 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
                     <div id="gwSecAuto" style="display:none;">
-                        <label style="cursor:pointer;font-size:13px;display:block;margin-bottom:8px;">
-                            总开关：<input type="checkbox" id="gwAutoEnabled"> <span id="gwAutoEnabledLabel" style="color:var(--text-5);"></span>
-                        </label>
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+                            <label style="cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;">
+                                总开关：<input type="checkbox" id="gwAutoEnabled"> <span id="gwAutoEnabledLabel" style="color:var(--text-5);"></span>
+                            </label>
+                            <button class="btn-main" id="gwAutoRunAll" style="padding:3px 12px;font-size:12px;">▶ 一键执行全部</button>
+                        </div>
                         <table class="data-table">
                             <thead><tr><th width="12%">任务</th><th width="12%">配置小时</th><th width="34%">最近运行</th><th width="34%">结果明细</th><th width="8%"></th></tr></thead>
                             <tbody id="gwAutoBody"></tbody>

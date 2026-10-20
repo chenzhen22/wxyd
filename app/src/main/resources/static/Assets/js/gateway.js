@@ -482,6 +482,22 @@
             }).fail(function () { alterModal('保存失败'); });
         });
 
+        $('#gwAutoRunAll').on('click', function () {
+            var $btn = $(this);
+            $btn.text('执行中…（约 1 分钟）').prop('disabled', true);
+            postJSON('gateway/admin/automation/runAll', {}).done(function (res) {
+                $btn.text('▶ 一键执行全部').prop('disabled', false);
+                if (res.errorCode === '000000') {
+                    var rows = res.body || [];
+                    alterModal(rows.map(function (s) { return (AUTO_KIND_LABEL[s.kind] || s.kind) + '：' + (s.message || ''); }).join('\n'));
+                    loadAutomation();
+                } else alterModal(res.errorMsg || '执行失败');
+            }).fail(function () {
+                $btn.text('▶ 一键执行全部').prop('disabled', false);
+                alterModal('执行失败');
+            });
+        });
+
         $('#gwAutoBody').on('click', '.gw-auto-run', function () {
             var $btn = $(this);
             var kind = $btn.data('kind');

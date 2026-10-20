@@ -239,8 +239,10 @@
             /* 积分自动化 */
             '<div class="h5-mm-sec-head" data-sec="h5MmSecAuto" style="font-weight:600;color:var(--text-1);margin:10px 0 6px;cursor:pointer;border-top:1px solid var(--glass-5);padding-top:10px;">🎁 积分自动化 <span style="float:right;color:var(--text-5);">▸</span></div>' +
             '<div id="h5MmSecAuto" style="display:none;">' +
-            '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);cursor:pointer;margin-bottom:8px;">' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">' +
+            '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);cursor:pointer;">' +
             '<input type="checkbox" id="h5MmAutoEnabled"> <span id="h5MmAutoEnabledLabel" style="color:var(--text-5);"></span></label>' +
+            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmAutoRunAll">▶ 一键执行全部</span></div>' +
             '<div id="h5MmAutoList"></div>' +
             '<div style="font-size:11px;color:var(--text-5);">每日每任务最多自动跑一次（按配置小时整点触发）；「立即执行」不占用当日档位。</div></div>' +
             '</div>');
@@ -291,6 +293,18 @@
                         $('#h5MmAutoEnabled').prop('checked', !on);
                     }
                 }).fail(function () { toast('保存失败'); $('#h5MmAutoEnabled').prop('checked', !on); });
+            });
+            $('#h5MmAutoRunAll').on('click', function () {
+                var $btn = $(this);
+                $btn.text('执行中…');
+                postJSON('gateway/admin/automation/runAll', {}).done(function (res) {
+                    $btn.text('▶ 一键执行全部');
+                    if (res.errorCode === '000000') {
+                        var rows = res.body || [];
+                        toast(rows.map(function (s) { return (AUTO_KIND_LABEL[s.kind] || s.kind) + ': ' + (s.message || ''); }).join(' | '));
+                        loadAutomation();
+                    } else toast(res.errorMsg || '执行失败');
+                }).fail(function () { $btn.text('▶ 一键执行全部'); toast('执行失败'); });
             });
             $('#h5MmAutoList').on('click', '.h5-mm-auto-run', function () {
                 var $btn = $(this);

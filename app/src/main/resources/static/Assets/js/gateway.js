@@ -67,6 +67,7 @@
             } else {
                 $b.text('🟢 池 ' + (st.healthy || 0) + '/' + rows.length + ' 可用 · 总积分 ' + totalCredits + (hasErr ? '（部分积分查询失败）' : ''));
             }
+            state.poolRows = rows;
             renderPool(rows);
         }).fail(function () {
             $b.text('🔴 凭据不可用');
@@ -84,23 +85,23 @@
     function renderPool(rows) {
         var $t = $('#gwPoolBody').html('');
         if (!rows || !rows.length) {
-            $t.append('<tr><td colspan="7" style="color:var(--text-5);">池内没有账号：在桌面 App 登录后点「刷新」，或检查 wxyd.wbgateway.workbuddy-exe 配置</td></tr>');
+            $t.append('<tr><td colspan="5" style="color:var(--text-5);">池内没有账号：在桌面 App 登录后点「刷新」，或检查 wxyd.wbgateway.workbuddy-exe 配置</td></tr>');
             return;
         }
         rows.forEach(function (r) {
             var $tr = $('<tr/>');
-            var state, color = '#4ade80';
-            if (r.credentialDeadUntilMs) { state = '🔴 登录态失效'; color = '#f87171'; }
-            else if (r.cooldownUntilMs) { state = '🟠 积分冷却'; color = '#e0a800'; }
-            else { state = '🟢 可用'; }
+            var warn = '';
+            if (r.credentialDeadUntilMs) warn = ' <span style="color:#f87171;">⚠ 登录态失效</span>';
+            else if (r.cooldownUntilMs) warn = ' <span style="color:#e0a800;">⚠ 积分冷却</span>';
+            if (r.lastError) warn += ' <span style="font-size:11px;color:var(--text-5);" title="' + esc(r.lastError) + '">ℹ</span>';
             var credits = typeof r.credits === 'number' ? r.credits : ('<span style="color:var(--text-5);">' + esc(r.creditsError || '?') + '</span>');
-            $tr.append('<td>' + esc(r.label || r.id) + '</td>');
-            $tr.append('<td>' + esc(r.domain || '(默认)') + ' <span style="color:var(--text-5);">' + esc(r.source || '') + '</span></td>');
+            var opts = (state.models || []).map(function (m) { return '<option>' + esc(m) + '</option>'; }).join('');
+            if (!opts) opts = '<option>（目录加载中）</option>';
+            $tr.append('<td>' + esc(r.label || r.id) + warn + '</td>');
+            $tr.append('<td>' + esc(r.source === 'live' ? '桌面登录' : '历史快照') + ' <span style="color:var(--text-5);">' + esc(r.domain || '') + '</span></td>');
             $tr.append('<td>' + credits + '</td>');
+            $tr.append('<td><select class="gw-pool-model" style="width:100%;padding:3px 6px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;">' + opts + '</select></td>');
             $tr.append('<td>' + fmtMs(r.expiresAtMs) + '</td>');
-            $tr.append('<td style="color:' + color + '">' + state + (r.lastError ? ' <span style="font-size:11px;color:var(--text-5);">' + esc(r.lastError) + '</span>' : '') + '</td>');
-            $tr.append('<td>' + fmtMs(r.lastSuccessAtMs) + '</td>');
-            $tr.append('<td>' + (r.rateLimitHits || 0) + '</td>');
             $t.append($tr);
         });
     }
@@ -158,6 +159,8 @@
                 var label = (m === state.defaultModel && state.defaultModel) ? m + '（默认）' : m;
                 $sel.append('<option value="' + esc(m) + '">' + esc(label) + '</option>');
             });
+            /* 账号池的模型下拉同步目录（池先渲染时目录可能未就绪） */
+            if (state.poolRows) renderPool(state.poolRows);
         });
     }
 

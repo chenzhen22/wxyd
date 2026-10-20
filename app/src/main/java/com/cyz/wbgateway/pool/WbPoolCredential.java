@@ -24,6 +24,12 @@ public class WbPoolCredential {
     /** 是否桌面 App 的 live 登录文件（workbuddy-desktop.info） */
     private boolean live;
 
+    /** 是否国际版（workbuddy.ai）；国际版无成长体系 */
+    public boolean isGlobal() {
+        String d = domain == null ? "" : domain.trim().toLowerCase();
+        return d.equals("workbuddy.ai") || d.endsWith(".workbuddy.ai");
+    }
+
     /** 转成 WbWorkBuddyClient 用的视图 */
     public com.cyz.wbgateway.WbCredential toWbCredential() {
         com.cyz.wbgateway.WbCredential c = new com.cyz.wbgateway.WbCredential();

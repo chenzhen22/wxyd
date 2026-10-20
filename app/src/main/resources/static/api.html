@@ -664,6 +664,18 @@
                         </table>
                         <div style="font-size:12px;color:var(--text-5);margin-top:6px;">账号自动发现自桌面 App 的登录快照（多账号自动进池）；429 按模型冷却 1 分钟、积分耗尽冷却 5 分钟、登录态失效冷却 30 分钟，期间自动换号。</div>
                     </div>
+
+                    <div class="gw-collapse-head" data-sec="gwSecAuto" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">🎁 积分自动化 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
+                    <div id="gwSecAuto" style="display:none;">
+                        <label style="cursor:pointer;font-size:13px;display:block;margin-bottom:8px;">
+                            总开关：<input type="checkbox" id="gwAutoEnabled"> <span id="gwAutoEnabledLabel" style="color:var(--text-5);"></span>
+                        </label>
+                        <table class="data-table">
+                            <thead><tr><th width="12%">任务</th><th width="12%">配置小时</th><th width="34%">最近运行</th><th width="34%">结果明细</th><th width="8%"></th></tr></thead>
+                            <tbody id="gwAutoBody"></tbody>
+                        </table>
+                        <div style="font-size:12px;color:var(--text-5);margin-top:6px;">每日每任务最多自动跑一次（按配置小时整点触发，账号间 800ms 间隔）；「立即执行」不占用当日档位。仅国内版账号参与（国际版无成长体系）。</div>
+                    </div>
                 <div class="gw-collapse-head" data-sec="gwSecUsage" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">📊 令牌消耗统计 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
                 <div id="gwSecUsage" style="display:none;">
                     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;" id="gwUsageChips"></div>

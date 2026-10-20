@@ -330,6 +330,48 @@ public class WbGatewayManageController {
         return result;
     }
 
+    /* ==================== 积分自动化（仅管理员） ==================== */
+
+    @Autowired
+    private com.cyz.wbgateway.pool.WbCreditAutomationService automationService;
+
+    @GetMapping("gateway/admin/automation")
+    public Result automationStatus(HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        result.setBody(automationService.statusView());
+        return result;
+    }
+
+    /** 手动立即执行一个自动化任务（不消耗当日定时档位） */
+    @PostMapping("gateway/admin/automation/run")
+    public Result automationRun(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        String kind = req != null && req.getBody() instanceof Map
+                ? String.valueOf(((Map<?, ?>) req.getBody()).get("kind")) : "";
+        try {
+            result.setBody(automationService.runNow(kind.trim()));
+        } catch (IllegalArgumentException e) {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg(e.getMessage());
+        } catch (Exception e) {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg("执行失败：" + e.getMessage());
+        }
+        return result;
+    }
+
+    @PostMapping("gateway/admin/automation/enabled")
+    public Result automationEnabled(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        boolean on = req != null && req.getBody() instanceof Map
+                && Boolean.TRUE.equals(((Map<?, ?>) req.getBody()).get("enabled"));
+        automationService.setEnabled(on);
+        return result;
+    }
+
     /* ==================== 辅助 ==================== */
 
     private static Long userId(HttpSession session) {

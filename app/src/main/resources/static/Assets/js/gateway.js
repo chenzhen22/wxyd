@@ -179,6 +179,7 @@
             $('#gwSwitchLabel').text(on ? '开（用户自选模型生效）' : '关（静默映射免费模型）');
             loadAdminKeys();
             loadUsage(1);
+            loadAutomation();
             $.getJSON('gateway/admin/models').done(function (r2) {
                 if (r2.errorCode !== '000000') return;
                 var b = r2.body || {};
@@ -301,6 +302,32 @@
                 $tb.append($tr);
             });
             if (!(b.list || []).length) $tb.append('<tr><td colspan="9" style="color:var(--text-5);">暂无调用记录</td></tr>');
+        });
+    }
+
+    /* ================= 积分自动化 ================= */
+
+    var AUTO_KIND_LABEL = { checkin: '签到', report: '活跃上报', tasks: '任务领奖', streak: '连登兑换+抽奖', travel: '猫猫旅行', compensation: '故障补偿' };
+
+    function loadAutomation() {
+        $.getJSON('gateway/admin/automation').done(function (res) {
+            if (res.errorCode !== '000000') return;
+            var b = res.body || {};
+            $('#gwAutoEnabled').prop('checked', !!b.enabled);
+            $('#gwAutoEnabledLabel').text(b.enabled ? '已开启（按配置小时自动执行）' : '已关闭');
+            var $t = $('#gwAutoBody').html('');
+            (b.jobs || []).forEach(function (j) {
+                var $tr = $('<tr/>');
+                $tr.append('<td>' + esc(AUTO_KIND_LABEL[j.kind] || j.kind) + '</td>');
+                var hs = (j.hours || []).join(' 点, ') + ' 点';
+                $tr.append('<td>' + esc(hs) + '</td>');
+                var run = j.lastRunAtMs ? fmtMs(j.lastRunAtMs) : '尚未运行';
+                $tr.append('<td>' + run + ' <div style="color:var(--text-5);font-size:11px;">' + esc(j.message || '') + '</div></td>');
+                var det = (j.detail || []);
+                $tr.append('<td style="font-size:11px;color:var(--text-2);">' + (det.length ? det.map(esc).join('<br>') : '<span style="color:var(--text-5);">-</span>') + '</td>');
+                $tr.append('<td><button class="btn-main gw-auto-run" data-kind="' + esc(j.kind) + '" style="padding:2px 8px;font-size:12px;">立即执行</button></td>');
+                $t.append($tr);
+            });
         });
     }
 
@@ -443,6 +470,33 @@
         });
         $('#gwUsageDate').on('change', function () {
             loadUsage(1);
+        });
+
+        $('#gwAutoEnabled').on('change', function () {
+            var on = $(this).prop('checked');
+            postJSON('gateway/admin/automation/enabled', { enabled: on }).done(function (res) {
+                if (res.errorCode === '000000') {
+                    $('#gwAutoEnabledLabel').text(on ? '已开启（按配置小时自动执行）' : '已关闭');
+                    alterModal(on ? '积分自动化已开启' : '积分自动化已关闭');
+                } else alterModal(res.errorMsg || '保存失败');
+            }).fail(function () { alterModal('保存失败'); });
+        });
+
+        $('#gwAutoBody').on('click', '.gw-auto-run', function () {
+            var $btn = $(this);
+            var kind = $btn.data('kind');
+            $btn.text('执行中…').prop('disabled', true);
+            postJSON('gateway/admin/automation/run', { kind: kind }).done(function (res) {
+                $btn.text('立即执行').prop('disabled', false);
+                if (res.errorCode === '000000') {
+                    var b = res.body || {};
+                    alterModal('执行完成：' + (b.message || ''));
+                    loadAutomation();
+                } else alterModal(res.errorMsg || '执行失败');
+            }).fail(function () {
+                $btn.text('立即执行').prop('disabled', false);
+                alterModal('执行失败');
+            });
         });
 
         $('#gwSwitch').on('change', function () {

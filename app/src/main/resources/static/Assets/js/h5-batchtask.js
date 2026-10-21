@@ -49,17 +49,22 @@
         });
     }
 
-    function load() {
-        $.getJSON('batch/list').done(function (res) {
-            if (res.errorCode !== '000000') {
+    function load(silent) {
+        $.ajax({ url: 'batch/list', type: 'GET', dataType: 'json', cache: false })
+            .done(function (res) {
+                if (res.errorCode !== '000000') {
+                    renderList();
+                    if (!silent) toast('刷新失败：' + (res.errorMsg || '无权限'));
+                    return;
+                }
+                rows = (res.body && res.body.list) || [];
                 renderList();
-                return;
-            }
-            rows = (res.body && res.body.list) || [];
-            renderList();
-        }).fail(function () {
-            $('#h5BtList').html('<div class="h5-empty">加载失败，请稍后重试</div>');
-        });
+                if (!silent) toast('已刷新');
+            })
+            .fail(function () {
+                $('#h5BtList').html('<div class="h5-empty">加载失败，请稍后重试</div>');
+                if (!silent) toast('刷新失败，请重试');
+            });
     }
 
     function findTask(id) {
@@ -74,7 +79,7 @@
             $('#h5BtHint').css('color', 'var(--text-5)').text('留空 = 仅手动执行');
             return;
         }
-        $.getJSON('batch/preview', { plan: plan, count: 5 }).done(function (res) {
+        $.ajax({ url: 'batch/preview', type: 'GET', dataType: 'json', cache: false, data: { plan: plan, count: 5 } }).done(function (res) {
             if (res.errorCode !== '000000') {
                 $('#h5BtHint').css('color', '#f87171').text('✗ ' + (res.errorMsg || '表达式不合法'));
                 return;
@@ -90,7 +95,7 @@
     function previewInline() {
         var plan = $.trim($('#h5BtPlan').val() || '');
         if (!plan) { toast('执行计划为空，仅支持手动执行'); return; }
-        $.getJSON('batch/preview', { plan: plan, count: 5 }).done(function (res) {
+        $.ajax({ url: 'batch/preview', type: 'GET', dataType: 'json', cache: false, data: { plan: plan, count: 5 } }).done(function (res) {
             if (res.errorCode !== '000000') { toast(res.errorMsg || '表达式不合法'); return; }
             var list = (res.body && res.body.list) || [];
             var html = list.length
@@ -189,7 +194,7 @@
         openSheet('<div style="font-weight:600;color:var(--text-1);margin-bottom:8px;">执行日志 · ' +
             esc(t ? (t.name || t.taskCode) : id) + '</div>' +
             '<pre id="h5BtLog" style="margin:0;font-size:11px;line-height:1.6;white-space:pre-wrap;word-break:break-all;color:var(--text-2);max-height:60vh;overflow:auto;">加载中…</pre>');
-        $.getJSON('batch/log', { id: id, lines: 300 }).done(function (res) {
+        $.ajax({ url: 'batch/log', type: 'GET', dataType: 'json', cache: false, data: { id: id, lines: 300 } }).done(function (res) {
             if (res.errorCode !== '000000') { $('#h5BtLog').text(res.errorMsg || '读取失败'); return; }
             $('#h5BtLog').text((res.body && res.body.log) || '（暂无日志）');
         }).fail(function () { $('#h5BtLog').text('读取失败'); });
@@ -214,7 +219,7 @@
     function render($page) {
         if ($page.data('h5bt')) {
             $('#h5BtList').html('<div class="h5-empty">加载中…</div>');
-            load();
+            load(true);
             setFab(true, function () { openEdit(null); });
             return;
         }
@@ -226,13 +231,18 @@
             '按执行计划在服务器目录执行脚本；计划为 6 段 cron（秒 分 时 日 月 周），留空 = 仅手动。</div>' +
             '<div id="h5BtList"><div class="h5-empty">加载中…</div></div>');
 
-        $page.on('click', '#h5BtRefresh', load);
+        $page.on('click', '#h5BtRefresh', function () {
+            $(this).text('刷新中…');
+            var $self = $(this);
+            load(false);
+            setTimeout(function () { $self.text('刷新'); }, 800);
+        });
         $page.on('click', '.h5-bt-edit', function () { openEdit(findTask(Number($(this).data('id')))); });
         $page.on('click', '.h5-bt-log', function () { openLog(Number($(this).data('id'))); });
         $page.on('click', '.h5-bt-run', function () { runTask(Number($(this).data('id'))); });
 
         setFab(true, function () { openEdit(null); });
-        load();
+        load(true);
     }
 
     if (window.registerH5Module) window.registerH5Module('batchTask', render);

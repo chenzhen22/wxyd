@@ -62,13 +62,27 @@ var BatchTask = (function () {
     }
 
     function load() {
-        $.getJSON('batch/list').done(function (res) {
-            if (res.errorCode !== '000000') {
-                render([]);
-                return;
-            }
-            render((res.body && res.body.list) || []);
-        });
+        var $btn = $('#batchRefresh');
+        $btn.text('刷新中…');
+        $.ajax({ url: 'batch/list', type: 'GET', dataType: 'json', cache: false })
+            .done(function (res) {
+                if (res.errorCode !== '000000') {
+                    render([]);
+                    $('#batchRefreshHint').text('刷新失败：' + (res.errorMsg || '无权限'));
+                    return;
+                }
+                render((res.body && res.body.list) || []);
+                var d = new Date();
+                function p(n) { return n < 10 ? '0' + n : n; }
+                $('#batchRefreshHint').text('已刷新 ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()));
+                setTimeout(function () { $('#batchRefreshHint').text(''); }, 4000);
+            })
+            .fail(function () {
+                $('#batchRefreshHint').text('刷新失败，请重试');
+            })
+            .always(function () {
+                $btn.text('🔄 刷新');
+            });
     }
 
     function findTask(id) {
@@ -86,7 +100,7 @@ var BatchTask = (function () {
 
     /** 预览计划接下来 5 次执行时间（同时用于表达式校验） */
     function fetchPreview(plan) {
-        return $.getJSON('batch/preview', { plan: plan || '', count: 5 });
+        return $.ajax({ url: 'batch/preview', type: 'GET', dataType: 'json', cache: false, data: { plan: plan || '', count: 5 } });
     }
 
     /** 输入时自动校验表达式，结果实时显示在输入框下方 */
@@ -191,7 +205,7 @@ var BatchTask = (function () {
     }
 
     function loadLog(id) {
-        $.getJSON('batch/log', { id: id, lines: 400 }).done(function (res) {
+        $.ajax({ url: 'batch/log', type: 'GET', dataType: 'json', cache: false, data: { id: id, lines: 400 } }).done(function (res) {
             if (res.errorCode !== '000000') {
                 $('#batchLogContent').text(res.errorMsg || '读取失败');
                 return;
@@ -206,8 +220,8 @@ var BatchTask = (function () {
     }
 
     function bind() {
-        $('#batchRefresh').off('click').on('click', load);
-        $('#batchAddBtn').off('click').on('click', function () { openEdit(null); });
+        $('#batchRefresh').off('click.bt').on('click.bt', load);
+        $('#batchAddBtn').off('click.bt').on('click.bt', function () { openEdit(null); });
 
         $('#batchTaskBody').on('click', '.bt-edit', function () {
             var t = findTask(Number($(this).data('id')));

@@ -16,6 +16,17 @@
 		select <include refid="cols"/> from `batch_task` order by `id`
 	</select>
 
+	<select id="countByCode" resultType="Integer">
+		select count(1) from `batch_task` where `task_code`=#{code}
+	</select>
+
+	<insert id="insert" parameterType="com.cyz.batch.model.BatchTask" useGeneratedKeys="true" keyProperty="id">
+		insert into `batch_task`
+			(`task_code`,`name`,`work_dir`,`script`,`exec_mode`,`plan`,`enabled`,`timeout_sec`,`run_count`,`next_run_time`)
+		values
+			(#{taskCode},#{name},#{workDir},#{script},#{execMode},#{plan},#{enabled},#{timeoutSec},0,#{nextRunTime})
+	</insert>
+
 	<select id="getById" resultType="com.cyz.batch.model.BatchTask">
 		select <include refid="cols"/> from `batch_task` where `id`=#{id}
 	</select>

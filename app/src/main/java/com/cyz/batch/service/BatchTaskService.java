@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 public class BatchTaskService {
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter CODE_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Resource
     private BatchTaskMapper batchTaskMapper;
@@ -57,17 +58,38 @@ public class BatchTaskService {
         return batchTaskMapper.listAll();
     }
 
+    /** 新建任务：任务ID 由系统生成（BT + 时间戳 + 3 位随机） */
+    public BatchTask create(BatchTask in) {
+        BatchTask t = new BatchTask();
+        t.setTaskCode(generateCode());
+        apply(t, in);
+        batchTaskMapper.insert(t);
+        log.info("[BATCH] 新建任务 {}（{}，plan={}）", t.getTaskCode(), t.getName(), t.getPlan());
+        return batchTaskMapper.getById(t.getId());
+    }
+
     /**
      * 保存可编辑项（任务ID 不可改）。plan 为空表示仅手动；否则必须是合法 cron。
      */
     public BatchTask save(BatchTask in) {
         if (in == null || in.getId() == null) throw new IllegalArgumentException("缺少任务 id");
+        BatchTask cur = batchTaskMapper.getById(in.getId());
+        if (cur == null) throw new IllegalArgumentException("任务不存在");
+        apply(cur, in);
+        batchTaskMapper.updateConfig(cur);
+        log.info("[BATCH] 保存任务 {}（plan={}, enabled={}, next={}）",
+                cur.getTaskCode(), cur.getPlan(), cur.getEnabled(), cur.getNextRunTime());
+        return cur;
+    }
+
+    /** 校验入参并写回目标对象（任务ID 不参与修改） */
+    private void apply(BatchTask target, BatchTask in) {
+        if (in == null) throw new IllegalArgumentException("参数不能为空");
         String script = trim(in.getScript());
         if (script.isEmpty()) throw new IllegalArgumentException("执行脚本不能为空");
         String workDir = trim(in.getWorkDir());
         if (workDir.isEmpty()) throw new IllegalArgumentException("任务目录不能为空");
-        File dir = new File(workDir);
-        if (!dir.isDirectory()) throw new IllegalArgumentException("任务目录不存在：" + workDir);
+        if (!new File(workDir).isDirectory()) throw new IllegalArgumentException("任务目录不存在：" + workDir);
         String plan = normalizePlan(in.getPlan());
         if (!plan.isEmpty() && !CronExpression.isValidExpression(plan)) {
             throw new IllegalArgumentException("执行计划不是合法 cron：" + plan + "（示例：0 0 8 * * ? = 每天 08:00）");
@@ -76,22 +98,27 @@ public class BatchTaskService {
                 ? BatchTask.MODE_PARALLEL : BatchTask.MODE_SERIAL;
         int timeout = in.getTimeoutSec() == null ? 3600 : in.getTimeoutSec();
         if (timeout < 1 || timeout > 86400) throw new IllegalArgumentException("超时秒数需在 1~86400 之间");
-
-        BatchTask cur = batchTaskMapper.getById(in.getId());
-        if (cur == null) throw new IllegalArgumentException("任务不存在");
-
         int enabled = Integer.valueOf(1).equals(in.getEnabled()) ? 1 : 0;
-        cur.setName(trim(in.getName()).isEmpty() ? cur.getTaskCode() : trim(in.getName()));
-        cur.setWorkDir(workDir);
-        cur.setScript(script);
-        cur.setExecMode(mode);
-        cur.setPlan(plan);
-        cur.setEnabled(enabled);
-        cur.setTimeoutSec(timeout);
-        cur.setNextRunTime(enabled == 1 && !plan.isEmpty() ? nextRun(plan) : null);
-        batchTaskMapper.updateConfig(cur);
-        log.info("[BATCH] 保存任务 {}（plan={}, enabled={}, next={}）", cur.getTaskCode(), plan, enabled, cur.getNextRunTime());
-        return cur;
+
+        String name = trim(in.getName());
+        target.setName(name.isEmpty() ? target.getTaskCode() : name);
+        target.setWorkDir(workDir);
+        target.setScript(script);
+        target.setExecMode(mode);
+        target.setPlan(plan);
+        target.setEnabled(enabled);
+        target.setTimeoutSec(timeout);
+        target.setNextRunTime(enabled == 1 && !plan.isEmpty() ? nextRun(plan) : null);
+    }
+
+    /** 系统生成任务ID：BT + yyyyMMddHHmmss + 3 位随机（查重后使用） */
+    private String generateCode() {
+        for (int i = 0; i < 5; i++) {
+            String code = "BT" + LocalDateTime.now().format(CODE_FMT)
+                    + String.format("%03d", java.util.concurrent.ThreadLocalRandom.current().nextInt(1000));
+            if (batchTaskMapper.countByCode(code) == 0) return code;
+        }
+        throw new IllegalStateException("任务ID生成失败，请重试");
     }
 
     /* ==================== 执行 ==================== */

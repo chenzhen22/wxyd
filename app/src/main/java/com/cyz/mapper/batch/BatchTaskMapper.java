@@ -12,6 +12,12 @@ public interface BatchTaskMapper {
 
     BatchTask getById(@Param("id") Long id);
 
+    /** 任务ID 是否已存在（系统生成时防重） */
+    int countByCode(@Param("code") String code);
+
+    /** 新建任务（任务ID 由系统生成） */
+    int insert(BatchTask task);
+
     /** 保存可编辑项（名称/目录/脚本/方式/计划/启用/超时）并写入下次执行时间 */
     int updateConfig(BatchTask task);
 

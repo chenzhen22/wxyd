@@ -85,22 +85,22 @@ var BatchTask = (function () {
     }
 
     function openEdit(t) {
-        currentId = t.id;
-        $('#batchCode').val(t.taskCode);
-        $('#batchName').val(t.name || '');
-        $('#batchWorkDir').val(t.workDir || '');
-        $('#batchScript').val(t.script || '');
-        $('#batchExecMode').val(t.execMode === 'parallel' ? 'parallel' : 'serial');
-        $('#batchPlan').val(t.plan || '');
-        $('#batchDailyTime').val(planToTime(t.plan));
-        $('#batchTimeout').val(t.timeoutSec || 3600);
-        $('#batchEnabled').prop('checked', t.enabled === 1);
+        currentId = t ? t.id : null;
+        $('#batchEditTitle').text(t ? '编辑任务' : '新增任务');
+        $('#batchCode').val(t ? t.taskCode : '（保存后自动生成）');
+        $('#batchName').val(t ? (t.name || '') : '');
+        $('#batchWorkDir').val(t ? (t.workDir || '') : '');
+        $('#batchScript').val(t ? (t.script || '') : '');
+        $('#batchExecMode').val(t && t.execMode === 'parallel' ? 'parallel' : 'serial');
+        $('#batchPlan').val(t ? (t.plan || '') : '0 0 8 * * ?');
+        $('#batchDailyTime').val(t ? planToTime(t.plan) : '08:00');
+        $('#batchTimeout').val(t && t.timeoutSec ? t.timeoutSec : 3600);
+        $('#batchEnabled').prop('checked', t ? t.enabled === 1 : true);
         $('#batchEditModal').show();
     }
 
     function save() {
         var payload = {
-            id: currentId,
             name: $.trim($('#batchName').val() || ''),
             workDir: $.trim($('#batchWorkDir').val() || ''),
             script: $.trim($('#batchScript').val() || ''),
@@ -109,13 +109,17 @@ var BatchTask = (function () {
             enabled: $('#batchEnabled').prop('checked'),
             timeoutSec: Number($('#batchTimeout').val() || 3600)
         };
-        postJSON('batch/save', payload).done(function (res) {
+        var creating = !currentId;
+        if (!creating) payload.id = currentId;
+        postJSON(creating ? 'batch/add' : 'batch/save', payload).done(function (res) {
             if (res.errorCode !== '000000') {
                 alertMsg(res.errorMsg || '保存失败');
                 return;
             }
             $('#batchEditModal').hide();
-            alertMsg('已保存，下次执行时间：' + ((res.body && res.body.nextRunTime) || '未安排'));
+            var code = res.body && res.body.taskCode ? ('任务ID：' + res.body.taskCode + '；') : '';
+            alertMsg((creating ? '已创建。' : '已保存。') + code
+                + '下次执行时间：' + ((res.body && res.body.nextRunTime) || '未安排'));
             load();
         }).fail(function (xhr) {
             var r = xhr.responseJSON || {};
@@ -149,6 +153,7 @@ var BatchTask = (function () {
 
     function bind() {
         $('#batchRefresh').off('click').on('click', load);
+        $('#batchAddBtn').off('click').on('click', function () { openEdit(null); });
 
         $('#batchTaskBody').on('click', '.bt-edit', function () {
             var t = findTask(Number($(this).data('id')));

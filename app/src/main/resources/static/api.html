@@ -743,6 +743,7 @@
 
         <div class="module-box" id="batchTask">
             <div class="page-title">批次任务 <span class="admin-badge">仅管理员可见</span>
+                <span class="admin-badge" id="batchAddBtn" style="cursor:pointer;">➕ 新增任务</span>
                 <span class="admin-badge" id="batchRefresh" style="cursor:pointer;">🔄 刷新</span>
             </div>
             <div class="cert-card" style="margin-bottom:14px;">
@@ -770,8 +771,8 @@
 
         <div class="modal" id="batchEditModal">
             <div class="modal-content" style="width:640px;max-width:92vw;">
-                <div class="modal-title">编辑任务 <span class="close-modal" id="batchEditClose">×</span></div>
-                <div class="form-item"><label>任务ID：</label><input id="batchCode" type="text" disabled></div>
+                <div class="modal-title"><span id="batchEditTitle">编辑任务</span> <span class="close-modal" id="batchEditClose">×</span></div>
+                <div class="form-item"><label>任务ID：</label><input id="batchCode" type="text" readonly placeholder="保存后由系统自动生成"></div>
                 <div class="form-item"><label>任务名称：</label><input id="batchName" type="text" maxlength="100"></div>
                 <div class="form-item"><label>任务目录：</label><input id="batchWorkDir" type="text" placeholder="/apps/GIT/aiAgent"></div>
                 <div class="form-item"><label>执行脚本：</label><input id="batchScript" type="text" placeholder=".venv/bin/python agent.py"></div>
@@ -922,6 +923,6 @@
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/gateway.js?v=13" type="text/javascript"></script>
-<script src="Assets/js/batchtask.js?v=1" type="text/javascript"></script>
+<script src="Assets/js/batchtask.js?v=2" type="text/javascript"></script>
 </body>
 </html>

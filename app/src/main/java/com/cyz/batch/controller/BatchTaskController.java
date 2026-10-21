@@ -51,18 +51,21 @@ public class BatchTaskController {
         if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
         Map<String, Object> body = body(req);
         try {
-            BatchTask in = new BatchTask();
-            in.setId(longVal(body.get("id")));
-            in.setName(str(body.get("name")));
-            in.setWorkDir(str(body.get("workDir")));
-            in.setScript(str(body.get("script")));
-            in.setExecMode(str(body.get("execMode")));
-            in.setPlan(str(body.get("plan")));
-            in.setEnabled(("1".equals(str(body.get("enabled"))) || "true".equalsIgnoreCase(str(body.get("enabled"))))
-                    ? 1 : 0);
-            Object timeout = body.get("timeoutSec");
-            in.setTimeoutSec(timeout == null ? null : intVal(timeout));
-            result.setBody(batchTaskService.save(in));
+            result.setBody(batchTaskService.save(fromBody(body)));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            result.setErrorEnum(ErrorEnum.ERROR000015);
+            result.setErrorMsg(e.getMessage());
+        }
+        return result;
+    }
+
+    /** 新建任务（任务ID 由系统生成，前端无需传入） */
+    @PostMapping("add")
+    public Result add(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
+        try {
+            result.setBody(batchTaskService.create(fromBody(body(req))));
         } catch (IllegalArgumentException | IllegalStateException e) {
             result.setErrorEnum(ErrorEnum.ERROR000015);
             result.setErrorMsg(e.getMessage());
@@ -111,6 +114,22 @@ public class BatchTaskController {
     }
 
     /* ---------------- 辅助 ---------------- */
+
+    /** 请求体 -> 任务对象（新增/修改共用；任务ID 不接收） */
+    private static BatchTask fromBody(Map<String, Object> body) {
+        BatchTask in = new BatchTask();
+        in.setId(longVal(body.get("id")));
+        in.setName(str(body.get("name")));
+        in.setWorkDir(str(body.get("workDir")));
+        in.setScript(str(body.get("script")));
+        in.setExecMode(str(body.get("execMode")));
+        in.setPlan(str(body.get("plan")));
+        String enabled = str(body.get("enabled"));
+        in.setEnabled(("1".equals(enabled) || "true".equalsIgnoreCase(enabled)) ? 1 : 0);
+        Object timeout = body.get("timeoutSec");
+        in.setTimeoutSec(timeout == null ? null : intVal(timeout));
+        return in;
+    }
 
     private static String str(Object o) {
         return o == null ? null : String.valueOf(o).trim();

@@ -36,8 +36,14 @@ public class WbOpenAiController {
     @Autowired
     private WbWorkBuddyClient client;
 
-    /** POST /openai/v1/chat/completions（也接受 /openai/chat/completions） */
-    @PostMapping({"openai/v1/chat/completions", "openai/chat/completions"})
+    /**
+     * POST /openai/v1/chat/completions（也接受 /openai/chat/completions）。
+     * 兼容把 base_url 误填成 .../api/anthropic 的 OpenAI 客户端：
+     * 这类客户端会拼出 /anthropic/chat/completions（或 /anthropic/v1/chat/completions），
+     * 按 OpenAI 协议同样处理，避免 404。
+     */
+    @PostMapping({"openai/v1/chat/completions", "openai/chat/completions",
+            "anthropic/v1/chat/completions", "anthropic/chat/completions"})
     public void chatCompletions(HttpServletRequest req, HttpServletResponse res) throws IOException {
         WbGatewayKey key = requireAuth(req, res);
         if (key == null) return;

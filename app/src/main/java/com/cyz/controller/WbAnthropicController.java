@@ -66,8 +66,8 @@ public class WbAnthropicController {
         res.getWriter().write(out.toJSONString());
     }
 
-    /** GET /anthropic/v1/models */
-    @GetMapping("anthropic/v1/models")
+    /** GET /anthropic/v1/models（也接受 /anthropic/models） */
+    @GetMapping({"anthropic/v1/models", "anthropic/models"})
     public void models(HttpServletRequest req, HttpServletResponse res) throws IOException {
         WbGatewayKey key = requireAuth(req, res);
         if (key == null) return;

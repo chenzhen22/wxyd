@@ -49,6 +49,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/patrol/**",
                         "/dayinfo/**",
                         "/gateway/**",
+                        "/batch/**",
                         "/loginLog/**",
                         "/approveUser", "/rejectUser", "/deleteUser",
                         "/queryMessage", "/addMessage", "/delMessage"

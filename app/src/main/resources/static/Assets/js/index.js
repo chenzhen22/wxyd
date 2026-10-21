@@ -148,6 +148,10 @@ $(function () {
 
         }
 
+        // 批次任务模块懒加载（仅管理员）
+        if (target === "batchTask" && window.BatchTask) {
+            BatchTask.init();
+        }
         // 菜单管理模块懒加载（仅管理员）
         if (target === "menuManage" && window.MenuManage) {
             MenuManage.mount($("#menuManageBody")[0]);

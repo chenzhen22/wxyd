@@ -80,6 +80,7 @@ All source lives under `app/src/main/java/com/cyz/`.
 | `filter/` | `RepeatReadFilter` (wraps multipart bodies for re-reading) |
 | `javaapi/` | Standalone Java 8 API learning platform: 384 API docs, in-browser compile+run via `javax.tools.JavaCompiler` + JUnit 4 (10s timeout, security blacklist) |
 | `archive/`, `dubbo/`, `shellscript/`, `dispatcher/` | Additional feature areas (archive browsing, dubbo-style RPC endpoints, shell-script execution, message dispatch). Explore these directly before editing. |
+| `batch/` | 批次任务（`batch_task`）：按任务目录 + 脚本 + cron 计划手动/定时执行；每 30s 扫描到点任务，输出追加到 `data/batch-task/<taskCode>.log`；PC 菜单「批次任务」仅管理员。 |
 | `mapper/` + `resources/mapper/MysqlMapper.xml` | MyBatis mappers (MySQL only) |
 | `appender/`, `logback/` | Custom logback appender/config |
 

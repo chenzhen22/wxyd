@@ -8,7 +8,7 @@
     <!-- 引入jQuery -->
     <script src="Assets/js/jquery-3.7.1.min.js" type="text/javascript"></script>
     <script src="Assets/js/api-suffix.js?v=1" type="text/javascript"></script>
-    <script src="Assets/js/index.js?v=11" type="text/javascript"></script>
+    <script src="Assets/js/index.js?v=12" type="text/javascript"></script>
     <link href="Assets/css/admin.css?v=20261020" rel="stylesheet" type="text/css">
     <!-- 进入页面前先套用已保存主题，避免闪烁 -->
     <script>
@@ -741,6 +741,72 @@
             <div id="menuManageBody"><!-- 由 Assets/js/menu-manage.js 渲染 --></div>
         </div>
 
+        <div class="module-box" id="batchTask">
+            <div class="page-title">批次任务 <span class="admin-badge">仅管理员可见</span>
+                <span class="admin-badge" id="batchRefresh" style="cursor:pointer;">🔄 刷新</span>
+            </div>
+            <div class="cert-card" style="margin-bottom:14px;">
+                <div class="cert-card-tit">🗂️ 按计划在服务器目录执行脚本
+                    <span style="font-weight:400;color:var(--text-5);font-size:12px;">完整日志见 data/batch-task/&lt;任务ID&gt;.log</span>
+                </div>
+                <div style="font-size:12px;color:var(--text-5);line-height:1.9;">
+                    执行计划为 6 段 cron（秒 分 时 日 月 周），如 <code style="color:var(--accent);">0 0 8 * * ?</code> = 每天 08:00；
+                    也接受 5 段写法（自动补秒位）。留空 = 仅手动执行。执行方式 serial（串行）= 上次未跑完则跳过本次，parallel（并行）= 允许并发。
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table" id="batchTaskTable">
+                    <thead><tr>
+                        <th width="90">任务ID</th><th width="120">名称</th><th width="16%">任务目录</th>
+                        <th width="16%">执行脚本</th><th width="70">方式</th><th width="120">执行计划</th>
+                        <th width="130">上次执行</th><th width="130">下次执行</th><th width="60">次数</th>
+                        <th width="80">状态</th><th width="150">操作</th>
+                    </tr></thead>
+                    <tbody id="batchTaskBody"></tbody>
+                </table>
+            </div>
+            <div id="batchEmpty" style="display:none;color:var(--text-5);font-size:13px;margin:10px 0;">暂无任务</div>
+        </div>
+
+        <div class="modal" id="batchEditModal">
+            <div class="modal-content" style="width:640px;max-width:92vw;">
+                <div class="modal-title">编辑任务 <span class="close-modal" id="batchEditClose">×</span></div>
+                <div class="form-item"><label>任务ID：</label><input id="batchCode" type="text" disabled></div>
+                <div class="form-item"><label>任务名称：</label><input id="batchName" type="text" maxlength="100"></div>
+                <div class="form-item"><label>任务目录：</label><input id="batchWorkDir" type="text" placeholder="/apps/GIT/aiAgent"></div>
+                <div class="form-item"><label>执行脚本：</label><input id="batchScript" type="text" placeholder=".venv/bin/python agent.py"></div>
+                <div class="form-item"><label>执行方式：</label>
+                    <select id="batchExecMode" style="width:auto;">
+                        <option value="serial">串行（建议）</option>
+                        <option value="parallel">并行</option>
+                    </select>
+                </div>
+                <div class="form-item"><label>执行计划：</label><input id="batchPlan" type="text" placeholder="0 0 8 * * ?"></div>
+                <div class="form-item"><label>快捷设置：</label>
+                    <input id="batchDailyTime" type="time" step="60" style="width:auto;">
+                    <button class="btn-api" id="batchDailyApply" type="button" style="margin-left:8px;">设为每天该时间</button>
+                    <button class="btn-api" id="batchManualOnly" type="button" style="margin-left:6px;">仅手动</button>
+                </div>
+                <div class="form-item"><label>超时（秒）：</label><input id="batchTimeout" type="number" min="1" max="86400" style="width:120px;"></div>
+                <div class="form-item"><label>启用：</label><input id="batchEnabled" type="checkbox" style="width:auto;transform:scale(1.15);margin-right:6px;"><span id="batchEnabledLabel" style="font-size:12px;color:var(--text-5);">启用后按计划自动执行</span></div>
+                <div class="modal-btn-group">
+                    <button class="btn-cancel close-modal">取消</button>
+                    <button class="btn-primary" id="batchSave">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="batchLogModal">
+            <div class="modal-content" style="width:860px;max-width:94vw;">
+                <div class="modal-title">执行日志 <span class="close-modal" id="batchLogClose">×</span></div>
+                <div id="batchLogMeta" style="font-size:12px;color:var(--text-5);margin-bottom:8px;"></div>
+                <pre id="batchLogContent" style="margin:0;padding:12px;border-radius:10px;background:var(--glass-3);color:var(--text-1);font-size:12px;white-space:pre-wrap;word-break:break-all;max-height:60vh;overflow:auto;"></pre>
+                <div class="modal-btn-group">
+                    <button class="btn-primary" id="batchLogReload">刷新日志</button>
+                </div>
+            </div>
+        </div>
+
         <div class="module-box" id="patrol">
             <div class="page-title">巡检日报
                 <span class="admin-badge" id="patrolRunNow" style="cursor:pointer;">▶ 立即巡检</span>
@@ -856,5 +922,6 @@
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/gateway.js?v=13" type="text/javascript"></script>
+<script src="Assets/js/batchtask.js?v=1" type="text/javascript"></script>
 </body>
 </html>

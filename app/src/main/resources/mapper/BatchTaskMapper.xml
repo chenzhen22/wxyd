@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.cyz.mapper.batch.BatchTaskMapper">
+
+	<sql id="cols">
+		`id`,`task_code` as taskCode,`name`,`work_dir` as workDir,`script`,`exec_mode` as execMode,
+		`plan`,`enabled`,`timeout_sec` as timeoutSec,`run_count` as runCount,
+		`last_status` as lastStatus,`last_exit_code` as lastExitCode,`last_duration_ms` as lastDurationMs,
+		`last_log` as lastLog,
+		date_format(`last_run_time`,'%Y-%m-%d %H:%i:%s') as lastRunTime,
+		date_format(`next_run_time`,'%Y-%m-%d %H:%i:%s') as nextRunTime,
+		date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime
+	</sql>
+
+	<select id="listAll" resultType="com.cyz.batch.model.BatchTask">
+		select <include refid="cols"/> from `batch_task` order by `id`
+	</select>
+
+	<select id="getById" resultType="com.cyz.batch.model.BatchTask">
+		select <include refid="cols"/> from `batch_task` where `id`=#{id}
+	</select>
+
+	<update id="updateConfig" parameterType="com.cyz.batch.model.BatchTask">
+		update `batch_task`
+		set `name`=#{name}, `work_dir`=#{workDir}, `script`=#{script},
+		    `exec_mode`=#{execMode}, `plan`=#{plan}, `enabled`=#{enabled},
+		    `timeout_sec`=#{timeoutSec}, `next_run_time`=#{nextRunTime}
+		where `id`=#{id}
+	</update>
+
+	<update id="markRunning">
+		update `batch_task`
+		set `last_run_time`=#{runTime}, `run_count`=`run_count`+1, `last_status`='running'
+		where `id`=#{id}
+	</update>
+
+	<update id="markFinished">
+		update `batch_task`
+		set `last_status`=#{status}, `last_exit_code`=#{exitCode},
+		    `last_duration_ms`=#{durationMs}, `last_log`=#{log}
+		where `id`=#{id}
+	</update>
+
+	<update id="updateNextRun">
+		update `batch_task` set `next_run_time`=#{nextRunTime} where `id`=#{id}
+	</update>
+
+	<select id="listDue" resultType="com.cyz.batch.model.BatchTask">
+		select <include refid="cols"/> from `batch_task`
+		where `enabled`=1 and `plan` &lt;&gt; '' and `next_run_time` is not null and `next_run_time` &lt;= #{now}
+		order by `next_run_time`
+	</select>
+
+	<select id="listMissingNextRun" resultType="com.cyz.batch.model.BatchTask">
+		select <include refid="cols"/> from `batch_task`
+		where `enabled`=1 and `plan` &lt;&gt; '' and `next_run_time` is null
+	</select>
+
+</mapper>

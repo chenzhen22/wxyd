@@ -60,7 +60,7 @@
             var $card = $('<div/>').css({ background: 'var(--glass-2)', border: '1px solid var(--glass-5)', borderRadius: '12px', padding: '12px', marginBottom: '10px' });
             $card.append('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
                 '<span style="font-weight:600;color:var(--text-1);">' + esc(k.name || '(未命名)') + '</span>' +
-                '<span style="font-size:12px;color:var(--text-5);">' + (k.enabled ? '🟢 启用' : '⏸️ 停用') + '</span></div>');
+                '<span style="font-size:12px;color:var(--text-5);">' + (k.enabled ? '🟢 今日启用' : (k.activeDate ? '⏸️ 已过期' : '⏸️ 未启用')) + '</span></div>');
             var keyRow = $('<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;"></div>');
             keyRow.append('<code style="flex:1;color:var(--accent);font-size:12px;">' + esc(k.maskedKey) + '</code>');
             keyRow.append('<span class="h5-btn-ghost h5-btn-sm h5-gw-copy" data-id="' + k.id + '">复制</span>');
@@ -107,6 +107,7 @@
 
             '<div style="margin-bottom:12px;padding:12px;border-radius:12px;background:var(--glass-2);border:1px solid var(--glass-5);">' +
             '<div style="font-weight:600;color:var(--text-1);margin-bottom:8px;">🔑 新建 Key <span style="font-weight:400;font-size:12px;color:var(--text-5);">最多 5 把，模型必选</span></div>' +
+            '<div style="font-size:12px;color:#e0a800;line-height:1.7;margin-bottom:8px;">⚠️ Key 仅当天有效，次日自动停用，需每天点一次「启用」</div>' +
             '<input id="h5GwKeyName" placeholder="备注名（如：我的手机）" style="width:100%;box-sizing:border-box;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);margin-bottom:8px;">' +
             '<div style="display:flex;gap:8px;">' +
             '<select id="h5GwKeyModel" style="flex:1;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"><option value="" selected>请选择模型</option></select>' +

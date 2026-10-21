@@ -4,8 +4,8 @@
 
 	<!-- ===== wb_gateway_key ===== -->
 	<insert id="insertKey" parameterType="com.cyz.pojo.WbGatewayKey" useGeneratedKeys="true" keyProperty="id">
-		insert into `wb_gateway_key` (`user_id`,`name`,`api_key`,`key_hash`,`model`,`enabled`)
-		values (#{userId},#{name},#{apiKey},#{keyHash},#{model},#{enabled})
+		insert into `wb_gateway_key` (`user_id`,`name`,`api_key`,`key_hash`,`model`,`enabled`,`active_date`)
+		values (#{userId},#{name},#{apiKey},#{keyHash},#{model},#{enabled},#{activeDate})
 	</insert>
 
 	<select id="countByUserId" parameterType="Long" resultType="Integer">
@@ -14,6 +14,7 @@
 
 	<select id="listByUserId" parameterType="Long" resultType="com.cyz.pojo.WbGatewayKey">
 		select `id`,`user_id`,`name`,`api_key`,`key_hash`,`model`,`enabled`,
+		       date_format(`active_date`,'%Y-%m-%d') as activeDate,
 		       date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime,
 		       date_format(`last_used_time`,'%Y-%m-%d %H:%i:%s') as lastUsedTime
 		from `wb_gateway_key` where `user_id`=#{userId} order by `id`
@@ -21,6 +22,7 @@
 
 	<select id="queryKeyById" resultType="com.cyz.pojo.WbGatewayKey">
 		select `id`,`user_id`,`name`,`api_key`,`key_hash`,`model`,`enabled`,
+		       date_format(`active_date`,'%Y-%m-%d') as activeDate,
 		       date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime,
 		       date_format(`last_used_time`,'%Y-%m-%d %H:%i:%s') as lastUsedTime
 		from `wb_gateway_key` where `id`=#{id} and `user_id`=#{userId}
@@ -28,9 +30,10 @@
 
 	<select id="queryKeyByHash" parameterType="String" resultType="com.cyz.pojo.WbGatewayKey">
 		select `id`,`user_id`,`name`,`api_key`,`key_hash`,`model`,`enabled`,`model_override` as modelOverride,
+		       date_format(`active_date`,'%Y-%m-%d') as activeDate,
 		       date_format(`create_time`,'%Y-%m-%d %H:%i:%s') as createTime,
 		       date_format(`last_used_time`,'%Y-%m-%d %H:%i:%s') as lastUsedTime
-		from `wb_gateway_key` where `key_hash`=#{keyHash} and `enabled`=1
+		from `wb_gateway_key` where `key_hash`=#{keyHash}
 	</select>
 
 	<delete id="deleteKey">
@@ -38,7 +41,15 @@
 	</delete>
 
 	<update id="updateKeyEnabled">
-		update `wb_gateway_key` set `enabled`=#{enabled} where `id`=#{id} and `user_id`=#{userId}
+		update `wb_gateway_key`
+		set `enabled`=#{enabled},
+		    `active_date`=if(#{enabled}=1, CURDATE(), `active_date`)
+		where `id`=#{id} and `user_id`=#{userId}
+	</update>
+
+	<update id="expireInactiveKeys">
+		update `wb_gateway_key` set `enabled`=0
+		where `enabled`=1 and (`active_date` is null or `active_date` &lt; CURDATE())
 	</update>
 
 	<update id="updateKeyModel">
@@ -146,6 +157,7 @@
 		       u.`username` as "username",
 		       k.`name`, k.`api_key` as "apiKey", k.`model`, k.`enabled`,
 		       k.`model_override` as "modelOverride",
+		       date_format(k.`active_date`,'%Y-%m-%d') as "activeDate",
 		       date_format(k.`create_time`,'%Y-%m-%d %H:%i:%s') as "createTime",
 		       date_format(k.`last_used_time`,'%Y-%m-%d %H:%i:%s') as "lastUsedTime"
 		from `wb_gateway_key` k left join `users` u on k.`user_id` = u.`id`

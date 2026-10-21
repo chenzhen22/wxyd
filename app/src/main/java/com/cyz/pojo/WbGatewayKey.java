@@ -26,6 +26,8 @@ public class WbGatewayKey {
     /** Key 级模型开关：NULL=跟随全局 1=强制开 0=强制关（仅管理员可设） */
     private Integer modelOverride;
     private Integer enabled;
+    /** 生效日期（yyyy-MM-dd）：仅当天启用有效，次日视为过期需用户重新启用 */
+    private String activeDate;
     private String createTime;
     private String lastUsedTime;
 }

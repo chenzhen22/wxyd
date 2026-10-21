@@ -17,7 +17,7 @@ public interface WbGatewayMapper {
 
     WbGatewayKey queryKeyById(@Param("id") Long id, @Param("userId") Long userId);
 
-    /** 网关鉴权：按 SM3 摘要查启用中的 Key */
+    /** 网关鉴权：按 SM3 摘要查 Key（不筛启用状态，由服务层判定当天是否有效） */
     WbGatewayKey queryKeyByHash(@Param("keyHash") String keyHash);
 
     int deleteKey(@Param("id") Long id, @Param("userId") Long userId);
@@ -25,6 +25,9 @@ public interface WbGatewayMapper {
     int updateKeyEnabled(@Param("id") Long id, @Param("userId") Long userId, @Param("enabled") Integer enabled);
 
     int updateKeyModel(@Param("id") Long id, @Param("userId") Long userId, @Param("model") String model);
+
+    /** 自动停用：生效日期不是今天的 Key 统一置为停用（次日生效） */
+    int expireInactiveKeys();
 
     int touchKeyLastUsed(@Param("id") Long id);
 

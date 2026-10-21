@@ -85,7 +85,7 @@
     function renderPool(rows) {
         var $t = $('#gwPoolBody').html('');
         if (!rows || !rows.length) {
-            $t.append('<tr><td colspan="5" style="color:var(--text-5);">池内没有账号：在桌面 App 登录后点「刷新」，或检查 wxyd.wbgateway.workbuddy-exe 配置</td></tr>');
+            $t.append('<tr><td colspan="5" style="color:var(--text-5);">池内没有账号：在桌面 App 登录后点「刷新」，或检查桌面 App 路径配置</td></tr>');
             return;
         }
         rows.forEach(function (r) {
@@ -128,7 +128,9 @@
             $tr.append(keyTd);
             $tr.append('<td><input type="text" readonly value="' + esc(k.model || '跟随请求 / 默认') + '" ' +
                 'style="width:100%;padding:4px 6px;border-radius:6px;background:var(--glass-2);color:var(--text-2);border:1px solid var(--glass-5);font-size:12px;"></td>');
-            $tr.append('<td>' + (k.enabled ? '🟢 启用' : '⏸️ 停用') + '</td>');
+            /* Key 仅当天有效：停用后次日需用户重新点「启用」 */
+            var statusText = k.enabled ? '🟢 今日启用' : (k.activeDate ? '⏸️ 已过期' : '⏸️ 未启用');
+            $tr.append('<td title="' + esc(k.activeDate ? '上次启用日期：' + k.activeDate : '尚未启用') + '">' + statusText + '</td>');
             $tr.append('<td>' + esc(k.lastUsedTime || '从未') + '</td>');
             var ops = $('<td/>');
             /* data-enabled 用 attr 读取，避免 jQuery .data() 把 "1" 自动转成数字导致判断失效 */

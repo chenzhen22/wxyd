@@ -578,6 +578,7 @@ public class DataInitializer implements ApplicationRunner {
                     "`model` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '用户自选模型（空=按请求模型/默认），仅模型开关开启时生效'," +
                     "`model_override` TINYINT NULL COMMENT 'NULL=跟随全局开关 1=强制开 0=强制关（仅管理员可设）'," +
                     "`enabled` TINYINT NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用'," +
+                    "`active_date` DATE NULL COMMENT '生效日期：仅当天有效，次日自动停用需用户重新启用'," +
                     "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                     "`last_used_time` DATETIME NULL COMMENT '最近一次网关调用时间'," +
                     "PRIMARY KEY (`id`)," +
@@ -592,6 +593,7 @@ public class DataInitializer implements ApplicationRunner {
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型网关全局配置（仅管理员可改）'");
             jdbcTemplate.update("INSERT IGNORE INTO wb_gateway_config (id, model_switch) VALUES (1, 1)");
             ensureWbGatewayKeyOverrideColumn();
+            ensureWbGatewayKeyActiveDateColumn();
             ensureWbGatewayUsageTable();
             ensureWbGatewayUsagePayloadColumns();
             log.info("[INIT] 已自动执行 V19-V21 迁移：wb_gateway_key / wb_gateway_config / wb_gateway_usage（模型网关）");
@@ -619,6 +621,25 @@ public class DataInitializer implements ApplicationRunner {
         }
     }
 
+    /**
+     * V23 升级兜底：wb_gateway_key 若无 active_date 列（Key 仅当天有效）则幂等补列。
+     */
+    private void ensureWbGatewayKeyActiveDateColumn() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='wb_gateway_key' AND COLUMN_NAME='active_date'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) {
+                return;
+            }
+            jdbcTemplate.execute("ALTER TABLE `wb_gateway_key` ADD COLUMN `active_date` DATE NULL " +
+                    "COMMENT '生效日期：仅当天有效，次日自动停用需用户重新启用' AFTER `enabled`");
+            log.info("[INIT] 已自动执行 V23 迁移：wb_gateway_key 补 active_date 列（Key 当天有效）");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V23 迁移失败（请手动执行 sql/V23__wb_gateway_key_daily.sql）：{}", e.getMessage());
+        }
+    }
     /**
      * V21：模型网关令牌消耗统计表（每次对话请求一条）。
      */

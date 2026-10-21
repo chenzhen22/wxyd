@@ -6,6 +6,7 @@ import com.cyz.pojo.WbGatewayKey;
 import com.cyz.util.SMUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -43,6 +44,7 @@ public class WbGatewayKeyService {
     }
 
     public List<WbGatewayKey> listByUser(Long userId) {
+        expireInactive();
         return wbGatewayMapper.listByUserId(userId);
     }
 
@@ -59,6 +61,7 @@ public class WbGatewayKeyService {
         key.setKeyHash(SMUtil.sm3(raw));
         key.setModel(model == null ? "" : model.trim());
         key.setEnabled(1);
+        key.setActiveDate(today());
         wbGatewayMapper.insertKey(key);
         key.setApiKey(raw); // 返回明文，前端只展示这一次
         return key;
@@ -73,11 +76,44 @@ public class WbGatewayKeyService {
         return true;
     }
 
-    /** 启用/停用（先验归属再无条件更新，幂等） */
+    /**
+     * 启用/停用（先验归属再无条件更新，幂等）。
+     * 启用即把生效日期设为当天——Key 只在启用当天有效，次日自动停用，需再次点击启用。
+     */
     public boolean toggle(Long userId, Long id, boolean enabled) {
         if (wbGatewayMapper.queryKeyById(id, userId) == null) return false;
         wbGatewayMapper.updateKeyEnabled(id, userId, enabled ? 1 : 0);
         return true;
+    }
+
+    /**
+     * Key 当前是否可用：用户手动启用且生效日期为当天。
+     * 生效日期早于今天（或为空）即视为过期，需用户登录后重新点击启用。
+     */
+    public boolean isActive(WbGatewayKey key) {
+        if (key == null || !Integer.valueOf(1).equals(key.getEnabled())) return false;
+        return today().equals(key.getActiveDate());
+    }
+
+    /** 自动停用：把生效日期不是今天的 Key 置为停用（定时任务 + 每次列表时兜底） */
+    public int expireInactive() {
+        try {
+            return wbGatewayMapper.expireInactiveKeys();
+        } catch (Exception e) {
+            log.warn("[WBGATEWAY] 自动停用过期 Key 失败：{}", e.getMessage());
+            return 0;
+        }
+    }
+
+    /** 每日 00:00 把昨天的 Key 自动停用 */
+    @Scheduled(cron = "0 0 0 * * ?")
+    public void expireDaily() {
+        int n = expireInactive();
+        if (n > 0) log.info("[WBGATEWAY] 已自动停用 {} 把昨日 Key（次日需用户重新启用）", n);
+    }
+
+    private static String today() {
+        return java.time.LocalDate.now().toString();
     }
 
     /** 修改自选模型（先验归属再无条件更新，幂等） */
@@ -89,6 +125,7 @@ public class WbGatewayKeyService {
 
     /** 管理员：全部用户的 Key（api_key 解密为掩码；modelOverride 转成 auto/on/off 字符串） */
     public List<Map<String, Object>> adminListKeys() {
+        expireInactive();
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> row : wbGatewayMapper.adminListKeys()) {
             Map<String, Object> m = new HashMap<>(row);
@@ -124,8 +161,8 @@ public class WbGatewayKeyService {
         }
     }
 
-    /** 网关鉴权：明文 Key -> Key 行（未命中/已停用/已删除返回 null） */
-    public WbGatewayKey verify(String rawKey) {
+    /** 网关鉴权：明文 Key -> Key 行（未命中/已删除返回 null；是否当天有效由 {@link #isActive} 判定） */
+    public WbGatewayKey lookup(String rawKey) {
         if (rawKey == null || rawKey.isEmpty()) return null;
         WbGatewayKey key = wbGatewayMapper.queryKeyByHash(SMUtil.sm3(rawKey));
         if (key == null) return null;

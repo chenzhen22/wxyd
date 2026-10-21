@@ -49,6 +49,7 @@ public class WbGatewayManageController {
             m.put("name", k.getName());
             m.put("model", k.getModel());
             m.put("enabled", k.getEnabled() != null && k.getEnabled() == 1);
+            m.put("activeDate", k.getActiveDate());
             m.put("maskedKey", maskOf(k));
             m.put("createTime", k.getCreateTime());
             m.put("lastUsedTime", k.getLastUsedTime());
@@ -175,9 +176,9 @@ public class WbGatewayManageController {
         Result result = Result.getInstance();
         if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
         try {
-            result.setBody(client.bridgeStatus());
+            result.setBody(sanitizeDeep(client.bridgeStatus()));
         } catch (Exception e) {
-            result.setErrorMsg("桥接不可用：" + e.getMessage());
+            result.setErrorMsg("桥接不可用：" + com.cyz.wbgateway.WbGatewayChatService.sanitize(e.getMessage()));
             result.setErrorCode("000015");
         }
         return result;
@@ -339,7 +340,7 @@ public class WbGatewayManageController {
     public Result automationStatus(HttpSession session) {
         Result result = Result.getInstance();
         if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
-        result.setBody(automationService.statusView());
+        result.setBody(sanitizeDeep(automationService.statusView()));
         return result;
     }
 
@@ -351,7 +352,7 @@ public class WbGatewayManageController {
         String kind = req != null && req.getBody() instanceof Map
                 ? String.valueOf(((Map<?, ?>) req.getBody()).get("kind")) : "";
         try {
-            result.setBody(automationService.runNow(kind.trim()));
+            result.setBody(sanitizeDeep(automationService.runNow(kind.trim())));
         } catch (IllegalArgumentException e) {
             result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
             result.setErrorMsg(e.getMessage());
@@ -368,7 +369,7 @@ public class WbGatewayManageController {
         Result result = Result.getInstance();
         if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
         try {
-            result.setBody(automationService.runAllNow());
+            result.setBody(sanitizeDeep(automationService.runAllNow()));
         } catch (Exception e) {
             result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
             result.setErrorMsg("执行失败：" + e.getMessage());
@@ -396,6 +397,26 @@ public class WbGatewayManageController {
     private static boolean isAdmin(HttpSession session) {
         Integer role = (Integer) session.getAttribute("role");
         return role != null && role == 0;
+    }
+
+    /** 应答脱敏：递归替换上游厂商字样（管理页诊断信息也不暴露） */
+    private static Object sanitizeDeep(Object o) {
+        if (o instanceof String) {
+            return ((String) o).replaceAll("(?i)workbuddy", "上游服务");
+        }
+        if (o instanceof Map) {
+            Map<Object, Object> out = new HashMap<>();
+            for (Map.Entry<?, ?> e : ((Map<?, ?>) o).entrySet()) {
+                out.put(e.getKey(), sanitizeDeep(e.getValue()));
+            }
+            return out;
+        }
+        if (o instanceof List) {
+            List<Object> out = new ArrayList<>();
+            for (Object v : (List<?>) o) out.add(sanitizeDeep(v));
+            return out;
+        }
+        return o;
     }
 
     private static String str(Object o) {

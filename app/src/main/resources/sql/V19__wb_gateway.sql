@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS `wb_gateway_key` (
   `key_hash` CHAR(64) NOT NULL COMMENT 'Key 明文的 SM3 摘要（等值查询用）',
   `model` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '用户自选模型（空=按请求模型/默认），仅模型开关开启时生效',
   `enabled` TINYINT NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用',
+  `active_date` DATE NULL COMMENT '生效日期：仅当天有效，次日自动停用需用户重新启用',
   `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_used_time` DATETIME NULL COMMENT '最近一次网关调用时间',
   PRIMARY KEY (`id`),

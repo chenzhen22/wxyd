@@ -33,6 +33,10 @@ public class WbGatewayChatService {
     public static final String PROTO_ANTHROPIC = "anthropic";
     public static final String PROTO_OPENAI = "openai";
 
+    /** Key 过期/未启用时的对外提示（不暴露上游任何信息） */
+    public static final String KEY_INACTIVE_MESSAGE =
+            "该 API Key 今日未启用或已过期，请登录「小泽助手 → 模型网关」点击「启用」后再试";
+
     /** 用量记录保留天数（wb_gateway_usage），默认 7 天 */
     @Value("${wxyd.wbgateway.usage-retention-days:7}")
     private int usageRetentionDays;
@@ -350,8 +354,15 @@ public class WbGatewayChatService {
     }
 
     /** 按协议输出错误形状 */
+    /** 对外应答脱敏：任何上游厂商信息都不出现在返回给客户端的内容里 */
+    public static String sanitize(String message) {
+        if (message == null) return "";
+        return message.replaceAll("(?i)workbuddy", "模型服务");
+    }
+
     public static void writeError(HttpServletResponse res, String protocol, int status,
                                   String type, String message) throws IOException {
+        message = sanitize(message);
         JSONObject out = new JSONObject();
         if (PROTO_OPENAI.equals(protocol)) {
             JSONObject err = new JSONObject();

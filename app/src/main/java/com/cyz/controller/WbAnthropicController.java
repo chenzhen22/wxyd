@@ -108,11 +108,16 @@ public class WbAnthropicController {
                     "authentication_error", "缺少 API Key：请设置 x-api-key 或 Authorization: Bearer <key>");
             return null;
         }
-        WbGatewayKey key = keyService.verify(raw);
+        WbGatewayKey key = keyService.lookup(raw);
         if (key == null) {
             log.warn("[WBGATEWAY] 拒绝无效 API Key suffix={}", raw.substring(Math.max(0, raw.length() - 4)));
             WbGatewayChatService.writeError(res, WbGatewayChatService.PROTO_ANTHROPIC, 401,
                     "authentication_error", "API Key 无效");
+            return null;
+        }
+        if (!keyService.isActive(key)) {
+            WbGatewayChatService.writeError(res, WbGatewayChatService.PROTO_ANTHROPIC, 401,
+                    "authentication_error", WbGatewayChatService.KEY_INACTIVE_MESSAGE);
             return null;
         }
         return key;

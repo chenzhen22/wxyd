@@ -223,7 +223,7 @@
             '<div id="h5MmSecSwitch" style="display:none;">' +
             '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);cursor:pointer;">' +
             '<input type="checkbox" id="h5MmSwitch"> <span id="h5MmSwitchLabel"></span></label>' +
-            '<div style="font-size:11px;color:var(--text-5);margin:6px 0 8px;">关 = 所有请求自动映射到 WorkBuddy 免费模型（对用户不可见）</div>' +
+            '<div style="font-size:11px;color:var(--text-5);margin:6px 0 8px;">关 = 所有请求自动映射到免费模型（对用户不可见）</div>' +
             '<div id="h5MmAdminModels"></div></div>' +
             /* 全部用户 Key */
             '<div class="h5-mm-sec-head" data-sec="h5MmSecKeys" style="font-weight:600;color:var(--text-1);margin:10px 0 6px;cursor:pointer;border-top:1px solid var(--glass-5);padding-top:10px;">🗂️ 全部用户 Key <span style="float:right;color:var(--text-5);">▸</span></div>' +

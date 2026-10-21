@@ -585,9 +585,10 @@ public final class WbProtocol {
     /* ==================== 上游 WAF 清洗 ==================== */
 
     /**
-     * 上游 WAF 会拦两类内容（均 400「请求被拦截，请重新发送」）：
+     * 上游 WAF 会拦三类内容（均 400「请求被拦截，请重新发送」/「Illegal API invocation from an unapproved channel」）：
      * 1. 「自称 Claude 模型」的 system 内容（Claude Code 固定开场句）——改写成中性描述；
-     * 2. 「x-anthropic-* 伪 header」行（Claude Code 计费遥测）——整行删除，零信息损失。
+     * 2. 「x-anthropic-* 伪 header」行（Claude Code 计费遥测）——整行删除，零信息损失；
+     * 3. 「You are an AI agent powered by XXX Harness.」类第三方 Agent 自述（按未授权渠道拦截）——改写成中性描述。
      * 其余 system 内容原样发送。
      */
     public static void sanitizeOpenAiMessages(JSONObject openaiReq) {
@@ -609,7 +610,10 @@ public final class WbProtocol {
                 mm.appendReplacement(rep2, java.util.regex.Matcher.quoteReplacement(rep));
             }
             mm.appendTail(rep2);
-            String sanitized = rep2.toString();
+            // 第三方 Agent Harness 自述（如 DeepSeek Harness）会被上游按「未授权渠道」拦截，替换成中性描述
+            String sanitized = rep2.toString().replaceAll(
+                    "(?i)You are an AI agent powered by [^." + (char) 10 + "]*Harness[.]?",
+                    "You are an AI assistant.");
             if (!sanitized.equals(original)) m.put("content", sanitized);
         }
     }

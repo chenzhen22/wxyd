@@ -29,4 +29,5 @@ CREATE TABLE IF NOT EXISTS `batch_task` (
 INSERT IGNORE INTO `batch_task`
   (`task_code`,`name`,`work_dir`,`script`,`exec_mode`,`plan`,`enabled`,`timeout_sec`,`next_run_time`)
 VALUES
-  ('aiAgent','金融日报智能体','/apps/GIT/aiAgent','.venv/bin/python agent.py','serial','0 0 8 * * ?',1,3600,NULL);
+  ('aiAgent','金融日报智能体','/apps/GIT/aiAgent','.venv/bin/python agent.py','serial','0 0 8 * * ?',1,3600,NULL),
+  ('dataScan','福利羊毛抓取','/apps/GIT/dataScan','.venv/bin/python -m datascan.main --once','serial','0 */10 * * * ?',1,600,NULL);

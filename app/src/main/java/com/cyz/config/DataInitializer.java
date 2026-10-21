@@ -653,16 +653,25 @@ public class DataInitializer implements ApplicationRunner {
                     "UNIQUE KEY `uk_task_code` (`task_code`)," +
                     "KEY `idx_next_run` (`enabled`,`next_run_time`)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='批次任务'");
-            jdbcTemplate.update("INSERT IGNORE INTO `batch_task` " +
-                            "(`task_code`,`name`,`work_dir`,`script`,`exec_mode`,`plan`,`enabled`,`timeout_sec`,`next_run_time`) " +
-                            "VALUES (?,?,?,?,?,?,?,?,?)",
-                    "aiAgent", "金融日报智能体", "/apps/GIT/aiAgent", ".venv/bin/python agent.py",
-                    "serial", "0 0 8 * * ?", 1, 3600,
-                    com.cyz.batch.service.BatchTaskService.nextRun("0 0 8 * * ?"));
-            log.info("[INIT] batch_task 表就绪（批次任务，已播种 aiAgent 每日 08:00）");
+            // 内置任务：金融日报智能体（每天 08:00）
+            seedBatchTask("aiAgent", "金融日报智能体", "/apps/GIT/aiAgent",
+                    ".venv/bin/python agent.py", "0 0 8 * * ?", 3600);
+            // 内置任务：福利羊毛抓取（每 10 分钟）
+            seedBatchTask("dataScan", "福利羊毛抓取", "/apps/GIT/dataScan",
+                    ".venv/bin/python -m datascan.main --once", "0 */10 * * * ?", 600);
+            log.info("[INIT] batch_task 表就绪（批次任务：aiAgent 每日 08:00 / dataScan 每 10 分钟）");
         } catch (Exception e) {
             log.error("[INIT] batch_task 建表/播种失败（请手动执行 sql/V24__batch_task.sql）：{}", e.getMessage());
         }
+    }
+
+    /** 批次任务播种：按 task_code 幂等插入，已有配置（含用户改过的计划）不被覆盖 */
+    private void seedBatchTask(String code, String name, String workDir, String script, String plan, int timeoutSec) {
+        jdbcTemplate.update("INSERT IGNORE INTO `batch_task` " +
+                        "(`task_code`,`name`,`work_dir`,`script`,`exec_mode`,`plan`,`enabled`,`timeout_sec`,`next_run_time`) " +
+                        "VALUES (?,?,?,?,?,?,?,?,?)",
+                code, name, workDir, script, "serial", plan, 1, timeoutSec,
+                com.cyz.batch.service.BatchTaskService.nextRun(plan));
     }
 
     /**

@@ -82,7 +82,8 @@ public class WbGatewayChatService {
                 : !Integer.valueOf(0).equals(wbGatewayMapper.queryModelSwitch());
         String selected = key.getModel() == null ? "" : key.getModel().trim();
         String requested = requestedModel == null ? "" : requestedModel.trim();
-        // 校验：请求模型必须与 Key 在「模型网关」页面配置的模型匹配（大小写不敏感）；
+        // 校验：仅当 Key 绑定了具体模型时，才要求请求模型与之匹配（大小写不敏感）；
+        // Key 未绑定模型 = 「跟随系统」：不校验用户请求的模型，模型开关开启且请求模型在目录内时直接采用
         // 请求未带模型名时放行，按 Key 配置的模型执行
         if (!selected.isEmpty() && !requested.isEmpty() && !selected.equalsIgnoreCase(requested)) {
             log.warn("[WBGATEWAY] 模型与 Key 配置不匹配 userId={} keyId={} 请求模型={} Key模型={}",

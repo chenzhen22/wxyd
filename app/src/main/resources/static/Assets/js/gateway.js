@@ -126,7 +126,7 @@
             keyTd.append('<code style="color:var(--accent);">' + esc(k.maskedKey) + '</code> ');
             keyTd.append('<button class="btn-main gw-copy" data-id="' + k.id + '" style="padding:2px 8px;font-size:12px;">复制</button>');
             $tr.append(keyTd);
-            $tr.append('<td><input type="text" readonly value="' + esc(k.model || '跟随请求 / 默认') + '" ' +
+            $tr.append('<td><input type="text" readonly value="' + esc(k.model || '跟随系统（自动）') + '" ' +
                 'style="width:100%;padding:4px 6px;border-radius:6px;background:var(--glass-2);color:var(--text-2);border:1px solid var(--glass-5);font-size:12px;"></td>');
             /* Key 仅当天有效：停用后次日需用户重新点「启用」 */
             var statusText = k.enabled ? '🟢 今日启用' : (k.activeDate ? '⏸️ 已过期' : '⏸️ 未启用');
@@ -155,8 +155,8 @@
             var b = res.body || {};
             state.models = b.models || [];
             state.defaultModel = b.default || '';
-            /* 创建 Key：模型必选，首项为「请选择模型」占位；目录默认模型在文字里标注 */
-            var $sel = $('#gwKeyModel').html('<option value="" selected>请选择模型</option>');
+            /* 创建 Key：默认「跟随系统」；目录默认模型在文字里标注 */
+            var $sel = $('#gwKeyModel').html('<option value="auto" selected>跟随系统（自动选择模型）</option>');
             state.models.forEach(function (m) {
                 var label = (m === state.defaultModel && state.defaultModel) ? m + '（默认）' : m;
                 $sel.append('<option value="' + esc(m) + '">' + esc(label) + '</option>');
@@ -210,7 +210,7 @@
                 $tr.append('<td>' + esc(k.ownerName || k.username || k.userId) + '</td>');
                 $tr.append('<td>' + esc(k.name || '(未命名)') + '</td>');
                 $tr.append('<td><code style="color:var(--accent);">' + esc(k.maskedKey) + '</code></td>');
-                $tr.append('<td>' + esc(k.model || '跟随请求 / 默认') + '</td>');
+                $tr.append('<td>' + esc(k.model || '跟随系统（自动）') + '</td>');
                 $tr.append('<td>' + (k.enabled ? '🟢' : '⏸️') + '</td>');
                 $tr.append('<td><select class="gw-admin-ov" data-id="' + k.id + '" style="width:100%;padding:4px;border-radius:6px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">' +
                     '<option value="auto"' + (ov === 'auto' ? ' selected' : '') + '>跟随全局</option>' +
@@ -356,11 +356,7 @@
 
         $('#gwKeyAdd').on('click', function () {
             var name = $.trim($('#gwKeyName').val() || '');
-            var model = $('#gwKeyModel').val() || '';
-            if (!model) {
-                gwAlert('请选择模型（模型为必选项）');
-                return;
-            }
+            var model = $('#gwKeyModel').val() || 'auto'; /* auto=跟随系统 */
             postJSON('gateway/keys/add', { name: name, model: model }).done(function (res) {
                 if (res.errorCode !== '000000') {
                     gwAlert(res.errorMsg || '创建失败');

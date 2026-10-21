@@ -77,11 +77,9 @@ public class WbGatewayManageController {
         Result result = Result.getInstance();
         Map<String, Object> body = body(req);
         try {
-            String model = str(body.get("model"));
-            if (model == null || model.trim().isEmpty()) {
-                throw new IllegalArgumentException("请选择模型（模型为必选项）");
-            }
-            if (client.models().match(model) == null) {
+            // "auto" = 跟随系统：不绑定具体模型，按请求模型（需在目录内）/系统默认模型执行
+            String model = normalizeModel(str(body.get("model")));
+            if (!model.isEmpty() && client.models().match(model) == null) {
                 throw new IllegalArgumentException("模型不在目录中：" + model);
             }
             WbGatewayKey key = keyService.create(userId(session), str(body.get("name")), model);
@@ -138,8 +136,7 @@ public class WbGatewayManageController {
         Result result = Result.getInstance();
         Map<String, Object> body = body(req);
         try {
-            String model = str(body.get("model"));
-            if (model == null) model = "";
+            String model = normalizeModel(str(body.get("model")));
             if (!model.isEmpty() && client.models().match(model) == null) {
                 throw new IllegalArgumentException("模型不在目录中：" + model);
             }
@@ -397,6 +394,14 @@ public class WbGatewayManageController {
     private static boolean isAdmin(HttpSession session) {
         Integer role = (Integer) session.getAttribute("role");
         return role != null && role == 0;
+    }
+
+    /** 模型取值归一：null/空白/"auto"/"system" 均表示「跟随系统」 */
+    private static String normalizeModel(String model) {
+        if (model == null) return "";
+        String v = model.trim();
+        if (v.isEmpty() || "auto".equalsIgnoreCase(v) || "system".equalsIgnoreCase(v)) return "";
+        return v;
     }
 
     /** 应答脱敏：递归替换上游厂商字样（管理页诊断信息也不暴露） */

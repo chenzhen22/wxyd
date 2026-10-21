@@ -65,7 +65,7 @@
             keyRow.append('<code style="flex:1;color:var(--accent);font-size:12px;">' + esc(k.maskedKey) + '</code>');
             keyRow.append('<span class="h5-btn-ghost h5-btn-sm h5-gw-copy" data-id="' + k.id + '">复制</span>');
             $card.append(keyRow);
-            $card.append('<div style="font-size:12px;color:var(--text-5);margin-bottom:2px;">模型：<span style="color:var(--text-2);">' + esc(k.model || '跟随请求 / 默认') + '</span></div>');
+            $card.append('<div style="font-size:12px;color:var(--text-5);margin-bottom:2px;">模型：<span style="color:var(--text-2);">' + esc(k.model || '跟随系统（自动）') + '</span></div>');
             $card.append('<div style="font-size:12px;color:var(--text-5);margin-bottom:8px;">最近使用：' + esc(k.lastUsedTime || '从未') + '</div>');
             var ops = $('<div style="display:flex;gap:8px;"></div>');
             ops.append('<span class="h5-btn-ghost h5-btn-sm h5-gw-toggle" data-id="' + k.id + '" data-enabled="' + (k.enabled ? '1' : '0') + '">' + (k.enabled ? '停用' : '启用') + '</span>');
@@ -88,7 +88,7 @@
             var b = res.body || {};
             state.models = b.models || [];
             state.defaultModel = b.default || '';
-            var $sel = $('#h5GwKeyModel').html('<option value="" selected>请选择模型</option>');
+            var $sel = $('#h5GwKeyModel').html('<option value="auto" selected>跟随系统（自动选择模型）</option>');
             state.models.forEach(function (m) {
                 var label = (m === state.defaultModel && state.defaultModel) ? m + '（默认）' : m;
                 $sel.append('<option value="' + esc(m) + '">' + esc(label) + '</option>');
@@ -106,11 +106,11 @@
             '<div>[OpenAI]&nbsp;&nbsp; <span style="color:var(--accent);">' + esc(base) + '/openai/v1</span></div></div>' +
 
             '<div style="margin-bottom:12px;padding:12px;border-radius:12px;background:var(--glass-2);border:1px solid var(--glass-5);">' +
-            '<div style="font-weight:600;color:var(--text-1);margin-bottom:8px;">🔑 新建 Key <span style="font-weight:400;font-size:12px;color:var(--text-5);">最多 5 把，模型必选</span></div>' +
+            '<div style="font-weight:600;color:var(--text-1);margin-bottom:8px;">🔑 新建 Key <span style="font-weight:400;font-size:12px;color:var(--text-5);">最多 5 把，模型可选跟随系统</span></div>' +
             '<div style="font-size:12px;color:#e0a800;line-height:1.7;margin-bottom:8px;">⚠️ Key 仅当天有效，次日自动停用，需每天点一次「启用」</div>' +
             '<input id="h5GwKeyName" placeholder="备注名（如：我的手机）" style="width:100%;box-sizing:border-box;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);margin-bottom:8px;">' +
             '<div style="display:flex;gap:8px;">' +
-            '<select id="h5GwKeyModel" style="flex:1;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"><option value="" selected>请选择模型</option></select>' +
+            '<select id="h5GwKeyModel" style="flex:1;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"><option value="auto" selected>跟随系统（自动选择模型）</option></select>' +
             '<span class="h5-btn-primary" id="h5GwKeyAdd" style="display:flex;align-items:center;">创建</span></div></div>' +
 
             '<div id="h5GwKeys"></div>' +
@@ -122,8 +122,7 @@
             initialized = true;
             $('#h5GwKeyAdd').off('click').on('click', function () {
                 var name = $.trim($('#h5GwKeyName').val() || '');
-                var model = $('#h5GwKeyModel').val() || '';
-                if (!model) { toast('请选择模型'); return; }
+                var model = $('#h5GwKeyModel').val() || 'auto'; /* auto=跟随系统 */
                 postJSON('gateway/keys/add', { name: name, model: model }).done(function (res) {
                     if (res.errorCode !== '000000') { toast(res.errorMsg || '创建失败'); return; }
                     openDialog('<h3>创建成功</h3>' +

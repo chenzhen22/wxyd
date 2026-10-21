@@ -605,12 +605,12 @@
             </div>
 
             <div class="cert-card" style="margin-bottom:14px;">
-                <div class="cert-card-tit">🔑 新建 Key <span style="font-weight:400;color:var(--text-5);font-size:12px;">每用户最多 5 把；模型必选（默认选中网关默认模型）；创建后可随时在列表里点「复制」</span></div>
+                <div class="cert-card-tit">🔑 新建 Key <span style="font-weight:400;color:var(--text-5);font-size:12px;">每用户最多 5 把；模型可选「跟随系统」（按请求模型/系统默认执行）；创建后可随时在列表里点「复制」</span></div>
                 <div style="font-size:12px;color:#e0a800;line-height:1.8;margin-bottom:8px;">⚠️ Key 仅在启用当天有效：第二天会自动停用，需每天登录本页点一次「启用」。停用期间调用会提示你回小泽助手启用。</div>
                 <div class="cert-form-row">
                     <input type="text" id="gwKeyName" placeholder="备注名（如：我的笔记本）" autocomplete="off"
                            style="flex:1;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">
-                    <select id="gwKeyModel" required style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"><option value="" selected>请选择模型</option></select>
+                    <select id="gwKeyModel" style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"><option value="auto" selected>跟随系统（自动选择模型）</option></select>
                     <button class="btn-main" id="gwKeyAdd">创建 Key</button>
                 </div>
 

@@ -90,7 +90,7 @@
                 $card.append('<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-1);margin-bottom:4px;">' +
                     '<span>' + esc((k.ownerName || k.username || '?') + ' · ' + (k.name || '(未命名)')) + '</span>' +
                     '<span style="font-size:11px;">' + (k.enabled ? '🟢' : '⏸️') + '</span></div>');
-                $card.append('<div style="font-size:12px;color:var(--text-5);margin-bottom:6px;"><code style="color:var(--accent);">' + esc(k.maskedKey) + '</code> · 模型：' + esc(k.model || '跟随请求 / 默认') + '</div>');
+                $card.append('<div style="font-size:12px;color:var(--text-5);margin-bottom:6px;"><code style="color:var(--accent);">' + esc(k.maskedKey) + '</code> · 模型：' + esc(k.model || '跟随系统（自动）') + '</div>');
                 $card.append('<select class="h5-mm-admin-ov" data-id="' + k.id + '" style="width:100%;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">' +
                     '<option value="auto"' + (ov === 'auto' ? ' selected' : '') + '>模型开关：跟随全局</option>' +
                     '<option value="on"' + (ov === 'on' ? ' selected' : '') + '>模型开关：开（覆盖）</option>' +

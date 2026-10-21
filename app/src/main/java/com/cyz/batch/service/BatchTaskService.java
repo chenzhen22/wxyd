@@ -226,6 +226,29 @@ public class BatchTaskService {
         return p.split(" ").length == 5 ? "0 " + p : p;
     }
 
+    /** 预览计划接下来 count 次执行时间；计划为空返回空列表（仅手动） */
+    public List<String> preview(String plan, int count) {
+        String p = normalizePlan(plan);
+        if (p.isEmpty()) return new java.util.ArrayList<>();
+        if (!CronExpression.isValidExpression(p)) {
+            throw new IllegalArgumentException("执行计划不是合法 cron：" + p);
+        }
+        int n = Math.max(1, Math.min(count, 20));
+        List<String> out = new java.util.ArrayList<>();
+        LocalDateTime cursor = LocalDateTime.now();
+        try {
+            CronExpression cron = CronExpression.parse(p);
+            for (int i = 0; i < n; i++) {
+                cursor = cron.next(cursor);
+                if (cursor == null) break;
+                out.add(cursor.format(FMT));
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("执行计划不是合法 cron：" + p);
+        }
+        return out;
+    }
+
     /** cron 下一次执行时间（无下一次返回 null） */
     public static String nextRun(String plan) {
         String p = normalizePlan(plan);

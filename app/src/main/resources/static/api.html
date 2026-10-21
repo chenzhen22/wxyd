@@ -782,7 +782,13 @@
                         <option value="parallel">并行</option>
                     </select>
                 </div>
-                <div class="form-item"><label>执行计划：</label><input id="batchPlan" type="text" placeholder="0 0 8 * * ?"></div>
+                <div class="form-item"><label>执行计划：</label>
+                    <input id="batchPlan" type="text" placeholder="0 0 8 * * ?" style="flex:1;">
+                    <button class="btn-api" id="batchPreviewBtn" type="button" style="margin-left:8px;white-space:nowrap;">预览</button>
+                </div>
+                <div class="form-item" style="margin-top:-4px;">
+                    <label></label><span id="batchPlanHint" style="font-size:12px;color:var(--text-5);">留空 = 仅手动执行</span>
+                </div>
                 <div class="form-item"><label>快捷设置：</label>
                     <input id="batchDailyTime" type="time" step="60" style="width:auto;">
                     <button class="btn-api" id="batchDailyApply" type="button" style="margin-left:8px;">设为每天该时间</button>
@@ -794,6 +800,15 @@
                     <button class="btn-cancel close-modal">取消</button>
                     <button class="btn-primary" id="batchSave">保存</button>
                 </div>
+            </div>
+        </div>
+
+        <div class="modal" id="batchPreviewModal">
+            <div class="modal-content" style="width:560px;max-width:92vw;">
+                <div class="modal-title">执行计划预览 <span class="close-modal" id="batchPreviewClose">×</span></div>
+                <div id="batchPreviewPlan" style="font-size:12px;color:var(--text-5);margin-bottom:8px;"></div>
+                <ol id="batchPreviewList" style="margin:0 0 4px 18px;padding:0;font-size:13px;line-height:2;color:var(--text-1);"></ol>
+                <div class="modal-btn-group"><button class="btn-primary close-modal">关闭</button></div>
             </div>
         </div>
 
@@ -923,6 +938,6 @@
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/gateway.js?v=13" type="text/javascript"></script>
-<script src="Assets/js/batchtask.js?v=2" type="text/javascript"></script>
+<script src="Assets/js/batchtask.js?v=3" type="text/javascript"></script>
 </body>
 </html>

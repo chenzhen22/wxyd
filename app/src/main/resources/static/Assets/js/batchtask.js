@@ -84,6 +84,59 @@ var BatchTask = (function () {
         return p(m[2]) + ':' + p(m[1]);
     }
 
+    /** 预览计划接下来 5 次执行时间（同时用于表达式校验） */
+    function fetchPreview(plan) {
+        return $.getJSON('batch/preview', { plan: plan || '', count: 5 });
+    }
+
+    /** 输入时自动校验表达式，结果实时显示在输入框下方 */
+    function checkPlan() {
+        var plan = $.trim($('#batchPlan').val() || '');
+        if (!plan) {
+            $('#batchPlanHint').css('color', 'var(--text-5)').text('留空 = 仅手动执行');
+            return;
+        }
+        fetchPreview(plan).done(function (res) {
+            if (res.errorCode !== '000000') {
+                $('#batchPlanHint').css('color', '#f87171').text('✗ ' + (res.errorMsg || '表达式不合法'));
+                return;
+            }
+            var list = (res.body && res.body.list) || [];
+            if (!list.length) {
+                $('#batchPlanHint').css('color', '#e0a800').text('⚠ 表达式有效，但没有后续执行时间');
+            } else {
+                $('#batchPlanHint').css('color', '#4ade80').text('✓ 表达式有效，下次执行：' + list[0]);
+            }
+        }).fail(function (xhr) {
+            var r = xhr.responseJSON || {};
+            $('#batchPlanHint').css('color', '#f87171').text('✗ ' + (r.errorMsg || '校验失败'));
+        });
+    }
+
+    /** 点击「预览」：弹窗列出接下来 5 次执行时间 */
+    function openPreview() {
+        var plan = $.trim($('#batchPlan').val() || '');
+        if (!plan) { alertMsg('执行计划为空，仅支持手动执行'); return; }
+        fetchPreview(plan).done(function (res) {
+            if (res.errorCode !== '000000') {
+                alertMsg(res.errorMsg || '表达式不合法');
+                return;
+            }
+            var list = (res.body && res.body.list) || [];
+            $('#batchPreviewPlan').text('表达式：' + plan + ' · 接下来 ' + list.length + ' 次执行时间');
+            var $ol = $('#batchPreviewList').html('');
+            if (!list.length) {
+                $ol.append('<li style="color:var(--text-5);list-style:none;">没有后续执行时间</li>');
+            } else {
+                list.forEach(function (t) { $ol.append('<li>' + esc(t) + '</li>'); });
+            }
+            $('#batchPreviewModal').show();
+        }).fail(function (xhr) {
+            var r = xhr.responseJSON || {};
+            alertMsg(r.errorMsg || '预览失败');
+        });
+    }
+
     function openEdit(t) {
         currentId = t ? t.id : null;
         $('#batchEditTitle').text(t ? '编辑任务' : '新增任务');
@@ -97,6 +150,7 @@ var BatchTask = (function () {
         $('#batchTimeout').val(t && t.timeoutSec ? t.timeoutSec : 3600);
         $('#batchEnabled').prop('checked', t ? t.enabled === 1 : true);
         $('#batchEditModal').show();
+        checkPlan();
     }
 
     function save() {
@@ -197,11 +251,21 @@ var BatchTask = (function () {
             if (!v) { alertMsg('请先选择时间'); return; }
             var parts = v.split(':');
             $('#batchPlan').val('0 ' + Number(parts[1]) + ' ' + Number(parts[0]) + ' * * ?');
+            checkPlan();
         });
 
         $('#batchManualOnly').off('click').on('click', function () {
             $('#batchPlan').val('');
+            checkPlan();
         });
+
+        var planTimer = null;
+        $('#batchPlan').off('input').on('input', function () {
+            if (planTimer) clearTimeout(planTimer);
+            planTimer = setTimeout(checkPlan, 400);
+        });
+
+        $('#batchPreviewBtn').off('click').on('click', openPreview);
 
         $('#batchSave').off('click').on('click', save);
     }

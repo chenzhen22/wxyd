@@ -94,6 +94,25 @@ public class BatchTaskController {
         return result;
     }
 
+    /** 预览执行计划：返回接下来 count 次（默认 5 次）执行时间，同时用于表达式校验 */
+    @GetMapping("preview")
+    public Result preview(@RequestParam(required = false) String plan,
+                          @RequestParam(defaultValue = "5") Integer count,
+                          HttpSession session) {
+        Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
+        try {
+            Map<String, Object> body = new HashMap<>();
+            body.put("plan", plan == null ? "" : plan.trim());
+            body.put("list", batchTaskService.preview(plan, count == null ? 5 : count));
+            result.setBody(body);
+        } catch (IllegalArgumentException e) {
+            result.setErrorEnum(ErrorEnum.ERROR000015);
+            result.setErrorMsg(e.getMessage());
+        }
+        return result;
+    }
+
     /** 最近一次执行日志（默认 200 行） */
     @GetMapping("log")
     public Result log(@RequestParam Long id,

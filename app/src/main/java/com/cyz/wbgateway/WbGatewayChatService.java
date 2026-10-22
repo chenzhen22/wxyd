@@ -136,24 +136,38 @@ public class WbGatewayChatService {
                 for (String id : free) if (!chain.contains(id)) chain.add(id);
             }
         } else {
-            // 开关关闭：静默映射到该 provider 的免费模型，用户不可知；对外仍显示用户视角名字
-            chain.addAll(com.cyz.wbgateway.provider.FreePriority.order(
-                    catalog.freeIdsOf(route.provider), freePriority));
-            if (chain.isEmpty()) {
-                String dflt = catalog.match(route.provider.defaultModel());
-                chain.add(dflt == null ? route.provider.defaultModel() : dflt);
-            }
+            // 开关关闭时的处理：
+            // 1) 请求/选中的模型本身就是免费模型 → 直接用它（用户明确要的模型且不花钱，不再静默映射）
+            // 2) 否则静默映射到该 provider 的免费模型，用户不可知
+            String wanted = catalog.match(routeBy);
+            boolean wantedFree = wanted != null && route.nativeId != null && route.provider.isFree(route.nativeId);
             publicModel = !selected.isEmpty() ? selected
                     : (!requested.isEmpty() ? requested : route.provider.defaultModel());
-            log.info("[WBGATEWAY] 模型开关关闭：静默映射 userId={} keyId={} 视角模型={} 实际链={}",
-                    key.getUserId(), key.getId(), publicModel, chain);
+            if (wantedFree) {
+                chain.add(wanted);
+                log.info("[WBGATEWAY] 模型开关关闭，但请求模型 {} 免费，直接使用 userId={} keyId={}",
+                        wanted, key.getUserId(), key.getId());
+            } else {
+                chain.addAll(com.cyz.wbgateway.provider.FreePriority.order(
+                        catalog.freeIdsOf(route.provider), freePriority));
+                if (chain.isEmpty()) {
+                    String dflt = catalog.match(route.provider.defaultModel());
+                    chain.add(dflt == null ? route.provider.defaultModel() : dflt);
+                }
+                log.info("[WBGATEWAY] 模型开关关闭：静默映射 userId={} keyId={} 视角模型={} 实际链={}",
+                        key.getUserId(), key.getId(), publicModel, chain);
+            }
         }
 
         // 展示 id -> provider 原生链；按可用性依次尝试（WorkBuddy 账号池冷却时可自动落到 Qoder）
         // 开关关闭时用户看不到实际模型，可跨 provider 兜底；开关开启时只在有该模型的 provider 间兜底
-        List<UpstreamProvider> candidates = switchOn
-                ? providers.candidates(chain.get(0))
-                : providers.candidates(null);
+        List<UpstreamProvider> candidates = new ArrayList<>(providers.candidates(chain.get(0)));
+        if (!switchOn) {
+            // 静默模式再追加其它 provider 兜底（它们会用各自的免费模型接住）
+            for (UpstreamProvider p : providers.candidates(null)) {
+                if (!candidates.contains(p)) candidates.add(p);
+            }
+        }
         UpstreamProvider provider = null;
         List<String> nativeChain = null;
         UpstreamProvider.ProviderStream stream = null;
@@ -162,11 +176,13 @@ public class WbGatewayChatService {
             List<String> nc = new ArrayList<>();
             for (String display : chain) {
                 String nativeId = catalog.nativeIdFor(display, p.id());
+                if (nativeId == null) nativeId = p.catalog().match(display); // 合并目录缺该模型时退回 provider 原生匹配
                 if (nativeId != null && !nc.contains(nativeId)) nc.add(nativeId);
             }
             if (nc.isEmpty()) {
-                String dflt = catalog.nativeIdFor(p.defaultModel(), p.id());
-                if (dflt == null || dflt.isEmpty()) dflt = p.defaultModel();
+                // 该 provider 没有这些模型：静默映射时优先用它自己的免费模型，其次默认模型
+                List<String> pFree = p.catalog().freeIds();
+                String dflt = pFree.isEmpty() ? p.defaultModel() : pFree.get(0);
                 if (dflt == null || dflt.isEmpty()) continue;
                 nc.add(dflt);
             }
@@ -174,7 +190,7 @@ public class WbGatewayChatService {
             req.put("stream", true);
             WbProtocol.sanitizeOpenAiMessages(req);
             try {
-                stream = p.open(nc, req.toJSONString());
+                stream = p.open(nc, req.toJSONString(), !switchOn);
                 provider = p;
                 nativeChain = nc;
                 break;
@@ -182,7 +198,9 @@ public class WbGatewayChatService {
                 lastFailure = e;
                 boolean retryable = WbUpstreamException.KIND_SOFT_RATE.equals(e.getKind())
                         || WbUpstreamException.KIND_SESSION_DEAD.equals(e.getKind())
-                        || WbUpstreamException.KIND_SERVER.equals(e.getKind());
+                        || WbUpstreamException.KIND_SERVER.equals(e.getKind())
+                        // 静默映射模式下用户看不到实际模型，被拦截/参数类失败也换下一个候选
+                        || (!switchOn && WbUpstreamException.KIND_CLIENT.equals(e.getKind()));
                 log.warn("[WBGATEWAY] provider {} 暂不可用（{}）：{}", p.id(), e.getKind(), e.getMessage());
                 if (!retryable) break;
             }

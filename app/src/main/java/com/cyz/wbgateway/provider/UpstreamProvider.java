@@ -67,7 +67,10 @@ public interface UpstreamProvider {
      * 按候选链发起流式对话；内部完成 provider 自己的凭据/账号轮换与链内重试。
      * body 为 OpenAI chat-completions 请求体（stream 由 provider 自行处理）。
      */
-    ProviderStream open(List<String> chain, String openAiBodyJson) throws WbUpstreamException;
+    /**
+     * @param allowModelFallback true=静默映射模式（用户看不到实际模型），某个候选失败可继续尝试下一个候选
+     */
+    ProviderStream open(List<String> chain, String openAiBodyJson, boolean allowModelFallback) throws WbUpstreamException;
 
     /** 管理页诊断（登录态/账号池/额度等），可为空 map */
     Map<String, Object> status();

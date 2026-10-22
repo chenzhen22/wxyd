@@ -107,7 +107,7 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
     }
 
     @Override
-    public ProviderStream open(List<String> chain, String openAiBodyJson) throws WbUpstreamException {
+    public ProviderStream open(List<String> chain, String openAiBodyJson, boolean allowModelFallback) throws WbUpstreamException {
         JSONObject openaiReq;
         try {
             openaiReq = JSON.parseObject(openAiBodyJson);
@@ -144,7 +144,9 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
                 client.onSuccess(acc.getId());
                 break;
             } catch (WbUpstreamException e) {
-                boolean canChain = chainIdx < chain.size() - 1 && WbWorkBuddyClient.isModelFallbackRetryable(e);
+                boolean canChain = chainIdx < chain.size() - 1
+                        && (WbWorkBuddyClient.isModelFallbackRetryable(e)
+                        || (allowModelFallback && WbUpstreamException.KIND_CLIENT.equals(e.getKind())));
                 if (WbUpstreamException.KIND_SESSION_DEAD.equals(e.getKind()) && !refreshedOnce && acc != null) {
                     refreshedOnce = true;
                     try {

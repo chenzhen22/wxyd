@@ -41,7 +41,17 @@ public class ProviderRegistry {
     public CompositeCatalog publicCatalog() {
         long now = System.currentTimeMillis();
         CompositeCatalog c = pubCatalog;
-        if (c == null || now - pubAt > 60_000L) {
+        long ttl = 60_000L;
+        if (c != null) {
+            // 有 provider 目录为空（还没拉到/临时失败）时缩短缓存，避免长时间缺模型
+            for (UpstreamProvider p : providers) {
+                try {
+                    if (p.catalog().ids().isEmpty()) { ttl = 5_000L; break; }
+                } catch (Exception ignore) {
+                }
+            }
+        }
+        if (c == null || now - pubAt > ttl) {
             c = CompositeCatalog.build(providers, null);
             pubCatalog = c;
             pubAt = now;
@@ -93,7 +103,11 @@ public class ProviderRegistry {
                 if (g.nativeByProvider.containsKey(p.id())) list.add(p);
             }
         } else {
-            list.addAll(providers);
+            // 合并目录里没有（可能某 provider 目录当时未就绪）：退回各 provider 原生目录匹配
+            for (UpstreamProvider p : providers) {
+                if (p.catalog().match(display) != null) list.add(p);
+            }
+            if (list.isEmpty()) list.addAll(providers);
         }
         // 不可用（无账号/余额明确为 0）的 provider 排到最后，仅作兜底
         List<UpstreamProvider> usable = new ArrayList<>();
@@ -103,13 +117,21 @@ public class ProviderRegistry {
             else unusable.add(p);
         }
         usable.sort((a, b) -> {
-            boolean fa = g != null && a.isFree(g.nativeByProvider.get(a.id()));
-            boolean fb = g != null && b.isFree(g.nativeByProvider.get(b.id()));
+            boolean known = g != null;
+            boolean fa = known && a.isFree(g.nativeByProvider.get(a.id()));
+            boolean fb = known && b.isFree(g.nativeByProvider.get(b.id()));
             if (fa != fb) return fa ? -1 : 1;
-            if (!fa && !fb) {
+            if (known && !fa && !fb) {
+                // 同名计量模型：优先消耗积分先到期的
                 long ea = a.creditsExpireAtMs();
                 long eb = b.creditsExpireAtMs();
                 if (ea != eb) return Long.compare(ea, eb);
+            }
+            if (!known) {
+                // 静默映射：优先选有免费模型的 provider（否则会映射到付费的默认模型）
+                boolean ha = !a.catalog().freeIds().isEmpty();
+                boolean hb = !b.catalog().freeIds().isEmpty();
+                if (ha != hb) return ha ? -1 : 1;
             }
             int c = Integer.compare(b.usableAccountCount(), a.usableAccountCount());
             if (c != 0) return c;

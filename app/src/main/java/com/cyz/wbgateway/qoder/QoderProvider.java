@@ -126,7 +126,7 @@ public class QoderProvider implements UpstreamProvider {
     }
 
     @Override
-    public ProviderStream open(List<String> chain, String openAiBodyJson) throws WbUpstreamException {
+    public ProviderStream open(List<String> chain, String openAiBodyJson, boolean allowModelFallback) throws WbUpstreamException {
         if (!client.isEnabled()) {
             throw new WbUpstreamException(WbUpstreamException.KIND_SERVER, 503, "Qoder 未启用");
         }

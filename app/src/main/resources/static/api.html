@@ -702,118 +702,206 @@
         </div>
 
         <div class="module-box" id="modelManage">
-            <div class="page-title">模型管理 <span class="admin-badge" id="gwStatusBadge" style="cursor:pointer;display:none;">🟡 状态未知</span> <span class="admin-badge" id="gwRefreshBtn" style="cursor:pointer;display:none;">🔄 刷新</span></div>
-            <div class="cert-card" id="gwAdminCard" style="margin-top:18px;display:none;">
-                <div class="gw-collapse-head" data-sec="gwSecSwitch">⚙️ 模型开关 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
-                <div id="gwSecSwitch" style="display:none;">
-                    <label style="cursor:pointer;font-weight:400;font-size:13px;display:block;margin-bottom:8px;">
-                        全局开关：<input type="checkbox" id="gwSwitch"> <span id="gwSwitchLabel"></span>
-                    </label>
-                    <div style="font-size:12px;color:var(--text-5);margin-bottom:8px;">
-                        开 = 用户自选模型生效；关 = 所有请求自动映射到免费模型（对用户不可见，响应中的模型名保持用户视角）。单条 Key 可用下方「全部用户 Key」里的 Key 级开关覆盖。
-                    </div>
-                    <div style="max-height:260px;overflow:auto;">
-                        <table class="data-table" id="gwAdminModelTable">
-                            <thead><tr><th width="40%">模型</th><th width="30%">说明</th><th width="30%">计费</th></tr></thead>
-                            <tbody id="gwAdminModelBody"></tbody>
-                        </table>
-                    </div>
-                    <div style="font-size:12px;color:var(--text-5);margin-top:6px;">目录来源：<span id="gwModelsSource">-</span></div>
+            <style>
+                .mm-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+                .mm-title{font-size:24px;font-weight:700;color:var(--text-1);letter-spacing:.4px;display:flex;align-items:center;gap:10px}
+                .mm-tag{font-size:11px;font-weight:500;padding:2px 9px;border-radius:20px;background:var(--accent-ring);color:var(--accent);border:1px solid var(--accent)}
+                .mm-sub{font-size:13px;color:var(--text-5);margin-top:6px}
+                .mm-actions{display:flex;align-items:center;gap:10px}
+                .mm-pill{font-size:12px;padding:4px 12px;border-radius:20px;background:var(--glass-2);border:1px solid var(--glass-5);color:var(--text-2)}
+                .mm-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+                @media (max-width:1000px){.mm-kpis{grid-template-columns:repeat(2,1fr)}}
+                .mm-kpi{padding:14px 16px;border-radius:12px;background:var(--glass-2);border:1px solid var(--glass-5)}
+                .mm-kpi span{display:block;font-size:11.5px;color:var(--text-5);margin-bottom:6px}
+                .mm-kpi b{font-size:26px;line-height:1.1;color:var(--text-1);font-weight:700}
+                .mm-kpi i{display:block;font-style:normal;font-size:11px;color:var(--text-10);margin-top:6px}
+                .mm-tabs{display:flex;gap:4px;border-bottom:1px solid var(--glass-5);margin-bottom:16px;overflow:auto}
+                .mm-tab{padding:9px 16px;font-size:13px;color:var(--text-5);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+                .mm-tab:hover{color:var(--text-2)}
+                .mm-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+                .mm-panel{display:none}
+                .mm-panel.active{display:block}
+                .mm-card{background:var(--glass-2);border:1px solid var(--glass-5);border-radius:12px;padding:16px;margin-bottom:14px}
+                .mm-card-tit{font-size:14px;font-weight:600;color:var(--text-1);margin-bottom:12px}
+                .mm-card-tit small{font-weight:400;font-size:12px;color:var(--text-5);margin-left:8px}
+                .mm-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+                @media (max-width:1000px){.mm-grid2{grid-template-columns:1fr}}
+                .mm-note{font-size:12px;color:var(--text-5);line-height:1.8;margin-top:8px}
+                .mm-switch{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);cursor:pointer}
+                .mm-shortcuts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+                .mm-providers{display:flex;flex-direction:column;gap:10px}
+                .mm-prov{padding:10px 12px;border-radius:10px;background:var(--glass-3);border:1px solid var(--glass-5)}
+                .mm-prov-h{display:flex;justify-content:space-between;font-size:13px;color:var(--text-1);font-weight:600;margin-bottom:6px}
+                .mm-prov-h span{font-weight:400;font-size:11.5px;color:var(--text-5)}
+                .mm-prov-b{font-size:12px;color:var(--text-2);line-height:1.8}
+                .mm-table-wrap{max-height:420px;overflow:auto}
+                .mm-empty{font-size:12.5px;color:var(--text-5);padding:14px 0}
+                .mm-models{font-size:12px;color:var(--text-5);margin-top:8px}
+            </style>
+
+            <div class="mm-head">
+                <div>
+                    <div class="mm-title">模型管理 <span class="mm-tag">仅管理员</span></div>
+                    <div class="mm-sub">上游账号、模型路由、用户 Key 与调用用量</div>
+                </div>
+                <div class="mm-actions">
+                    <span class="mm-pill" id="gwStatusBadge" style="display:none;">🟡 状态未知</span>
+                    <button class="gw-mini" id="gwRefreshBtn" style="display:none;">刷新</button>
+                </div>
+            </div>
+
+            <div id="gwAdminCard" style="display:none;">
+                <div class="mm-kpis">
+                    <div class="mm-kpi"><span>可用账号</span><b id="mmKpiAccounts">-</b><i id="mmKpiAccountsHint">账号池</i></div>
+                    <div class="mm-kpi"><span>Key 总数</span><b id="mmKpiKeys">-</b><i>全部用户</i></div>
+                    <div class="mm-kpi"><span>今日请求</span><b id="mmKpiToday">-</b><i id="mmKpiTodayHint">—</i></div>
+                    <div class="mm-kpi"><span>可用积分</span><b id="mmKpiCredits">-</b><i>各通道余额合计</i></div>
                 </div>
 
-                <div class="gw-collapse-head" data-sec="gwSecFree" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">🎯 免费模型优先级 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
-                <div id="gwSecFree" style="display:none;">
-                    <div style="font-size:12px;color:var(--text-5);line-height:1.8;margin-bottom:8px;">
-                        模型开关关闭时的静默映射顺序：每行一个模型 id，越靠前越优先。留空或配置的模型失效时按目录自动顺序。
-                    </div>
-                    <textarea id="gwFreePriority" spellcheck="false" placeholder="每行一个模型 id，如：&#10;glm-5.3-flash&#10;deepseek-v4.1-flash" style="width:100%;box-sizing:border-box;min-height:110px;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.7;"></textarea>
-                    <div style="font-size:12px;color:var(--text-5);margin-top:8px;">可选免费模型（点击加入）：</div>
-                    <div id="gwFreeCandidates" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;"></div>
-                    <div id="gwFreeHint" style="font-size:12px;color:var(--text-5);margin:8px 0;line-height:1.8;"></div>
-                    <div class="cert-btn-group">
-                        <button class="btn-main" id="gwFreeSave">保存优先级</button>
-                        <button class="btn-api" id="gwFreeReset">恢复自动</button>
+                <div class="mm-tabs">
+                    <span class="mm-tab active" data-tab="overview">概览</span>
+                    <span class="mm-tab" data-tab="models">模型与路由</span>
+                    <span class="mm-tab" data-tab="keys">全部 Key</span>
+                    <span class="mm-tab" data-tab="pool">账号池</span>
+                    <span class="mm-tab" data-tab="usage">用量</span>
+                    <span class="mm-tab" data-tab="auto">自动化</span>
+                </div>
+
+                <div class="mm-panel active" data-panel="overview">
+                    <div class="mm-grid2">
+                        <div class="mm-card">
+                            <div class="mm-card-tit">路由开关</div>
+                            <label class="mm-switch"><input type="checkbox" id="gwSwitch"> <span id="gwSwitchLabel"></span></label>
+                            <div class="mm-note">开 = 用户自选模型生效；关 = 静默映射到免费模型（对用户不可见，响应里的模型名保持用户视角）。单条 Key 可在「全部 Key」里覆盖。</div>
+                            <div class="mm-shortcuts">
+                                <button class="gw-mini" data-goto="models">模型目录</button>
+                                <button class="gw-mini" data-goto="keys">全部 Key</button>
+                                <button class="gw-mini" data-goto="auto">积分自动化</button>
+                            </div>
+                        </div>
+                        <div class="mm-card">
+                            <div class="mm-card-tit">上游账号</div>
+                            <div class="mm-providers" id="mmProviderCards">加载中…</div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="gw-collapse-head" data-sec="gwSecKeys" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">🗂️ 全部用户 Key <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
-                <div id="gwSecKeys" style="display:none;">
-                    <div style="max-height:340px;overflow:auto;">
-                        <table class="data-table" id="gwAdminKeyTable">
-                            <thead><tr><th width="14%">用户</th><th width="14%">名称</th><th width="18%">Key</th><th width="16%">模型</th><th width="8%">状态</th><th width="18%">模型开关（Key 级）</th><th width="12%">最近使用</th></tr></thead>
-                            <tbody id="gwAdminKeyBody"></tbody>
-                        </table>
-                        <div id="gwAdminKeysEmpty" style="display:none;color:var(--text-5);font-size:13px;">还没有用户创建 Key</div>
+                <div class="mm-panel" data-panel="models">
+                    <div class="mm-card">
+                        <div class="mm-card-tit">模型目录 <small>来源：<span id="gwModelsSource">-</span>　同名模型跨通道只展示一条</small></div>
+                        <div class="mm-table-wrap">
+                            <table class="data-table">
+                                <thead><tr><th width="34%">模型</th><th width="26%">通道</th><th width="14%">计费</th></tr></thead>
+                                <tbody id="gwAdminModelBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="mm-models">目录随上游实时刷新（10 分钟缓存），模型下线会自动从列表消失。</div>
                     </div>
-                    <div style="font-size:12px;color:var(--text-5);margin-top:6px;">Key 级开关优先于全局模型开关：「开/关（覆盖）」对该用户强制生效，「跟随全局」则按上面的全局开关处理。</div>
-
-
+                    <div class="mm-card">
+                        <div class="mm-card-tit">免费模型优先级 <small>模型开关关闭时的静默映射顺序</small></div>
+                        <div class="mm-note" style="margin-top:0;margin-bottom:8px;">每行一个模型 id，越靠前越优先；留空或配置的模型失效时按目录自动顺序。</div>
+                        <textarea id="gwFreePriority" spellcheck="false" placeholder="每行一个模型 id，如：&#10;glm-5.3-flash&#10;deepseek-v4.1-flash" style="width:100%;box-sizing:border-box;min-height:110px;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.7;"></textarea>
+                        <div class="mm-note" style="margin-top:8px;">可选免费模型（点击加入）：</div>
+                        <div id="gwFreeCandidates" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;"></div>
+                        <div id="gwFreeHint" class="mm-note" style="margin:8px 0;line-height:1.8;"></div>
+                        <div class="cert-btn-group">
+                            <button class="btn-main" id="gwFreeSave">保存优先级</button>
+                            <button class="btn-api" id="gwFreeReset">恢复自动</button>
+                        </div>
+                    </div>
                 </div>
-                    <div class="gw-collapse-head" data-sec="gwSecPool" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">🧑‍💻 账号池 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
-                    <div id="gwSecPool" style="display:none;">
-                        <table class="data-table">
-                            <thead><tr><th width="18%">账号</th><th width="14%">来源</th><th width="12%">剩余积分</th><th width="30%">模型</th><th width="16%">令牌到期时间</th></tr></thead>
-                            <tbody id="gwPoolBody"></tbody>
-                        </table>
-                        <div style="font-size:12px;color:var(--text-5);margin-top:6px;">账号自动发现自桌面 App 的登录快照（多账号自动进池）；429 按模型冷却 1 分钟、积分耗尽冷却 5 分钟、登录态失效冷却 30 分钟，期间自动换号。</div>
-                    </div>
 
-                    <div class="gw-collapse-head" data-sec="gwSecAuto" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">🎁 积分自动化 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
-                    <div id="gwSecAuto" style="display:none;">
-                        <div style="display:flex;gap:8px;margin-bottom:10px;">
-                            <span class="admin-badge gw-auto-tab active" data-tab="wb" style="cursor:pointer;">WorkBuddy</span>
-                            <span class="admin-badge gw-auto-tab" data-tab="qoder" style="cursor:pointer;">Qoder</span>
+                <div class="mm-panel" data-panel="keys">
+                    <div class="mm-card">
+                        <div class="mm-card-tit">全部用户 Key <small>Key 级开关优先于全局开关</small></div>
+                        <div class="mm-table-wrap">
+                            <table class="data-table">
+                                <thead><tr><th width="14%">用户</th><th width="14%">名称</th><th width="18%">Key</th><th width="16%">模型</th><th width="8%">状态</th><th width="18%">模型开关</th><th width="12%">最近使用</th></tr></thead>
+                                <tbody id="gwAdminKeyBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="gwAdminKeysEmpty" class="mm-empty" style="display:none;">还没有用户创建 Key</div>
+                        <div class="mm-note">「开/关（覆盖）」对该用户强制生效，「跟随全局」按上面的全局开关处理。</div>
+                    </div>
+                </div>
+
+                <div class="mm-panel" data-panel="pool">
+                    <div class="mm-card">
+                        <div class="mm-card-tit">账号池 <small>自动发现桌面端登录快照，多账号自动进池</small></div>
+                        <div class="mm-table-wrap">
+                            <table class="data-table">
+                                <thead><tr><th width="20%">账号</th><th width="12%">来源</th><th width="12%">剩余积分</th><th width="30%">模型</th><th width="16%">令牌到期</th></tr></thead>
+                                <tbody id="gwPoolBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="mm-note">限流按模型冷却 1 分钟、积分耗尽冷却 5 分钟、登录失效冷却 30 分钟，期间自动换号。</div>
+                    </div>
+                </div>
+
+                <div class="mm-panel" data-panel="usage">
+                    <div class="mm-card">
+                        <div class="mm-card-tit">用量概览</div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;" id="gwUsageChips"></div>
+                    </div>
+                    <div class="mm-grid2">
+                        <div class="mm-card">
+                            <div class="mm-card-tit">按用户</div>
+                            <table class="data-table"><thead><tr><th>用户</th><th>请求</th><th>输入 tok</th><th>输出 tok</th></tr></thead><tbody id="gwUsageByUser"></tbody></table>
+                        </div>
+                        <div class="mm-card">
+                            <div class="mm-card-tit">按模型</div>
+                            <table class="data-table"><thead><tr><th>模型</th><th>请求</th><th>输入 tok</th><th>输出 tok</th></tr></thead><tbody id="gwUsageByModel"></tbody></table>
+                        </div>
+                    </div>
+                    <div class="mm-card">
+                        <div class="mm-card-tit">调用明细
+                            <small style="float:right;display:flex;gap:8px;align-items:center;">
+                                <select id="gwUsageUser" style="padding:4px 8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;"><option value="">全部用户</option></select>
+                                <input type="date" id="gwUsageDate" style="padding:4px 8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;color-scheme:dark;">
+                            </small>
+                        </div>
+                        <div class="mm-table-wrap">
+                            <table class="data-table">
+                                <thead><tr><th>时间</th><th>用户</th><th>模型</th><th>协议</th><th>流式</th><th>输入</th><th>输出</th><th>耗时</th><th>状态</th><th></th></tr></thead>
+                                <tbody id="gwUsageLogBody"></tbody>
+                            </table>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+                            <button class="gw-mini" id="gwUsagePrev">上一页</button>
+                            <span id="gwUsagePageInfo" style="font-size:12px;color:var(--text-5);"></span>
+                            <button class="gw-mini" id="gwUsageNext">下一页</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mm-panel" data-panel="auto">
+                    <div class="mm-card">
+                        <div class="mm-card-tit">积分自动化 <small>每日签到 / 成长任务</small></div>
+                        <div style="display:flex;gap:8px;margin-bottom:14px;">
+                            <span class="admin-badge gw-auto-tab active" data-tab="wb" style="cursor:pointer;">主账号池</span>
+                            <span class="admin-badge gw-auto-tab" data-tab="qoder" style="cursor:pointer;">备用通道</span>
                         </div>
                         <div id="gwAutoWb">
-                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
-                                <label style="cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;">
-                                    总开关：<input type="checkbox" id="gwAutoEnabled"> <span id="gwAutoEnabledLabel" style="color:var(--text-5);"></span>
-                                </label>
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+                                <label style="cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;">总开关：<input type="checkbox" id="gwAutoEnabled"> <span id="gwAutoEnabledLabel" style="color:var(--text-5);"></span></label>
                                 <button class="btn-main" id="gwAutoRunAll" style="padding:3px 12px;font-size:12px;">▶ 一键执行全部</button>
                             </div>
-                            <table class="data-table">
-                                <thead><tr><th width="12%">任务</th><th width="12%">配置小时</th><th width="34%">最近运行</th><th width="34%">结果明细</th><th width="8%"></th></tr></thead>
-                                <tbody id="gwAutoBody"></tbody>
-                            </table>
-                            <div style="font-size:12px;color:var(--text-5);margin-top:6px;">每日每任务最多自动跑一次（按配置小时整点触发，账号间 800ms 间隔）；「立即执行」不占用当日档位。仅国内版账号参与（国际版无成长体系）。</div>
+                            <div class="mm-table-wrap">
+                                <table class="data-table">
+                                    <thead><tr><th width="12%">任务</th><th width="12%">配置小时</th><th width="34%">最近运行</th><th width="34%">结果明细</th><th width="8%"></th></tr></thead>
+                                    <tbody id="gwAutoBody"></tbody>
+                                </table>
+                            </div>
+                            <div class="mm-note">每日每任务最多自动跑一次（按配置小时整点触发）；「立即执行」不占用当日档位。</div>
                         </div>
                         <div id="gwAutoQoder" style="display:none;">
-                            <div id="gwQoderCard" style="background:var(--glass-2);border:1px solid var(--glass-5);border-radius:12px;padding:12px;font-size:13px;line-height:2;color:var(--text-2);">加载中…</div>
+                            <div id="gwQoderCard" style="background:var(--glass-3);border:1px solid var(--glass-5);border-radius:10px;padding:12px;font-size:13px;line-height:2;color:var(--text-2);">加载中…</div>
                             <div class="cert-btn-group" style="margin-top:8px;">
                                 <button class="btn-main" id="gwQoderClaim">🎁 立即领取</button>
                                 <button class="btn-api" id="gwQoderRefresh">刷新状态</button>
                             </div>
-                            <div style="font-size:12px;color:var(--text-5);margin-top:6px;" id="gwQoderHint"></div>
+                            <div class="mm-note" id="gwQoderHint"></div>
                         </div>
-                    </div>
-                <div class="gw-collapse-head" data-sec="gwSecUsage" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">📊 令牌消耗统计 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
-                <div id="gwSecUsage" style="display:none;">
-                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;" id="gwUsageChips"></div>
-                    <div style="display:flex;gap:20px;flex-wrap:wrap;">
-                        <div style="flex:1;min-width:280px;">
-                            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:6px;">按用户</div>
-                            <table class="data-table"><thead><tr><th>用户</th><th>请求数</th><th>输入 tok</th><th>输出 tok</th></tr></thead><tbody id="gwUsageByUser"></tbody></table>
-                        </div>
-                        <div style="flex:1;min-width:280px;">
-                            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:6px;">按模型</div>
-                            <table class="data-table"><thead><tr><th>模型</th><th>请求数</th><th>输入 tok</th><th>输出 tok</th></tr></thead><tbody id="gwUsageByModel"></tbody></table>
-                        </div>
-                    </div>
-                    <div style="display:flex;gap:8px;align-items:center;margin:12px 0 6px;flex-wrap:wrap;">
-                        <span style="font-size:13px;font-weight:600;color:var(--text-2);">最近调用明细</span>
-                        <select id="gwUsageUser" style="padding:4px 8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;">
-                            <option value="">全部用户</option>
-                        </select>
-                        <input type="date" id="gwUsageDate" style="padding:4px 8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;color-scheme:dark;">
-                    </div>
-                    <table class="data-table">
-                        <thead><tr><th>时间</th><th>用户</th><th>模型</th><th>协议</th><th>流式</th><th>输入</th><th>输出</th><th>耗时</th><th>状态</th><th></th></tr></thead>
-                        <tbody id="gwUsageLogBody"></tbody>
-                    </table>
-                    <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
-                        <button class="btn-main" id="gwUsagePrev" style="padding:3px 10px;font-size:12px;">上一页</button>
-                        <span id="gwUsagePageInfo" style="font-size:12px;color:var(--text-5);"></span>
-                        <button class="btn-main" id="gwUsageNext" style="padding:3px 10px;font-size:12px;">下一页</button>
                     </div>
                 </div>
             </div>
@@ -1044,7 +1132,7 @@
 <script src="Assets/js/sqltool.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
-<script src="Assets/js/gateway.js?v=18" type="text/javascript"></script>
+<script src="Assets/js/gateway.js?v=19" type="text/javascript"></script>
 <script src="Assets/js/batchtask.js?v=4" type="text/javascript"></script>
 </body>
 </html>

@@ -28,6 +28,32 @@
 
     /* ================= 状态徽章（账号池视角） ================= */
 
+    function renderProviderCards(st) {
+        var ps = (st && st.providers) || {};
+        var html = '';
+        Object.keys(ps).forEach(function (k) {
+            var s = ps[k] || {};
+            if (typeof s.poolSize !== 'undefined' || Array.isArray(s.accounts)) {
+                var total = Number(s.poolSize) || 0, healthy = Number(s.healthy) || 0;
+                html += '<div style="background:var(--glass-3);border:1px solid var(--glass-5);border-radius:10px;padding:10px;margin-bottom:8px;">' +
+                    '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-1);font-weight:600;margin-bottom:4px;">主账号池' +
+                    '<span style="font-weight:400;font-size:11px;color:var(--text-5);">' + healthy + '/' + total + ' 可用</span></div>';
+                (s.accounts || []).forEach(function (a) {
+                    html += '<div style="font-size:12px;color:var(--text-2);line-height:1.8;">' + esc(a.label || a.id) + ' · ' +
+                        (typeof a.credits === 'number' ? a.credits + ' 积分' : '积分未知') + '</div>';
+                });
+                html += '</div>';
+            } else {
+                html += '<div style="background:var(--glass-3);border:1px solid var(--glass-5);border-radius:10px;padding:10px;">' +
+                    '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-1);font-weight:600;margin-bottom:4px;">备用通道' +
+                    '<span style="font-weight:400;font-size:11px;color:var(--text-5);">' + (s.signedIn ? '已登录' : '未登录') + '</span></div>' +
+                    '<div style="font-size:12px;color:var(--text-2);line-height:1.8;">' + esc(s.user || '-') + '<br>余额：' +
+                    (typeof s.credits === 'number' ? s.credits : '-') + ' 积分</div></div>';
+            }
+        });
+        $('#h5MmProviderCards').html(html || '<div class="h5-empty">暂无数据</div>');
+    }
+
     function refreshStatus() {
         var $b = $('#h5MmStatus').text('🟡 …');
         $.getJSON('gateway/status').done(function (res) {
@@ -43,7 +69,11 @@
                 else hasErr = true;
             });
             if (!rows.length) $b.text('🔴 账号池为空');
-            else $b.text('🟢 池 ' + (st.healthy || 0) + '/' + rows.length + ' · 积分 ' + totalCredits + (hasErr ? '+' : ''));
+            else $b.text('🟢 ' + (st.healthy || 0) + '/' + rows.length + ' 可用 · ' + totalCredits + ' 积分');
+            $('#h5MmKpiAccounts').text((st.healthy || 0) + '/' + rows.length);
+            $('#h5MmKpiAccountsHint').text(rows.length ? '账号池实时状态' : '尚未发现账号');
+            $('#h5MmKpiCredits').text(totalCredits > 0 ? totalCredits : (rows.length ? '0' : '-'));
+            renderProviderCards(st);
         }).fail(function () {
             $b.text('🔴 凭据不可用');
         });
@@ -73,8 +103,13 @@
                 $('#h5MmModelsSource').text('目录：' + (b.source === 'live' ? '实时' : '兜底'));
                 var $l = $('#h5MmAdminModels').html('');
                 (b.list || []).forEach(function (m) {
-                    $l.append('<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-2);padding:3px 0;">' +
-                        '<span>' + esc(m.id) + '</span><span>' + (m.free ? '<span style="color:#4ade80;">免费</span>' : '计费') + '</span></div>');
+                    var provs = (m.providers || '').split(',').filter(Boolean).map(function (p) {
+                        return p === 'workbuddy' ? '主账号池' : '备用通道';
+                    }).join(' + ');
+                    $l.append('<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--text-2);padding:4px 0;border-bottom:1px solid var(--glass-5);">' +
+                        '<span style="min-width:0;word-break:break-all;">' + esc(m.id) +
+                        '<span style="font-size:10px;color:var(--text-5);margin-left:6px;">' + esc(provs) + '</span></span>' +
+                        '<span style="flex:0 0 auto;">' + (m.free ? '<span style="color:#4ade80;">免费</span>' : '计费') + '</span></div>');
                 });
             });
         }).fail(function () { /* 非管理员 */ });
@@ -85,6 +120,7 @@
             if (res.errorCode !== '000000') return;
             var list = (res.body && res.body.list) || [];
             var $l = $('#h5MmAdminKeys').html('');
+            $('#h5MmKpiKeys').text(list.length);
             $('#h5MmAdminKeysEmpty').toggle(!list.length);
             list.forEach(function (k) {
                 var ov = k.override || 'auto';
@@ -169,6 +205,8 @@
             var t = b.totals || {}, td = b.today || {};
             var chip = function (l, v) { return '<span style="padding:4px 10px;border-radius:8px;background:var(--glass-3);border:1px solid var(--glass-5);font-size:11px;color:var(--text-5);">' + l + ' <b style="color:var(--accent);">' + esc(v) + '</b></span>'; };
             $('#h5MmUsageChips').html(chip('总请求', t.count || 0) + chip('输入', fmtNum(t.inputTokens)) + chip('输出', fmtNum(t.outputTokens)) + chip('今日', td.count || 0));
+            $('#h5MmKpiToday').text(td.count || 0);
+            $('#h5MmKpiTodayHint').text('输入 ' + fmtNum(td.inputTokens) + ' · 输出 ' + fmtNum(td.outputTokens));
         });
         $.getJSON('gateway/admin/usage/logs', { pageNum: 1, pageSize: 20, date: date }).done(function (res) {
             if (res.errorCode !== '000000') return;
@@ -285,50 +323,96 @@
 
     /* ================= 渲染 ================= */
 
+    function refreshPage() {
+        if (!$('#h5MmUsageDate').val()) {
+            var d = new Date();
+            function p2(n) { return n < 10 ? '0' + n : n; }
+            $('#h5MmUsageDate').val(d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()));
+        }
+        $.getJSON('gateway/models').done(function (res) {
+            if (res.errorCode === '000000') state.models = (res.body && res.body.models) || [];
+        }).always(function () { loadAdmin(); });
+    }
+
     function renderModelManage($page) {
+        /* 页面只渲染一次：保留已绑定的委托事件，重进只刷新数据 */
+        if ($page.data('h5mm')) {
+            refreshPage();
+            return;
+        }
+        $page.data('h5mm', true);
         $page.html(
-            '<div class="h5-section-title">模型管理 <span id="h5MmStatus" style="display:none;font-size:12px;color:var(--text-5);cursor:pointer;">🟡 …</span></div>' +
+            '<style>' +
+            '.h5-mm-kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;}' +
+            '.h5-mm-kpi{background:var(--glass-2);border:1px solid var(--glass-5);border-radius:12px;padding:10px;}' +
+            '.h5-mm-kpi span{display:block;font-size:11px;color:var(--text-5);margin-bottom:4px;}' +
+            '.h5-mm-kpi b{font-size:20px;color:var(--text-1);}' +
+            '.h5-mm-kpi i{display:block;font-style:normal;font-size:10px;color:var(--text-10);margin-top:4px;}' +
+            '.h5-mm-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid var(--glass-5);}' +
+            '.h5-mm-tab{flex:0 0 auto;padding:6px 12px;border-radius:20px;font-size:12px;color:var(--text-5);background:var(--glass-2);border:1px solid var(--glass-5);}' +
+            '.h5-mm-tab.active{color:var(--accent);border-color:var(--accent);background:var(--accent-ring);}' +
+            '.h5-mm-panel{display:none;}.h5-mm-panel.active{display:block;}' +
+            '.h5-mm-card{background:var(--glass-2);border:1px solid var(--glass-5);border-radius:12px;padding:12px;margin-bottom:10px;}' +
+            '.h5-mm-card-tit{font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:8px;}' +
+            '</style>' +
+            '<div class="h5-section-title">模型管理 <span id="h5MmStatus" style="font-size:12px;color:var(--text-5);cursor:pointer;">🟡 …</span></div>' +
             '<div id="h5MmAdmin" style="display:none;">' +
-            /* 模型开关 */
-            '<div class="h5-mm-sec-head" data-sec="h5MmSecSwitch" style="font-weight:600;color:var(--text-1);margin-bottom:6px;cursor:pointer;">⚙️ 模型开关 <span id="h5MmModelsSource" style="font-weight:400;font-size:11px;color:var(--text-5);"></span> <span style="float:right;color:var(--text-5);">▸</span></div>' +
-            '<div id="h5MmSecSwitch" style="display:none;">' +
+            '<div class="h5-mm-kpis">' +
+            '<div class="h5-mm-kpi"><span>可用账号</span><b id="h5MmKpiAccounts">-</b><i id="h5MmKpiAccountsHint">账号池</i></div>' +
+            '<div class="h5-mm-kpi"><span>Key 总数</span><b id="h5MmKpiKeys">-</b><i>全部用户</i></div>' +
+            '<div class="h5-mm-kpi"><span>今日请求</span><b id="h5MmKpiToday">-</b><i id="h5MmKpiTodayHint">—</i></div>' +
+            '<div class="h5-mm-kpi"><span>可用积分</span><b id="h5MmKpiCredits">-</b><i>各通道余额合计</i></div></div>' +
+
+            '<div class="h5-mm-tabs" id="h5MmTabs">' +
+            '<span class="h5-mm-tab active" data-tab="overview">概览</span>' +
+            '<span class="h5-mm-tab" data-tab="models">模型与路由</span>' +
+            '<span class="h5-mm-tab" data-tab="keys">全部 Key</span>' +
+            '<span class="h5-mm-tab" data-tab="pool">账号池</span>' +
+            '<span class="h5-mm-tab" data-tab="usage">用量</span>' +
+            '<span class="h5-mm-tab" data-tab="auto">自动化</span></div>' +
+
+            '<div class="h5-mm-panel active" data-panel="overview">' +
+            '<div class="h5-mm-card"><div class="h5-mm-card-tit">路由开关</div>' +
             '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);cursor:pointer;">' +
             '<input type="checkbox" id="h5MmSwitch"> <span id="h5MmSwitchLabel"></span></label>' +
-            '<div style="font-size:11px;color:var(--text-5);margin:6px 0 8px;">关 = 所有请求自动映射到免费模型（对用户不可见）</div>' +
+            '<div style="font-size:11px;color:var(--text-5);margin-top:6px;">关 = 所有请求静默映射到免费模型（对用户不可见）</div></div>' +
+            '<div class="h5-mm-card"><div class="h5-mm-card-tit">上游账号</div><div id="h5MmProviderCards">加载中…</div></div>' +
+            '</div>' +
+
+            '<div class="h5-mm-panel" data-panel="models">' +
+            '<div class="h5-mm-card"><div class="h5-mm-card-tit">模型目录 <span id="h5MmModelsSource" style="font-weight:400;font-size:11px;color:var(--text-5);"></span></div>' +
             '<div id="h5MmAdminModels"></div></div>' +
-            /* 免费模型优先级 */
-            '<div class="h5-mm-sec-head" data-sec="h5MmSecFree" style="font-weight:600;color:var(--text-1);margin:10px 0 6px;cursor:pointer;border-top:1px solid var(--glass-5);padding-top:10px;">🎯 免费模型优先级 <span style="float:right;color:var(--text-5);">▸</span></div>' +
-            '<div id="h5MmSecFree" style="display:none;">' +
+            '<div class="h5-mm-card"><div class="h5-mm-card-tit">免费模型优先级</div>' +
             '<div style="font-size:11px;color:var(--text-5);line-height:1.7;margin-bottom:6px;">模型开关关闭时的静默映射顺序，每行一个模型 id，越靠前越优先；留空或失效时按目录自动顺序。</div>' +
             '<textarea id="h5MmFree" spellcheck="false" style="width:100%;box-sizing:border-box;min-height:96px;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.7;"></textarea>' +
             '<div style="font-size:11px;color:var(--text-5);margin-top:6px;">可选免费模型（点击加入）</div>' +
             '<div id="h5MmFreeCandidates" style="display:flex;flex-wrap:wrap;margin:6px 0 4px;"></div>' +
             '<div id="h5MmFreeHint" style="font-size:11px;color:var(--text-5);line-height:1.8;margin:6px 0;"></div>' +
             '<div style="display:flex;gap:8px;"><span class="h5-btn-primary h5-btn-sm" id="h5MmFreeSave">保存优先级</span>' +
-            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmFreeReset">恢复自动</span></div></div>' +
-            /* 全部用户 Key */
-            '<div class="h5-mm-sec-head" data-sec="h5MmSecKeys" style="font-weight:600;color:var(--text-1);margin:10px 0 6px;cursor:pointer;border-top:1px solid var(--glass-5);padding-top:10px;">🗂️ 全部用户 Key <span style="float:right;color:var(--text-5);">▸</span></div>' +
-            '<div id="h5MmSecKeys" style="display:none;">' +
+            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmFreeReset">恢复自动</span></div></div></div>' +
+
+            '<div class="h5-mm-panel" data-panel="keys">' +
+            '<div class="h5-mm-card"><div class="h5-mm-card-tit">全部用户 Key</div>' +
             '<div id="h5MmAdminKeys"></div>' +
-            '<div class="h5-empty" id="h5MmAdminKeysEmpty" style="display:none;">还没有用户创建 Key</div></div>' +
-            /* 账号池 */
-            '<div class="h5-mm-sec-head" data-sec="h5MmSecPool" style="font-weight:600;color:var(--text-1);margin:10px 0 6px;cursor:pointer;border-top:1px solid var(--glass-5);padding-top:10px;">🧑‍💻 账号池 <span style="float:right;color:var(--text-5);">▸</span></div>' +
-            '<div id="h5MmSecPool" style="display:none;">' +
+            '<div class="h5-empty" id="h5MmAdminKeysEmpty" style="display:none;">还没有用户创建 Key</div></div></div>' +
+
+            '<div class="h5-mm-panel" data-panel="pool">' +
+            '<div class="h5-mm-card"><div class="h5-mm-card-tit">账号池</div>' +
             '<div id="h5MmPool"></div>' +
-            '<div class="h5-empty" id="h5MmPoolEmpty" style="display:none;">池内没有账号（桌面 App 未登录？）</div></div>' +
-            /* 令牌消耗统计 */
-            '<div class="h5-mm-sec-head" data-sec="h5MmSecUsage" style="font-weight:600;color:var(--text-1);margin:10px 0 6px;cursor:pointer;border-top:1px solid var(--glass-5);padding-top:10px;">📊 令牌消耗统计 <span style="float:right;color:var(--text-5);">▸</span></div>' +
-            '<div id="h5MmSecUsage" style="display:none;">' +
+            '<div class="h5-empty" id="h5MmPoolEmpty" style="display:none;">池内没有账号（桌面 App 未登录？）</div></div></div>' +
+
+            '<div class="h5-mm-panel" data-panel="usage">' +
+            '<div class="h5-mm-card"><div class="h5-mm-card-tit">用量概览</div>' +
             '<div id="h5MmUsageChips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"></div>' +
             '<input type="date" id="h5MmUsageDate" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);margin-bottom:8px;color-scheme:dark;">' +
             '<div id="h5MmUsageLogs"></div>' +
-            '<div class="h5-empty" id="h5MmUsageEmpty" style="display:none;">当日暂无调用记录</div></div>' +
-            /* 积分自动化 */
-            '<div class="h5-mm-sec-head" data-sec="h5MmSecAuto" style="font-weight:600;color:var(--text-1);margin:10px 0 6px;cursor:pointer;border-top:1px solid var(--glass-5);padding-top:10px;">🎁 积分自动化 <span style="float:right;color:var(--text-5);">▸</span></div>' +
-            '<div id="h5MmSecAuto" style="display:none;">' +
+            '<div class="h5-empty" id="h5MmUsageEmpty" style="display:none;">当日暂无调用记录</div></div></div>' +
+
+            '<div class="h5-mm-panel" data-panel="auto">' +
+            '<div class="h5-mm-card"><div class="h5-mm-card-tit">积分自动化</div>' +
             '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
-            '<span class="h5-btn-ghost h5-btn-sm h5-auto-tab" data-tab="wb" style="border-color:var(--accent);color:var(--accent);">WorkBuddy</span>' +
-            '<span class="h5-btn-ghost h5-btn-sm h5-auto-tab" data-tab="qoder">Qoder</span></div>' +
+            '<span class="h5-btn-ghost h5-btn-sm h5-auto-tab" data-tab="wb" style="border-color:var(--accent);color:var(--accent);">主账号池</span>' +
+            '<span class="h5-btn-ghost h5-btn-sm h5-auto-tab" data-tab="qoder">备用通道</span></div>' +
             '<div id="h5MmAutoWb">' +
             '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">' +
             '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);cursor:pointer;">' +
@@ -342,16 +426,18 @@
             '<span class="h5-btn-primary h5-btn-sm" id="h5MmQoderClaim">🎁 立即领取</span>' +
             '<span class="h5-btn-ghost h5-btn-sm" id="h5MmQoderRefresh">刷新</span></div>' +
             '<div id="h5MmQoderHint" style="font-size:11px;color:var(--text-5);margin-top:6px;"></div></div>' +
-            '</div>' +
+            '</div></div>' +
             '</div>');
 
         if (!initialized) {
             initialized = true;
-            $('#h5MmAdmin').on('click', '.h5-mm-sec-head', function () {
-                var sec = $('#' + $(this).data('sec'));
-                var open = sec.is(':visible');
-                sec.toggle(!open);
-                $(this).find('span:last').text(open ? '▸' : '▾');
+            $('#h5MmTabs').on('click', '.h5-mm-tab', function () {
+                var tab = $(this).attr('data-tab');
+                $('.h5-mm-tab').removeClass('active');
+                $(this).addClass('active');
+                $('.h5-mm-panel').removeClass('active');
+                $('.h5-mm-panel[data-panel="' + tab + '"]').addClass('active');
+                if (tab === 'usage') loadUsage();
             });
             $('#h5MmAdminKeys').on('change', '.h5-mm-admin-ov', function () {
                 var $sel = $(this);
@@ -368,7 +454,7 @@
                 openUsageDetail(Number($(this).data('id')));
             });
             $('#h5MmUsageDate').on('change', function () { loadUsage(); });
-            $('#h5MmSecAuto').on('click', '.h5-auto-tab', function () {
+            $('#h5MmAdmin').on('click', '.h5-auto-tab', function () {
                 var tab = $(this).attr('data-tab');
                 $('.h5-auto-tab').css({ 'border-color': '', color: '' });
                 $(this).css({ 'border-color': 'var(--accent)', color: 'var(--accent)' });
@@ -457,16 +543,7 @@
             });
         }
 
-        /* 日期默认当日（本地时区） */
-        if (!$('#h5MmUsageDate').val()) {
-            var d = new Date();
-            function p2(n) { return n < 10 ? '0' + n : n; }
-            $('#h5MmUsageDate').val(d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()));
-        }
-        /* 模型目录（账号池下拉用） */
-        $.getJSON('gateway/models').done(function (res) {
-            if (res.errorCode === '000000') state.models = (res.body && res.body.models) || [];
-        }).always(function () { loadAdmin(); });
+        refreshPage();
     }
 
     registerH5Module('modelManage', renderModelManage);

@@ -53,6 +53,7 @@
             if (res.errorCode !== '000000' || !res.body) {
                 $b.text('🔴 凭据不可用');
                 renderPool([]);
+                $('#mmProviderCards').html('<div class="mm-empty">凭据不可用</div>');
                 return;
             }
             var st = res.body;
@@ -69,6 +70,10 @@
             }
             state.poolRows = rows;
             renderPool(rows);
+            renderProviderCards(st);
+            $('#mmKpiAccounts').text(((st.healthy || 0) + '/' + rows.length));
+            $('#mmKpiAccountsHint').text(rows.length ? '账号池实时状态' : '尚未发现账号');
+            $('#mmKpiCredits').text(totalCredits > 0 ? totalCredits : (rows.length ? '0' : '-'));
         }).fail(function () {
             $b.text('🔴 凭据不可用');
             renderPool([]);
@@ -107,6 +112,38 @@
     }
 
     /* ================= 接入地址 ================= */
+
+    /** 概览卡：用通用字段描述各通道（不显示厂商名） */
+    function renderProviderCards(st) {
+        var ps = (st && st.providers) || {};
+        var html = '';
+        Object.keys(ps).forEach(function (k) {
+            var s = ps[k] || {};
+            if (typeof s.poolSize !== 'undefined' || Array.isArray(s.accounts)) {
+                var total = Number(s.poolSize) || 0;
+                var healthy = Number(s.healthy) || 0;
+                html += '<div class="mm-prov"><div class="mm-prov-h">主账号池 <span>' + healthy + '/' + total + ' 可用</span></div><div class="mm-prov-b">';
+                (s.accounts || []).forEach(function (a) {
+                    html += '<div>' + esc(a.label || a.id) + ' · ' +
+                        (typeof a.credits === 'number' ? a.credits + ' 积分' : '积分未知') + '</div>';
+                });
+                html += '</div></div>';
+            } else {
+                html += '<div class="mm-prov"><div class="mm-prov-h">备用通道 <span>' + (s.signedIn ? '已登录' : '未登录') + '</span></div>' +
+                    '<div class="mm-prov-b"><div>' + esc(s.user || '-') + '</div><div>余额：' +
+                    (typeof s.credits === 'number' ? s.credits : '-') + ' 积分</div></div></div>';
+            }
+        });
+        $('#mmProviderCards').html(html || '<div class="mm-empty">暂无数据</div>');
+    }
+
+    function showAdminTab(tab) {
+        $('.mm-tab').removeClass('active');
+        $('.mm-tab[data-tab="' + tab + '"]').addClass('active');
+        $('.mm-panel').removeClass('active');
+        $('.mm-panel[data-panel="' + tab + '"]').addClass('active');
+        if (tab === 'usage') loadUsage(state.usagePage || 1);
+    }
 
     function fillUrls() {
         var base = location.origin + '/api'; /* context-path 固定为 /api */
@@ -185,7 +222,7 @@
             if (res.errorCode !== '000000') return; /* 非管理员：状态/刷新按钮与整个管理区块都保持隐藏 */
             state.admin = true;
             /* 状态徽标与刷新按钮仅管理员可见（gateway/status 接口也仅管理员可调） */
-            $('#gwStatusBadge, #gwRefreshBtn, #mmRefreshBtn').show();
+            $('#gwStatusBadge, #gwRefreshBtn').show();
             refreshStatus();
             $('#gwAdminCard').show();
             var on = res.body && res.body.modelSwitch;
@@ -202,8 +239,11 @@
                 $('#gwModelsSource').text(b.source === 'live' ? '实时目录' : '内置兜底目录');
                 var $tb = $('#gwAdminModelBody').html('');
                 (b.list || []).forEach(function (m) {
-                    $tb.append('<tr><td>' + esc(m.id) + '</td><td>' + esc(m.name) + '</td><td>' +
-                        (m.free ? '<span style="color:#4ade80;">免费</span>' : '积分计费') + '</td></tr>');
+                    var provs = (m.providers || '').split(',').filter(Boolean).map(function (p) {
+                        return p === 'workbuddy' ? '主账号池' : '备用通道';
+                    }).join(' + ');
+                    $tb.append('<tr><td><code style="color:var(--accent);">' + esc(m.id) + '</code></td><td>' + esc(provs || '-') +
+                        '</td><td>' + (m.free ? '<span style="color:#4ade80;">免费</span>' : '积分计费') + '</td></tr>');
                 });
             });
         }).fail(function () { /* 非管理员，保持隐藏 */ });
@@ -293,6 +333,7 @@
         $.getJSON('gateway/admin/keys').done(function (res) {
             if (res.errorCode !== '000000') return;
             var list = (res.body && res.body.list) || [];
+            $('#mmKpiKeys').text(list.length);
             var $tb = $('#gwAdminKeyBody').html('');
             $('#gwAdminKeysEmpty').toggle(!list.length);
             list.forEach(function (k) {
@@ -353,6 +394,8 @@
             var b = res.body || {};
             fillUsageUserOptions(b.byUser || []);
             var t = b.totals || {}, td = b.today || {};
+            $('#mmKpiToday').text(td.count || 0);
+            $('#mmKpiTodayHint').text('输入 ' + fmtNum(td.inputTokens) + ' · 输出 ' + fmtNum(td.outputTokens));
             $('#gwUsageChips').html(
                 chip('总请求', t.count || 0) + chip('输入 tokens', fmtNum(t.inputTokens)) + chip('输出 tokens', fmtNum(t.outputTokens)) +
                 chip('今日请求', td.count || 0) + chip('今日输入', fmtNum(td.inputTokens)) + chip('今日输出', fmtNum(td.outputTokens)));
@@ -440,10 +483,6 @@
             loadModels();
             if (state.admin) loadAdmin();
         });
-        $('#mmRefreshBtn').on('click', function () {
-            refreshStatus();
-            if (state.admin) loadAdmin();
-        });
         /* 说明：调用明细的刷新由日期选择框/用户下拉 change 事件触发，无独立按钮 */
 
         $('#gwKeyAdd').on('click', function () {
@@ -519,7 +558,7 @@
             }
         });
 
-        $('#gwSecAuto').on('click', '.gw-auto-tab', function () {
+        $('#gwAdminCard').on('click', '.gw-auto-tab', function () {
             var tab = $(this).attr('data-tab');
             $('.gw-auto-tab').removeClass('active');
             $(this).addClass('active');
@@ -573,12 +612,12 @@
             });
         });
 
-        /* 折叠区块：点击头部切换，默认全部收起 */
-        $('.gw-collapse-head').on('click', function () {
-            var sec = $('#' + $(this).data('sec'));
-            var open = sec.is(':visible');
-            sec.toggle(!open);
-            $(this).find('.gw-arrow').text(open ? '▸' : '▾');
+        /* 管理端页签 */
+        $('.mm-tabs').on('click', '.mm-tab', function () {
+            showAdminTab($(this).attr('data-tab'));
+        });
+        $('#gwAdminCard').on('click', '[data-goto]', function () {
+            showAdminTab($(this).attr('data-goto'));
         });
 
         /* 明细详情弹框 */

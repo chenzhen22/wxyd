@@ -88,6 +88,10 @@ $(function () {
         $("#menuList [data-target='" + target + "']").addClass("active");
         $(".module-box").removeClass("active");
         $("#" + target).addClass("active");
+        // 工作台首页懒加载
+        if (target === "welcome" && window.Home) {
+            Home.init();
+        }
         // Java8 API 模块懒加载
         if (target === "javaApi" && window.JavaApi) {
             JavaApi.init();
@@ -170,10 +174,7 @@ $(function () {
         showPage($(this).data("target"));
     });
 
-    // 点击欢迎页任意处 → 进入留言板
-    $("#welcome").click(function () {
-        showPage("messageBoard");
-    });
+    // 首页工作台：数据加载与卡片点击由 Assets/js/home.js 接管
 
     // 关闭弹窗
     $(".close-modal").click(function () {

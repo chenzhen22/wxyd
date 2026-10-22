@@ -8,7 +8,7 @@
     <!-- 引入jQuery -->
     <script src="Assets/js/jquery-3.7.1.min.js" type="text/javascript"></script>
     <script src="Assets/js/api-suffix.js?v=1" type="text/javascript"></script>
-    <script src="Assets/js/index.js?v=12" type="text/javascript"></script>
+    <script src="Assets/js/index.js?v=13" type="text/javascript"></script>
     <link href="Assets/css/admin.css?v=20261020" rel="stylesheet" type="text/css">
     <!-- 进入页面前先套用已保存主题，避免闪烁 -->
     <script>
@@ -113,16 +113,77 @@
 
     <main class="main-content">
         <div class="module-box active" id="welcome">
-            <div class="welcome-home">
-                <div class="grid-layer"></div>
-                <div class="welcome-content">
-                    <h2>欢迎进入小泽助手</h2>
-                    <p>云端运维 · 安全管控 · 高效协同管理平台</p>
-                    <div class="welcome-time" id="nowTime"></div>
+            <style>
+                .home-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+                .home-hi{font-size:26px;font-weight:700;color:var(--text-1);letter-spacing:.4px}
+                .home-hi small{font-size:14px;font-weight:400;color:var(--text-5);margin-left:8px}
+                .home-sub{font-size:13px;color:var(--text-5);margin-top:8px}
+                .home-actions{display:flex;gap:8px;flex-wrap:wrap}
+                .home-act{padding:8px 14px;border-radius:9px;font-size:13px;cursor:pointer;background:var(--glass-2);border:1px solid var(--glass-5);color:var(--text-2)}
+                .home-act:hover{color:var(--accent);border-color:var(--accent)}
+                .home-act.primary{background:linear-gradient(135deg,#a78bfa,#7c5cf0);border:none;color:#fff;font-weight:600}
+                .home-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+                .home-kpi{padding:14px 16px;border-radius:12px;background:var(--glass-2);border:1px solid var(--glass-5)}
+                .home-kpi span{display:block;font-size:11.5px;color:var(--text-5);margin-bottom:6px}
+                .home-kpi b{display:block;font-size:24px;line-height:1.15;color:var(--text-1);font-weight:700;word-break:break-all}
+                .home-kpi i{display:block;font-style:normal;font-size:11px;color:var(--text-10);margin-top:6px}
+                .home-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:14px}
+                @media (max-width:1100px){.home-grid{grid-template-columns:1fr}}
+                .home-card{background:var(--glass-2);border:1px solid var(--glass-5);border-radius:12px;padding:16px;margin-bottom:14px}
+                .home-card-tit{font-size:14px;font-weight:600;color:var(--text-1);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+                .home-card-tit small{font-weight:400;font-size:12px;color:var(--text-5)}
+                .home-card-tit a{color:var(--accent);text-decoration:none}
+                .home-links{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+                .home-link{display:flex;align-items:center;gap:10px;padding:12px;border-radius:10px;background:var(--glass-3);border:1px solid var(--glass-5);cursor:pointer;transition:all .15s}
+                .home-link:hover{border-color:var(--accent);transform:translateY(-1px)}
+                .home-link i{font-style:normal;font-size:18px}
+                .home-link span{font-size:13px;color:var(--text-2)}
+                .home-dayinfo{font-size:13px;color:var(--text-2);line-height:1.9}
+                .home-dayinfo h4{margin:0 0 6px;font-size:14px;color:var(--text-1)}
+                .home-dayinfo .brief{color:var(--text-5);font-size:12.5px;max-height:120px;overflow:hidden}
+                .home-status{font-size:12.5px;color:var(--text-2);line-height:2}
+                .home-status .row{display:flex;justify-content:space-between;gap:10px}
+                .home-status .ok{color:#4ade80}
+                .home-status .warn{color:#e0a800}
+                .home-empty{font-size:12.5px;color:var(--text-5)}
+            </style>
+
+            <div class="home-head">
+                <div>
+                    <div class="home-hi" id="homeGreeting">你好 <small>小泽助手工作台</small></div>
+                    <div class="home-sub" id="homeDate"></div>
+                </div>
+                <div class="home-actions">
+                    <button class="home-act primary" data-go="messageBoard">＋ 写留言</button>
+                    <button class="home-act" data-go="gateway">🔑 模型网关</button>
+                    <button class="home-act" data-go="dayinfo">📈 金融日报</button>
+                </div>
+            </div>
+
+            <div class="home-kpis">
+                <div class="home-kpi"><span>我的 Key</span><b id="homeKeyCount">-</b><i id="homeKeyHint">今日可用 -</i></div>
+                <div class="home-kpi" id="homeReqCard"><span>今日请求</span><b id="homeReqToday">-</b><i id="homeReqHint">—</i></div>
+                <div class="home-kpi"><span>最新金融日报</span><b id="homeDayDate">-</b><i id="homeDayTitle">—</i></div>
+                <div class="home-kpi" id="homeBatchCard"><span>批次任务</span><b id="homeBatchCount">-</b><i id="homeBatchHint">—</i></div>
+            </div>
+
+            <div class="home-grid">
+                <div class="home-card">
+                    <div class="home-card-tit">快捷入口 <small>按你的菜单权限展示</small></div>
+                    <div class="home-links" id="homeLinks"><span class="home-empty">加载中…</span></div>
+                </div>
+                <div>
+                    <div class="home-card">
+                        <div class="home-card-tit">最新金融日报 <small><a href="#/dayinfo">查看全部 →</a></small></div>
+                        <div class="home-dayinfo" id="homeDayinfo"><span class="home-empty">加载中…</span></div>
+                    </div>
+                    <div class="home-card">
+                        <div class="home-card-tit">账号与状态</div>
+                        <div class="home-status" id="homeStatus"><span class="home-empty">加载中…</span></div>
+                    </div>
                 </div>
             </div>
         </div>
-
         <div class="module-box" id="userManage">
             <div class="page-title">用户管理</div>
             <div class="cert-btn-group"><button class="btn-main" id="btnRefreshUser">刷新</button></div>
@@ -1133,6 +1194,7 @@
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/gateway.js?v=19" type="text/javascript"></script>
+<script src="Assets/js/home.js?v=1" type="text/javascript"></script>
 <script src="Assets/js/batchtask.js?v=4" type="text/javascript"></script>
 </body>
 </html>

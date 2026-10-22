@@ -184,6 +184,7 @@
             loadUsage(1);
             loadAutomation();
             loadFreePriority();
+            loadQoderCheckin();
             $.getJSON('gateway/admin/models').done(function (r2) {
                 if (r2.errorCode !== '000000') return;
                 var b = r2.body || {};
@@ -195,6 +196,50 @@
                 });
             });
         }).fail(function () { /* 非管理员，保持隐藏 */ });
+    }
+
+    /* ================= 管理员：Qoder 每日签到 ================= */
+
+    function renderQoderCheckin(b) {
+        b = b || {};
+        var lines = [];
+        if (!b.signedIn) {
+            lines.push('未检测到 Qoder 登录态（请在桌面端登录后重试）');
+        } else {
+            var st = b.active
+                ? (b.todayCheckedIn ? '<span style="color:#4ade80;">🟢 今日已领取</span>' : '<span style="color:#e0a800;">🟡 今日待领取</span>')
+                : '<span style="color:var(--text-5);">⚪ 当前没有可领取的签到活动</span>';
+            lines.push('签到状态：' + st);
+            if (b.amount) {
+                lines.push('奖励：<b style="color:var(--accent);">' + esc(b.amount) + '</b> ' + esc(b.unit || 'credits')
+                    + (b.validDays ? '（有效期 ' + b.validDays + ' 天）' : ''));
+            }
+            if (b.endsAtMs) lines.push('活动截止：' + esc(fmtMs(b.endsAtMs)));
+            if (typeof b.credits === 'number') {
+                lines.push('当前余额：<b style="color:var(--accent);">' + esc(b.credits) + '</b> credits'
+                    + (typeof b.creditsTotal === 'number' ? ' / 共 ' + esc(b.creditsTotal) : ''));
+            }
+        }
+        lines.push('<label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;">自动领取：'
+            + '<input type="checkbox" id="gwQoderAuto"' + (b.enabled ? ' checked' : '') + ' style="transform:scale(1.1);"></label>'
+            + '<span style="font-size:12px;color:var(--text-5);margin-left:8px;">' + esc(b.autoHours || '') + '</span>');
+        $('#gwQoderCard').html(lines.join('<br>'));
+        $('#gwQoderAuto').off('change').on('change', function () {
+            var on = $(this).prop('checked');
+            postJSON('gateway/admin/qoder/checkin/enabled', { enabled: on }).done(function (res) {
+                if (res.errorCode !== '000000') { gwAlert(res.errorMsg || '保存失败'); return; }
+                renderQoderCheckin(res.body);
+                gwAlert(on ? '已开启每日自动领取' : '已关闭每日自动领取');
+            }).fail(function () { gwAlert('保存失败'); });
+        });
+    }
+
+    function loadQoderCheckin() {
+        $.ajax({ url: 'gateway/admin/qoder/checkin', type: 'GET', dataType: 'json', cache: false })
+            .done(function (res) {
+                if (res.errorCode !== '000000') return;
+                renderQoderCheckin(res.body);
+            });
     }
 
     /* ================= 管理员：免费模型优先级 ================= */
@@ -450,6 +495,30 @@
                     else gwAlert(res.errorMsg || '删除失败');
                 });
             }
+        });
+
+        $('#gwSecAuto').on('click', '.gw-auto-tab', function () {
+            var tab = $(this).attr('data-tab');
+            $('.gw-auto-tab').removeClass('active');
+            $(this).addClass('active');
+            $('#gwAutoWb').toggle(tab === 'wb');
+            $('#gwAutoQoder').toggle(tab === 'qoder');
+            if (tab === 'qoder') loadQoderCheckin();
+        });
+
+        $('#gwQoderRefresh').off('click').on('click', loadQoderCheckin);
+        $('#gwQoderClaim').off('click').on('click', function () {
+            var $btn = $(this).prop('disabled', true).text('领取中…');
+            postJSON('gateway/admin/qoder/checkin/claim', {}).done(function (res) {
+                $btn.prop('disabled', false).text('🎁 立即领取');
+                if (res.errorCode !== '000000') { gwAlert(res.errorMsg || '领取失败'); return; }
+                renderQoderCheckin(res.body);
+                var c = (res.body && res.body.claim) || {};
+                gwAlert(c.message || '已处理');
+            }).fail(function () {
+                $btn.prop('disabled', false).text('🎁 立即领取');
+                gwAlert('领取失败');
+            });
         });
 
         $('#gwFreeSave').off('click').on('click', function () {

@@ -384,6 +384,177 @@ public class QoderClient {
         return u;
     }
 
+    /* ==================== 每日签到（领取 Credits） ==================== */
+
+    public static class Checkin {
+        public boolean active;
+        public boolean todayCheckedIn;
+        public double amount;
+        public String unit = "credits";
+        public int validDays;
+        public long endsAtMs;
+        public String campaignId = "";
+    }
+
+    private volatile Checkin cachedCheckin;
+    private volatile long checkinAt;
+
+    /** 签到状态（60 秒缓存；未登录返回 null） */
+    public synchronized Checkin checkin(boolean force) {
+        if (!force && cachedCheckin != null && System.currentTimeMillis() - checkinAt < 60_000L) return cachedCheckin;
+        Credential cred = credential();
+        if (cred == null) return null;
+        Checkin c = fetchCheckin(cred);
+        if (c != null) {
+            cachedCheckin = c;
+            checkinAt = System.currentTimeMillis();
+        }
+        return c;
+    }
+
+    private Checkin fetchCheckin(Credential cred) {
+        try {
+            String url = "https://openapi.qoder.com.cn/sash/api/v1/me/campaigns";
+            Map<String, String> headers = openApiHeaders(cred);
+            Request req = new Request.Builder().url(url)
+                    .headers(okhttp3.Headers.of(headers))
+                    .get().build();
+            try (Response resp = http.newCall(req).execute()) {
+                String text = resp.body() == null ? "" : resp.body().string();
+                if (!resp.isSuccessful()) {
+                    log.warn("[QODER] 读取签到信息失败 HTTP {}：{}", resp.code(), excerpt(text));
+                    return null;
+                }
+                return parseCampaigns(JSON.parseObject(text));
+            }
+        } catch (Exception e) {
+            log.warn("[QODER] 读取签到信息异常：{}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** 从 campaigns 里找当前可领取的一轮（CLAIM_BENEFIT 且窗口未结束） */
+    private static Checkin parseCampaigns(JSONObject payload) {
+        Checkin c = new Checkin();
+        JSONArray list = payload == null ? null : payload.getJSONArray("campaigns");
+        if (list == null) return c;
+        long now = System.currentTimeMillis();
+        for (int i = 0; i < list.size(); i++) {
+            JSONObject camp = list.getJSONObject(i);
+            if (camp == null || !"CLAIM_BENEFIT".equals(camp.getString("actionType"))) continue;
+            Long start = epoch(camp.get("startAt") != null ? camp.get("startAt") : camp.get("beginAt"));
+            Long end = epoch(camp.get("endAt"));
+            if (start != null && now < start) continue;
+            if (end != null && now > end) continue;
+            c.active = true;
+            String cid = camp.getString("campaignId");
+            if (cid == null || cid.isEmpty()) cid = camp.getString("id");
+            c.campaignId = cid == null ? "" : cid;
+            c.todayCheckedIn = "CLAIMED".equals(camp.getString("claimStatus"));
+            c.endsAtMs = end == null ? 0 : end;
+            JSONObject benefit = camp.getJSONObject("benefit");
+            if (benefit != null) {
+                c.amount = benefit.getDoubleValue("amount");
+                String kind = benefit.getString("kind");
+                c.unit = "CREDITS".equalsIgnoreCase(kind) ? "credits" : (kind == null ? "credits" : kind.toLowerCase());
+                JSONObject validity = benefit.getJSONObject("validity");
+                if (validity != null) c.validDays = validity.getIntValue("days");
+            }
+            return c;
+        }
+        return c;
+    }
+
+    private static Long epoch(Object v) {
+        if (v == null) return null;
+        if (v instanceof Number) {
+            long n = ((Number) v).longValue();
+            return n < 10_000_000_000L ? n * 1000L : n;
+        }
+        try {
+            return java.time.Instant.parse(String.valueOf(v)).toEpochMilli();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Map<String, String> openApiHeaders(Credential cred) {
+        Map<String, String> h = new LinkedHashMap<>();
+        h.put("Accept", "application/json");
+        h.put("Authorization", "Bearer " + cred.token);
+        h.put("Cosy-ClientType", "10");
+        h.put("User-Agent", "Qoder");
+        return h;
+    }
+
+    /**
+     * 领取当前一轮签到奖励：先重新拉列表（每日轮次 id 会变），再 POST claim。
+     * 上游对重复领取是幂等的（replayed=true，不再发 Credits），可以放心重试。
+     */
+    public synchronized Map<String, Object> claim() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        Credential cred = credential();
+        if (cred == null) {
+            out.put("ok", false);
+            out.put("message", "未登录");
+            return out;
+        }
+        Checkin c = fetchCheckin(cred);
+        if (c == null || !c.active) {
+            out.put("ok", false);
+            out.put("message", "当前没有可领取的签到活动");
+            return out;
+        }
+        if (c.todayCheckedIn) {
+            out.put("ok", true);
+            out.put("claimed", false);
+            out.put("replayed", true);
+            out.put("message", "今日已领取过");
+            return out;
+        }
+        if (c.campaignId == null || c.campaignId.isEmpty()) {
+            out.put("ok", false);
+            out.put("message", "活动缺少 id，无法领取");
+            return out;
+        }
+        try {
+            String url = "https://openapi.qoder.com.cn/sash/api/v1/me/campaigns/"
+                    + java.net.URLEncoder.encode(c.campaignId, "UTF-8") + "/claim";
+            Map<String, String> headers = openApiHeaders(cred);
+            headers.put("Content-Type", "application/json");
+            Request req = new Request.Builder().url(url)
+                    .headers(okhttp3.Headers.of(headers))
+                    .post(RequestBody.create(MediaType.parse("application/json"), "{}"))
+                    .build();
+            try (Response resp = http.newCall(req).execute()) {
+                String text = resp.body() == null ? "" : resp.body().string();
+                if (!resp.isSuccessful()) {
+                    out.put("ok", false);
+                    out.put("message", "领取失败 HTTP " + resp.code() + " " + excerpt(text));
+                    return out;
+                }
+                JSONObject body = null;
+                try {
+                    body = JSON.parseObject(text);
+                } catch (Exception ignore) {
+                }
+                boolean replayed = body != null && Boolean.TRUE.equals(body.getBoolean("replayed"));
+                out.put("ok", true);
+                out.put("claimed", !replayed);
+                out.put("replayed", replayed);
+                out.put("message", replayed ? "今日已领取过" : "领取成功");
+                if (body != null && body.get("amount") != null) out.put("amount", body.get("amount"));
+                log.info("[QODER] 签到领取：{}（replayed={}）", out.get("message"), replayed);
+            }
+        } catch (Exception e) {
+            out.put("ok", false);
+            out.put("message", "领取异常：" + e.getMessage());
+        }
+        cachedCheckin = null;
+        checkinAt = 0;
+        return out;
+    }
+
     /* ==================== 对话 ==================== */
 
     /**

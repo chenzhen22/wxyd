@@ -37,6 +37,9 @@ public class WbGatewayManageController {
     private com.cyz.wbgateway.provider.ProviderRegistry providers;
 
     @Autowired
+    private com.cyz.wbgateway.qoder.QoderClient qoderClient;
+
+    @Autowired
     private com.cyz.config.Sm4KeyHolder sm4KeyHolder;
 
     /* ==================== Key 管理（登录用户本人） ==================== */
@@ -256,6 +259,68 @@ public class WbGatewayManageController {
         wbGatewayMapper.updateModelSwitch(Boolean.TRUE.equals(on) ? 1 : 0);
         log.info("[WBGATEWAY] 模型开关切换为 {}（by user {}）", on, userId(session));
         return result;
+    }
+
+    /* ==================== Qoder 每日签到 ==================== */
+
+    /** Qoder 签到状态 + 自动领取开关（仅管理员） */
+    @GetMapping("gateway/admin/qoder/checkin")
+    public Result qoderCheckin(HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        result.setBody(qoderCheckinBody());
+        return result;
+    }
+
+    /** 立即领取签到积分（每天一轮，重复领取幂等） */
+    @PostMapping("gateway/admin/qoder/checkin/claim")
+    public Result qoderClaim(HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Map<String, Object> claim = qoderClient.claim();
+        Map<String, Object> body = qoderCheckinBody();
+        body.put("claim", claim);
+        log.info("[QODER] 手动签到：{}（by user {}）", claim.get("message"), userId(session));
+        result.setBody(body);
+        return result;
+    }
+
+    /** 自动领取开关 */
+    @PostMapping("gateway/admin/qoder/checkin/enabled")
+    public Result qoderCheckinEnabled(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        boolean on = Boolean.TRUE.equals(body(req).get("enabled"))
+                || "true".equalsIgnoreCase(String.valueOf(body(req).get("enabled")));
+        wbGatewayMapper.updateQoderAutoCheckin(on ? 1 : 0);
+        result.setBody(qoderCheckinBody());
+        return result;
+    }
+
+    private Map<String, Object> qoderCheckinBody() {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        Integer enabled = wbGatewayMapper.queryQoderAutoCheckin();
+        body.put("enabled", enabled == null || enabled != 0);
+        boolean signedIn = qoderClient.credential() != null;
+        body.put("signedIn", signedIn);
+        body.put("autoHours", "每天 10:10、20:10 各尝试一次（活动每天 10:00 刷新，重复领取不会重复发奖）");
+        if (signedIn) {
+            com.cyz.wbgateway.qoder.QoderClient.Checkin c = qoderClient.checkin(true);
+            if (c != null) {
+                body.put("active", c.active);
+                body.put("todayCheckedIn", c.todayCheckedIn);
+                body.put("amount", c.amount);
+                body.put("unit", c.unit);
+                body.put("validDays", c.validDays);
+                body.put("endsAtMs", c.endsAtMs);
+            }
+            com.cyz.wbgateway.qoder.QoderClient.Usage u = qoderClient.usage();
+            if (u != null) {
+                body.put("credits", u.remaining);
+                body.put("creditsTotal", u.total);
+            }
+        }
+        return body;
     }
 
     /** 免费模型优先级：自动顺序 / 手动配置 / 实际生效（仅管理员） */

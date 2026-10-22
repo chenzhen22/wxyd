@@ -41,6 +41,11 @@ public interface WbGatewayMapper {
 
     int updateFreePriority(@Param("freePriority") String freePriority);
 
+    /** Qoder 每日自动签到开关（1=开 0=关） */
+    Integer queryQoderAutoCheckin();
+
+    int updateQoderAutoCheckin(@Param("enabled") Integer enabled);
+
     /** 管理员：全部用户的 Key 列表（join users 带属主名） */
     List<Map<String, Object>> adminListKeys();
 

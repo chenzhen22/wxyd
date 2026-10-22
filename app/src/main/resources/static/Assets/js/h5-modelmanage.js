@@ -66,6 +66,7 @@
             loadUsage();
             loadAutomation();
             loadFreePriority();
+            loadQoderCheckin();
             $.getJSON('gateway/admin/models').done(function (r2) {
                 if (r2.errorCode !== '000000') return;
                 var b = r2.body || {};
@@ -212,6 +213,44 @@
         });
     }
 
+    /* ================= Qoder 每日签到 ================= */
+
+    function renderQoderCheckin(b) {
+        b = b || {};
+        var lines = [];
+        if (!b.signedIn) {
+            lines.push('未检测到 Qoder 登录态');
+        } else {
+            var st = b.active
+                ? (b.todayCheckedIn ? '<span style="color:#4ade80;">🟢 今日已领取</span>' : '<span style="color:#e0a800;">🟡 今日待领取</span>')
+                : '<span style="color:var(--text-5);">⚪ 暂无签到活动</span>';
+            lines.push('签到：' + st);
+            if (b.amount) lines.push('奖励：<b style="color:var(--accent);">' + esc(b.amount) + '</b> ' + esc(b.unit || 'credits')
+                + (b.validDays ? '（' + b.validDays + ' 天有效）' : ''));
+            if (b.endsAtMs) lines.push('截止：' + fmtMs(b.endsAtMs));
+            if (typeof b.credits === 'number') lines.push('余额：<b style="color:var(--accent);">' + esc(b.credits) + '</b> credits');
+        }
+        lines.push('<label style="display:flex;align-items:center;gap:8px;margin-top:4px;">自动领取：'
+            + '<input type="checkbox" id="h5MmQoderAuto"' + (b.enabled ? ' checked' : '') + '></label>');
+        $('#h5MmQoderCard').html(lines.join('<br>'));
+        $('#h5MmQoderHint').text(b.autoHours || '');
+        $('#h5MmQoderAuto').off('change').on('change', function () {
+            var on = $(this).prop('checked');
+            postJSON('gateway/admin/qoder/checkin/enabled', { enabled: on }).done(function (res) {
+                if (res.errorCode !== '000000') { toast(res.errorMsg || '保存失败'); return; }
+                renderQoderCheckin(res.body);
+                toast(on ? '已开启自动领取' : '已关闭自动领取');
+            }).fail(function () { toast('保存失败'); });
+        });
+    }
+
+    function loadQoderCheckin() {
+        $.ajax({ url: 'gateway/admin/qoder/checkin', type: 'GET', dataType: 'json', cache: false })
+            .done(function (res) {
+                if (res.errorCode === '000000') renderQoderCheckin(res.body);
+            });
+    }
+
     /* ================= 积分自动化 ================= */
 
     var AUTO_KIND_LABEL = { checkin: '签到', report: '活跃上报', tasks: '任务领奖', streak: '连登兑换+抽奖', travel: '猫猫旅行', compensation: '故障补偿' };
@@ -287,12 +326,23 @@
             /* 积分自动化 */
             '<div class="h5-mm-sec-head" data-sec="h5MmSecAuto" style="font-weight:600;color:var(--text-1);margin:10px 0 6px;cursor:pointer;border-top:1px solid var(--glass-5);padding-top:10px;">🎁 积分自动化 <span style="float:right;color:var(--text-5);">▸</span></div>' +
             '<div id="h5MmSecAuto" style="display:none;">' +
+            '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
+            '<span class="h5-btn-ghost h5-btn-sm h5-auto-tab" data-tab="wb" style="border-color:var(--accent);color:var(--accent);">WorkBuddy</span>' +
+            '<span class="h5-btn-ghost h5-btn-sm h5-auto-tab" data-tab="qoder">Qoder</span></div>' +
+            '<div id="h5MmAutoWb">' +
             '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">' +
             '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);cursor:pointer;">' +
             '<input type="checkbox" id="h5MmAutoEnabled"> <span id="h5MmAutoEnabledLabel" style="color:var(--text-5);"></span></label>' +
             '<span class="h5-btn-ghost h5-btn-sm" id="h5MmAutoRunAll">▶ 一键执行全部</span></div>' +
             '<div id="h5MmAutoList"></div>' +
             '<div style="font-size:11px;color:var(--text-5);">每日每任务最多自动跑一次（按配置小时整点触发）；「立即执行」不占用当日档位。</div></div>' +
+            '<div id="h5MmAutoQoder" style="display:none;">' +
+            '<div id="h5MmQoderCard" style="background:var(--glass-3);border:1px solid var(--glass-5);border-radius:10px;padding:10px;font-size:12px;line-height:1.9;color:var(--text-2);">加载中…</div>' +
+            '<div style="display:flex;gap:8px;margin-top:8px;">' +
+            '<span class="h5-btn-primary h5-btn-sm" id="h5MmQoderClaim">🎁 立即领取</span>' +
+            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmQoderRefresh">刷新</span></div>' +
+            '<div id="h5MmQoderHint" style="font-size:11px;color:var(--text-5);margin-top:6px;"></div></div>' +
+            '</div>' +
             '</div>');
 
         if (!initialized) {
@@ -318,6 +368,23 @@
                 openUsageDetail(Number($(this).data('id')));
             });
             $('#h5MmUsageDate').on('change', function () { loadUsage(); });
+            $('#h5MmSecAuto').on('click', '.h5-auto-tab', function () {
+                var tab = $(this).attr('data-tab');
+                $('.h5-auto-tab').css({ 'border-color': '', color: '' });
+                $(this).css({ 'border-color': 'var(--accent)', color: 'var(--accent)' });
+                $('#h5MmAutoWb').toggle(tab === 'wb');
+                $('#h5MmAutoQoder').toggle(tab === 'qoder');
+                if (tab === 'qoder') loadQoderCheckin();
+            });
+            $('#h5MmQoderRefresh').off('click').on('click', loadQoderCheckin);
+            $('#h5MmQoderClaim').off('click').on('click', function () {
+                postJSON('gateway/admin/qoder/checkin/claim', {}).done(function (res) {
+                    if (res.errorCode !== '000000') { toast(res.errorMsg || '领取失败'); return; }
+                    renderQoderCheckin(res.body);
+                    toast(((res.body && res.body.claim) || {}).message || '已处理');
+                }).fail(function () { toast('领取失败'); });
+            });
+
             $('#h5MmFreeSave').off('click').on('click', function () {
                 var lines = ($('#h5MmFree').val() || '').split(/\r?\n/)
                     .map(function (s) { return $.trim(s); }).filter(function (s) { return !!s; });

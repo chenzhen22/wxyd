@@ -594,6 +594,7 @@ public class DataInitializer implements ApplicationRunner {
                     "`id` BIGINT NOT NULL COMMENT '固定单行 id=1'," +
                     "`model_switch` TINYINT NOT NULL DEFAULT 1 COMMENT '1=开：用户自选模型生效 0=关：静默映射到免费模型（对用户不可见）'," +
                     "`free_priority` VARCHAR(1000) NOT NULL DEFAULT '' COMMENT '免费模型手动优先级（逗号分隔 id，空=自动）'," +
+                    "`qoder_auto_checkin` TINYINT NOT NULL DEFAULT 1 COMMENT '1=每天自动领取签到积分 0=关闭'," +
                     "`update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
                     "PRIMARY KEY (`id`)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型网关全局配置（仅管理员可改）'");
@@ -601,6 +602,7 @@ public class DataInitializer implements ApplicationRunner {
             ensureWbGatewayKeyOverrideColumn();
             ensureWbGatewayKeyActiveDateColumn();
             ensureWbGatewayFreePriorityColumn();
+            ensureQoderAutoCheckinColumn();
             ensureWbGatewayUsageTable();
             ensureWbGatewayUsagePayloadColumns();
             log.info("[INIT] 已自动执行 V19-V21 迁移：wb_gateway_key / wb_gateway_config / wb_gateway_usage（模型网关）");
@@ -684,6 +686,24 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] 已自动执行 V25 迁移：wb_gateway_config 补 free_priority 列（免费模型优先级）");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V25 迁移失败（请手动执行 sql/V25__wb_gateway_free_priority.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * V26 升级兜底：wb_gateway_config 补 qoder_auto_checkin 列（每天自动领取签到积分）。
+     */
+    private void ensureQoderAutoCheckinColumn() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='wb_gateway_config' AND COLUMN_NAME='qoder_auto_checkin'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) return;
+            jdbcTemplate.execute("ALTER TABLE `wb_gateway_config` ADD COLUMN `qoder_auto_checkin` TINYINT NOT NULL DEFAULT 1 " +
+                    "COMMENT '1=每天自动领取签到积分 0=关闭' AFTER `free_priority`");
+            log.info("[INIT] 已自动执行 V26 迁移：wb_gateway_config 补 qoder_auto_checkin 列");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V26 迁移失败（请手动执行 sql/V26__qoder_auto_checkin.sql）：{}", e.getMessage());
         }
     }
 

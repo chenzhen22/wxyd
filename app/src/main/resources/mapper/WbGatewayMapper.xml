@@ -80,6 +80,14 @@
 		update `wb_gateway_config` set `free_priority`=#{freePriority} where `id`=1
 	</update>
 
+	<select id="queryQoderAutoCheckin" resultType="Integer">
+		select `qoder_auto_checkin` from `wb_gateway_config` where `id`=1
+	</select>
+
+	<update id="updateQoderAutoCheckin">
+		update `wb_gateway_config` set `qoder_auto_checkin`=#{enabled} where `id`=1
+	</update>
+
 	<!-- ===== 令牌消耗统计 ===== -->
 	<insert id="insertUsage" parameterType="com.cyz.pojo.WbGatewayUsage" useGeneratedKeys="true" keyProperty="id">
 		insert into `wb_gateway_usage` (`user_id`,`key_id`,`protocol`,`requested_model`,`used_model`,`stream`,`input_tokens`,`output_tokens`,`duration_ms`,`status`,`error_kind`,`request_data`,`response_data`)

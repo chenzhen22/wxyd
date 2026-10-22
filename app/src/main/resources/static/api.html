@@ -683,17 +683,31 @@
 
                     <div class="gw-collapse-head" data-sec="gwSecAuto" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">🎁 积分自动化 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
                     <div id="gwSecAuto" style="display:none;">
-                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
-                            <label style="cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;">
-                                总开关：<input type="checkbox" id="gwAutoEnabled"> <span id="gwAutoEnabledLabel" style="color:var(--text-5);"></span>
-                            </label>
-                            <button class="btn-main" id="gwAutoRunAll" style="padding:3px 12px;font-size:12px;">▶ 一键执行全部</button>
+                        <div style="display:flex;gap:8px;margin-bottom:10px;">
+                            <span class="admin-badge gw-auto-tab active" data-tab="wb" style="cursor:pointer;">WorkBuddy</span>
+                            <span class="admin-badge gw-auto-tab" data-tab="qoder" style="cursor:pointer;">Qoder</span>
                         </div>
-                        <table class="data-table">
-                            <thead><tr><th width="12%">任务</th><th width="12%">配置小时</th><th width="34%">最近运行</th><th width="34%">结果明细</th><th width="8%"></th></tr></thead>
-                            <tbody id="gwAutoBody"></tbody>
-                        </table>
-                        <div style="font-size:12px;color:var(--text-5);margin-top:6px;">每日每任务最多自动跑一次（按配置小时整点触发，账号间 800ms 间隔）；「立即执行」不占用当日档位。仅国内版账号参与（国际版无成长体系）。</div>
+                        <div id="gwAutoWb">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+                                <label style="cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;">
+                                    总开关：<input type="checkbox" id="gwAutoEnabled"> <span id="gwAutoEnabledLabel" style="color:var(--text-5);"></span>
+                                </label>
+                                <button class="btn-main" id="gwAutoRunAll" style="padding:3px 12px;font-size:12px;">▶ 一键执行全部</button>
+                            </div>
+                            <table class="data-table">
+                                <thead><tr><th width="12%">任务</th><th width="12%">配置小时</th><th width="34%">最近运行</th><th width="34%">结果明细</th><th width="8%"></th></tr></thead>
+                                <tbody id="gwAutoBody"></tbody>
+                            </table>
+                            <div style="font-size:12px;color:var(--text-5);margin-top:6px;">每日每任务最多自动跑一次（按配置小时整点触发，账号间 800ms 间隔）；「立即执行」不占用当日档位。仅国内版账号参与（国际版无成长体系）。</div>
+                        </div>
+                        <div id="gwAutoQoder" style="display:none;">
+                            <div id="gwQoderCard" style="background:var(--glass-2);border:1px solid var(--glass-5);border-radius:12px;padding:12px;font-size:13px;line-height:2;color:var(--text-2);">加载中…</div>
+                            <div class="cert-btn-group" style="margin-top:8px;">
+                                <button class="btn-main" id="gwQoderClaim">🎁 立即领取</button>
+                                <button class="btn-api" id="gwQoderRefresh">刷新状态</button>
+                            </div>
+                            <div style="font-size:12px;color:var(--text-5);margin-top:6px;" id="gwQoderHint"></div>
+                        </div>
                     </div>
                 <div class="gw-collapse-head" data-sec="gwSecUsage" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">📊 令牌消耗统计 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
                 <div id="gwSecUsage" style="display:none;">
@@ -953,7 +967,7 @@
 <script src="Assets/js/sqltool.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
-<script src="Assets/js/gateway.js?v=16" type="text/javascript"></script>
+<script src="Assets/js/gateway.js?v=17" type="text/javascript"></script>
 <script src="Assets/js/batchtask.js?v=4" type="text/javascript"></script>
 </body>
 </html>

@@ -178,10 +178,17 @@ public class WbGatewayManageController {
         Result result = Result.getInstance();
         if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
         try {
+            // 兼容旧前端：账号池字段保持在顶层（accounts/healthy/poolSize…），
+            // 其他 provider 诊断放在对应 key 下（如 qoder-cn）
+            Object wb = sanitizeDeep(client.bridgeStatus());
             Map<String, Object> body = new HashMap<>();
-            body.put("workbuddy", sanitizeDeep(client.bridgeStatus()));
-            Object qoderStatus = sanitizeDeep(providers.statusMap());
-            if (qoderStatus instanceof Map) body.putAll((Map<String, Object>) qoderStatus);
+            if (wb instanceof Map) body.putAll((Map<String, Object>) wb);
+            Object extra = sanitizeDeep(providers.statusMap());
+            if (extra instanceof Map) {
+                for (Map.Entry<String, Object> e : ((Map<String, Object>) extra).entrySet()) {
+                    if (!"workbuddy".equals(e.getKey())) body.put(e.getKey(), e.getValue());
+                }
+            }
             result.setBody(body);
         } catch (Exception e) {
             result.setErrorMsg("桥接不可用：" + com.cyz.wbgateway.WbGatewayChatService.sanitize(e.getMessage()));
@@ -226,33 +233,21 @@ public class WbGatewayManageController {
     public Result adminModels(HttpSession session) {
         Result result = Result.getInstance();
         if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
-        WbModelCatalog catalog = client.models();
+        WbModelCatalog wb = client.models();
+        java.util.Set<String> wbFree = new java.util.HashSet<>(wb.freeIds());
+        com.cyz.wbgateway.provider.CompositeCatalog catalog = providers.publicCatalog();
         List<Map<String, Object>> list = new ArrayList<>();
-        for (WbModelCatalog.ModelInfo m : catalog.getModels()) {
+        for (com.cyz.wbgateway.provider.CompositeCatalog.Group g : catalog.getGroups()) {
             Map<String, Object> row = new HashMap<>();
-            row.put("id", m.id);
-            row.put("name", m.name);
-            row.put("free", m.free);
+            row.put("id", g.display);
+            row.put("name", g.display);
+            row.put("free", g.nativeByProvider.values().stream().anyMatch(wbFree::contains));
+            row.put("providers", String.join(",", g.nativeByProvider.keySet()));
             list.add(row);
-        }
-        // Qoder 目录（id 带 qoder: 前缀，计费走 Qoder 额度）
-        try {
-            com.cyz.wbgateway.provider.UpstreamProvider qoder =
-                    providers.providerFor(com.cyz.wbgateway.qoder.QoderClient.prefix() + "Auto");
-            if ("qoder-cn".equals(qoder.id())) {
-                for (String id : qoder.catalog().ids()) {
-                    Map<String, Object> row = new HashMap<>();
-                    row.put("id", id);
-                    row.put("name", id.substring(com.cyz.wbgateway.qoder.QoderClient.prefix().length()));
-                    row.put("free", false);
-                    list.add(row);
-                }
-            }
-        } catch (Exception ignore) {
         }
         Map<String, Object> body = new HashMap<>();
         body.put("list", list);
-        body.put("source", catalog.getSource());
+        body.put("source", wb.getSource());
         result.setBody(body);
         return result;
     }

@@ -6,6 +6,10 @@ var Home = (function () {
 
     var inited = false;
     var lastLoad = 0;
+    var STORE = 'wxyd-home-links';
+    var allLinks = [];
+    var picked = null;   // null = 未自定义（默认全部）
+    var editing = false;
 
     function esc(s) {
         return s == null ? '' : String(s)
@@ -37,23 +41,96 @@ var Home = (function () {
         }, 'json');
     }
 
+    function readStore() {
+        try {
+            var raw = localStorage.getItem(STORE);
+            var arr = raw ? JSON.parse(raw) : null;
+            return Array.isArray(arr) ? arr : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveStore() {
+        if (picked === null) return; // 未自定义：保持「全部展示」
+        try { localStorage.setItem(STORE, JSON.stringify(picked)); } catch (e) {}
+    }
+
     function loadLinks() {
         $.get('menu/list?platform=desktop', function (res) {
-            var list = (res && res.body) || [];
-            var $l = $('#homeLinks').html('');
-            if (!list.length) {
-                $l.html('<span class="home-empty">暂无可用菜单</span>');
-                return;
+            allLinks = (res && res.body) || [];
+            var saved = readStore();
+            if (saved) {
+                // 过滤掉已下线/无权限的菜单
+                var keys = allLinks.map(function (m) { return m.key; });
+                picked = saved.filter(function (k) { return keys.indexOf(k) >= 0; });
+            } else {
+                picked = null; // 默认展示全部
             }
-            list.forEach(function (m) {
-                $('<div class="home-link"/>')
-                    .attr('data-go', m.key)
-                    .append('<i>' + esc(m.icon || '•') + '</i><span>' + esc(m.name) + '</span>')
-                    .appendTo($l);
-            });
+            renderLinks();
         }, 'json').fail(function () {
             $('#homeLinks').html('<span class="home-empty">菜单加载失败</span>');
         });
+    }
+
+    function pickedList() {
+        if (picked === null) return allLinks.slice();
+        return allLinks.filter(function (m) { return picked.indexOf(m.key) >= 0; });
+    }
+
+    function renderLinks() {
+        var show = pickedList();
+        var $l = $('#homeLinks').html('');
+        if (!allLinks.length) {
+            $l.html('<span class="home-empty">暂无可用菜单</span>');
+            return;
+        }
+        if (!show.length) {
+            $l.html('<span class="home-empty">还没有快捷入口，点右上角「编辑」添加</span>');
+        }
+        show.forEach(function (m) {
+            var $t = $('<div class="home-link"/>').attr('data-go', editing ? '' : m.key);
+            $t.append('<i>' + esc(m.icon || '•') + '</i><span>' + esc(m.name) + '</span>');
+            if (editing) {
+                $t.attr('data-remove', m.key)
+                  .append('<b class="home-rm" title="移除">✕</b>');
+            }
+            $l.append($t);
+        });
+        if (editing) {
+            var sel = picked === null ? allLinks.map(function (m) { return m.key; }) : picked;
+            var rest = allLinks.filter(function (m) { return sel.indexOf(m.key) < 0; });
+            if (rest.length) {
+                $l.append('<div class="home-sub-tit">可添加</div>');
+                rest.forEach(function (m) {
+                    $('<div class="home-link add"/>')
+                        .attr('data-add', m.key)
+                        .append('<i>' + esc(m.icon || '•') + '</i><span>' + esc(m.name) + '</span><b class="home-plus">＋</b>')
+                        .appendTo($l);
+                });
+            }
+        }
+    }
+
+    function toggleEdit() {
+        editing = !editing;
+        $('#homeEditBtn').text(editing ? '完成' : '编辑');
+        if (!editing) saveStore();
+        renderLinks();
+    }
+
+    function addLink(key) {
+        if (picked === null) picked = allLinks.map(function (m) { return m.key; });
+        if (picked.indexOf(key) < 0) picked.push(key);
+        saveStore();
+        renderLinks();
+    }
+
+    function removeLink(key) {
+        if (picked === null) picked = allLinks.map(function (m) { return m.key; });
+        picked = picked.filter(function (k) { return k !== key; });
+        saveStore();
+        renderLinks();
     }
 
     function loadKeys() {
@@ -136,6 +213,15 @@ var Home = (function () {
         $('#welcome').on('click', '[data-go]', function () {
             var key = $(this).attr('data-go');
             if (key) location.hash = '#/' + key;
+        });
+        $('#welcome').on('click', '#homeEditBtn', toggleEdit);
+        $('#welcome').on('click', '[data-add]', function (e) {
+            e.stopPropagation();
+            addLink($(this).attr('data-add'));
+        });
+        $('#welcome').on('click', '[data-remove]', function (e) {
+            e.stopPropagation();
+            removeLink($(this).attr('data-remove'));
         });
     }
 

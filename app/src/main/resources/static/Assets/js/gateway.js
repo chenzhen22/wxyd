@@ -112,34 +112,45 @@
         var base = location.origin + '/api'; /* context-path 固定为 /api */
         $('#gwUrlAnthropic').text(base + '/anthropic');
         $('#gwUrlOpenai').text(base + '/openai/v1');
+        $('#gwCopyAnthropic').off('click').on('click', function () {
+            copyText($('#gwUrlAnthropic').text(), 'Anthropic 地址已复制');
+        });
+        $('#gwCopyOpenai').off('click').on('click', function () {
+            copyText($('#gwUrlOpenai').text(), 'OpenAI 地址已复制');
+        });
     }
 
     /* ================= Key 列表（模型只读展示，不可修改） ================= */
 
     function renderKeys(list, max) {
-        var $tb = $('#gwKeyTableBody').html('');
+        var active = 0;
+        var $l = $('#gwKeyList').html('');
         $('#gwKeyEmpty').toggle(!list.length);
+        $('#gwKeyCount').text(list.length);
+        $('#gwKeyQuota').text('最多 ' + (max || 5) + ' 把 · 已用 ' + list.length + ' 把');
         list.forEach(function (k) {
-            var $tr = $('<tr/>');
-            $tr.append('<td>' + esc(k.name || '(未命名)') + '</td>');
-            var keyTd = $('<td/>');
-            keyTd.append('<code style="color:var(--accent);">' + esc(k.maskedKey) + '</code> ');
-            keyTd.append('<button class="btn-main gw-copy" data-id="' + k.id + '" style="padding:2px 8px;font-size:12px;">复制</button>');
-            $tr.append(keyTd);
-            $tr.append('<td><input type="text" readonly value="' + esc(k.model || '跟随系统（自动）') + '" ' +
-                'style="width:100%;padding:4px 6px;border-radius:6px;background:var(--glass-2);color:var(--text-2);border:1px solid var(--glass-5);font-size:12px;"></td>');
-            /* Key 仅当天有效：停用后次日需用户重新点「启用」 */
-            var statusText = k.enabled ? (k.adminExempt ? '🟢 长期有效（管理员）' : '🟢 今日启用')
-                : (k.activeDate ? '⏸️ 已过期' : '⏸️ 未启用');
-            $tr.append('<td title="' + esc(k.activeDate ? '上次启用日期：' + k.activeDate : '尚未启用') + '">' + statusText + '</td>');
-            $tr.append('<td>' + esc(k.lastUsedTime || '从未') + '</td>');
-            var ops = $('<td/>');
+            if (k.enabled) active++;
+            var status = k.enabled ? (k.adminExempt ? '长期有效' : '今日已启用')
+                : (k.activeDate ? '已过期' : '已停用');
+            var $c = $('<div class="gw-key"/>');
+            $c.append('<div style="min-width:0;flex:1;">' +
+                '<div class="gw-key-name">' + esc(k.name || '(未命名)') +
+                '<span class="gw-chip">' + esc(k.model || '跟随系统') + '</span></div>' +
+                '<div class="gw-key-code"><code>' + esc(k.maskedKey) + '</code>' +
+                '<button class="gw-mini gw-copy" data-id="' + k.id + '">复制</button></div>' +
+                '<div class="gw-key-meta">最近使用：' + esc(k.lastUsedTime || '从未')
+                + (k.activeDate ? '　最近启用：' + esc(k.activeDate) : '') + '</div></div>');
+            var $side = $('<div class="gw-key-side"/>');
+            $side.append('<span class="gw-badge ' + (k.enabled ? 'on' : 'off') + '">' + status + '</span>');
+            var $ops = $('<div class="gw-key-actions"/>');
             /* data-enabled 用 attr 读取，避免 jQuery .data() 把 "1" 自动转成数字导致判断失效 */
-            ops.append('<button class="btn-main gw-toggle" data-id="' + k.id + '" data-enabled="' + (k.enabled ? '1' : '0') + '" style="padding:3px 8px;font-size:12px;margin-right:4px;">' + (k.enabled ? '停用' : '启用') + '</button>');
-            ops.append('<button class="btn-main gw-del" data-id="' + k.id + '" style="padding:3px 8px;font-size:12px;">删除</button>');
-            $tr.append(ops);
-            $tb.append($tr);
+            $ops.append('<button class="gw-mini gw-toggle" data-id="' + k.id + '" data-enabled="' + (k.enabled ? '1' : '0') + '">' + (k.enabled ? '停用' : '启用') + '</button>');
+            $ops.append('<button class="gw-mini gw-del" data-id="' + k.id + '">删除</button>');
+            $side.append($ops);
+            $c.append($side);
+            $l.append($c);
         });
+        $('#gwKeyActive').text(active);
     }
 
     function loadKeys() {
@@ -436,6 +447,15 @@
         /* 说明：调用明细的刷新由日期选择框/用户下拉 change 事件触发，无独立按钮 */
 
         $('#gwKeyAdd').on('click', function () {
+            $('#gwCreatePanel').addClass('show');
+            $('#gwKeyName').trigger('focus');
+        });
+
+        $('#gwCreateCancel').on('click', function () {
+            $('#gwCreatePanel').removeClass('show');
+        });
+
+        $('#gwKeyCreate').on('click', function () {
             var name = $.trim($('#gwKeyName').val() || '');
             var model = $('#gwKeyModel').val() || 'auto'; /* auto=跟随系统 */
             postJSON('gateway/keys/add', { name: name, model: model }).done(function (res) {
@@ -446,6 +466,8 @@
                 $('#gwCreatedKey').text(res.body.apiKey);
                 $('#gwCreatedModal').show();
                 $('#gwKeyName').val('');
+                $('#gwKeyModel').val('auto');
+                $('#gwCreatePanel').removeClass('show');
                 loadKeys();
             }).fail(function (xhr) {
                 var r = xhr.responseJSON || {};
@@ -458,7 +480,7 @@
             copyText($('#gwCreatedKey').text(), 'Key 已复制，请妥善保存');
         });
 
-        $('#gwKeyTable').on('click', '.gw-copy', function () {
+        $('#gwKeyList').on('click', '.gw-copy', function () {
             var id = Number($(this).data('id'));
             postJSON('gateway/keys/reveal', { id: id }).done(function (res) {
                 if (res.errorCode !== '000000' || !res.body) {
@@ -472,7 +494,7 @@
             });
         });
 
-        $('#gwKeyTable').on('click', '.gw-toggle', function () {
+        $('#gwKeyList').on('click', '.gw-toggle', function () {
             var enabled = $(this).attr('data-enabled') === '1'; /* 用 attr，避免 .data() 类型转换 */
             postJSON('gateway/keys/toggle', { id: Number($(this).data('id')), enabled: !enabled }).done(function (res) {
                 if (res.errorCode === '000000') loadKeys();
@@ -480,7 +502,7 @@
             });
         });
 
-        $('#gwKeyTable').on('click', '.gw-del', function () {
+        $('#gwKeyList').on('click', '.gw-del', function () {
             var id = Number($(this).data('id'));
             if (window.confirmModal) {
                 confirmModal('确定删除这把 Key？使用它的 AI 工具将立即失效。', function () {

@@ -594,34 +594,111 @@
         </div>
 
         <div class="module-box" id="gateway">
-            <div class="page-title">模型网关</div>
+            <style>
+                .gw-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+                .gw-title{font-size:24px;font-weight:700;color:var(--text-1);letter-spacing:.5px}
+                .gw-sub{font-size:13px;color:var(--text-5);margin-top:6px}
+                .gw-stats{display:flex;gap:10px}
+                .gw-stat{min-width:96px;padding:10px 14px;border-radius:12px;background:var(--glass-2);border:1px solid var(--glass-5);text-align:center}
+                .gw-stat b{display:block;font-size:20px;color:var(--text-1);line-height:1.2}
+                .gw-stat span{font-size:11px;color:var(--text-5)}
+                .gw-stat.ok b{color:#4ade80}
+                .gw-grid{display:grid;grid-template-columns:1.15fr 1fr;gap:16px}
+                @media (max-width:1000px){.gw-grid{grid-template-columns:1fr}}
+                .gw-card{background:var(--glass-2);border:1px solid var(--glass-5);border-radius:14px;padding:16px}
+                .gw-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+                .gw-card-tit{font-size:14px;font-weight:600;color:var(--text-1)}
+                .gw-card-tit small{font-weight:400;font-size:12px;color:var(--text-5);margin-left:8px}
+                .gw-endpoint{padding:10px 12px;border-radius:10px;background:var(--glass-3);margin-bottom:10px}
+                .gw-ep-label{font-size:12px;color:var(--text-5);margin-bottom:6px}
+                .gw-ep-label span{color:var(--text-10);margin-left:6px}
+                .gw-ep-row{display:flex;align-items:center;gap:8px}
+                .gw-ep-row code{flex:1;font-size:12.5px;color:var(--accent);word-break:break-all}
+                .gw-mini{padding:3px 10px;font-size:12px;border-radius:8px;cursor:pointer;background:var(--glass-4);color:var(--text-2);border:1px solid var(--glass-5)}
+                .gw-mini:hover{color:var(--accent);border-color:var(--accent)}
+                .gw-tip{font-size:12px;color:var(--text-5);line-height:1.8;margin-top:8px}
+                .gw-tip.warn{color:#e0a800}
+                .gw-steps{margin:0;padding-left:18px;font-size:12.5px;color:var(--text-2);line-height:2}
+                .gw-steps b{color:var(--text-1)}
+                .gw-create{display:none;gap:10px;flex-wrap:wrap;align-items:center;padding:12px;margin-bottom:14px;border-radius:12px;background:var(--glass-3);border:1px dashed var(--glass-5)}
+                .gw-create.show{display:flex}
+                .gw-create input,.gw-create select{flex:1;min-width:180px;padding:9px 10px;border-radius:9px;background:var(--glass-4);color:var(--text-1);border:1px solid var(--glass-5);font-size:13px}
+                .gw-primary{padding:8px 14px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;color:#fff;border:none;background:linear-gradient(135deg,#a78bfa,#7c5cf0)}
+                .gw-primary.ghost{background:transparent;color:var(--text-2);border:1px solid var(--glass-5);font-weight:400}
+                .gw-key{display:flex;justify-content:space-between;gap:16px;padding:14px 16px;border-radius:12px;background:var(--glass-2);border:1px solid var(--glass-5);margin-bottom:10px;flex-wrap:wrap}
+                .gw-key:hover{border-color:var(--accent)}
+                .gw-key-name{font-size:14px;font-weight:600;color:var(--text-1);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+                .gw-chip{font-size:11px;font-weight:400;padding:2px 8px;border-radius:20px;background:var(--glass-4);color:var(--text-2);border:1px solid var(--glass-5)}
+                .gw-key-code{display:flex;align-items:center;gap:8px;margin-top:8px}
+                .gw-key-code code{font-size:12.5px;color:var(--accent);letter-spacing:.3px}
+                .gw-key-meta{font-size:11.5px;color:var(--text-5);margin-top:8px}
+                .gw-key-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:10px}
+                .gw-badge{font-size:11.5px;padding:3px 10px;border-radius:20px;border:1px solid var(--glass-5);color:var(--text-5)}
+                .gw-badge.on{color:#4ade80;border-color:rgba(74,222,128,.45);background:rgba(74,222,128,.08)}
+                .gw-badge.off{color:#e0a800;border-color:rgba(224,168,0,.4);background:rgba(224,168,0,.08)}
+                .gw-key-actions{display:flex;gap:6px}
+                .gw-empty{padding:22px;text-align:center;color:var(--text-5);font-size:13px}
+            </style>
 
-            <div class="cert-card" style="margin-bottom:14px;">
-                <div class="cert-card-tit">🔌 AI 工具接入 <span style="font-weight:400;color:var(--text-5);font-size:12px;">把你下面创建的 Key 配到任意支持 Anthropic / OpenAI 协议的 AI 工具</span></div>
-                <div style="font-size:13px;line-height:1.9;color:var(--text-2);">
-                    <div>[Anthropic 协议] BASE_URL = <code id="gwUrlAnthropic" style="color:var(--accent);"></code>（Claude Code：ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN）</div>
-                    <div>[OpenAI 协议]&nbsp;&nbsp;&nbsp; BASE_URL = <code id="gwUrlOpenai" style="color:var(--accent);"></code>（OPENAI_BASE_URL 指向 /openai/v1）</div>
+            <div class="gw-head">
+                <div>
+                    <div class="gw-title">模型网关</div>
+                    <div class="gw-sub">一把 Key 接入 Claude Code、Cursor、OpenAI SDK 等任意 Anthropic / OpenAI 协议工具</div>
+                </div>
+                <div class="gw-stats">
+                    <div class="gw-stat"><b id="gwKeyCount">0</b><span>我的 Key</span></div>
+                    <div class="gw-stat ok"><b id="gwKeyActive">0</b><span>今日可用</span></div>
                 </div>
             </div>
 
-            <div class="cert-card" style="margin-bottom:14px;">
-                <div class="cert-card-tit">🔑 新建 Key <span style="font-weight:400;color:var(--text-5);font-size:12px;">每用户最多 5 把；模型可选「跟随系统」（按请求模型/系统默认执行）；创建后可随时在列表里点「复制」</span></div>
-                <div style="font-size:12px;color:#e0a800;line-height:1.8;margin-bottom:8px;">⚠️ Key 仅在启用当天有效：第二天会自动停用，需每天登录本页点一次「启用」。停用期间调用会提示你回小泽助手启用。（管理员账号的 Key 长期有效，不受此限制）</div>
-                <div class="cert-form-row">
-                    <input type="text" id="gwKeyName" placeholder="备注名（如：我的笔记本）" autocomplete="off"
-                           style="flex:1;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">
-                    <select id="gwKeyModel" style="width:auto;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);"><option value="auto" selected>跟随系统（自动选择模型）</option></select>
-                    <button class="btn-main" id="gwKeyAdd">创建 Key</button>
+            <div class="gw-grid">
+                <div class="gw-card">
+                    <div class="gw-card-tit">🔌 接入地址 <small>复制到 AI 工具的 BASE_URL</small></div>
+                    <div class="gw-endpoint">
+                        <div class="gw-ep-label">Anthropic 协议 <span>Claude Code / Cline</span></div>
+                        <div class="gw-ep-row">
+                            <code id="gwUrlAnthropic"></code>
+                            <button class="gw-mini" id="gwCopyAnthropic">复制</button>
+                        </div>
+                    </div>
+                    <div class="gw-endpoint" style="margin-bottom:0;">
+                        <div class="gw-ep-label">OpenAI 协议 <span>OpenAI SDK / Cherry Studio</span></div>
+                        <div class="gw-ep-row">
+                            <code id="gwUrlOpenai"></code>
+                            <button class="gw-mini" id="gwCopyOpenai">复制</button>
+                        </div>
+                    </div>
+                    <div class="gw-tip">Claude Code：<code>ANTHROPIC_BASE_URL</code> 填上面的 Anthropic 地址，<code>ANTHROPIC_AUTH_TOKEN</code> 填你的 Key。</div>
                 </div>
 
+                <div class="gw-card">
+                    <div class="gw-card-tit">🚀 三步开始</div>
+                    <ol class="gw-steps">
+                        <li><b>创建 Key</b>：选模型（不选 = 跟随系统），点「创建」。</li>
+                        <li><b>复制配置</b>：把 Key 和接入地址填进 AI 工具。</li>
+                        <li><b>每天启用</b>：Key 只在启用当天有效，次日回本页点一次「启用」。</li>
+                    </ol>
+                    <div class="gw-tip warn">⚠️ 普通用户的 Key 次日自动停用，停用期间调用会提示回小泽助手启用；管理员账号的 Key 长期有效。</div>
+                </div>
             </div>
 
-            <table class="data-table" id="gwKeyTable">
-                <thead><tr><th width="18%">名称</th><th width="26%">Key</th><th width="20%">模型</th><th width="12%">状态（今日）</th><th width="12%">最近使用</th><th width="12%">操作</th></tr></thead>
-                <tbody id="gwKeyTableBody"></tbody>
-            </table>
-            <div id="gwKeyEmpty" style="display:none;color:var(--text-5);font-size:13px;margin:8px 0;">还没有 Key，上方创建一把即可接入 AI 工具</div>
+            <div class="gw-card" style="margin-top:16px;">
+                <div class="gw-card-head">
+                    <div class="gw-card-tit">🔑 我的 Key <small id="gwKeyQuota"></small></div>
+                    <button class="gw-primary" id="gwKeyAdd">＋ 新建 Key</button>
+                </div>
 
+                <div class="gw-create" id="gwCreatePanel">
+                    <input type="text" id="gwKeyName" placeholder="备注名（如：我的笔记本）" autocomplete="off">
+                    <select id="gwKeyModel"><option value="auto" selected>跟随系统（自动选择模型）</option></select>
+                    <button class="gw-primary" id="gwKeyCreate">创建</button>
+                    <button class="gw-primary ghost" id="gwCreateCancel">取消</button>
+                    <div class="gw-tip" style="flex-basis:100%;margin-top:0;">模型不选 = 跟随系统，由网关按可用性自动选择；想固定模型也可以直接选。</div>
+                </div>
+
+                <div id="gwKeyList"></div>
+                <div id="gwKeyEmpty" class="gw-empty" style="display:none;">还没有 Key，点右上角「＋ 新建 Key」创建第一把</div>
+            </div>
         </div>
 
         <div class="module-box" id="modelManage">
@@ -967,7 +1044,7 @@
 <script src="Assets/js/sqltool.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
-<script src="Assets/js/gateway.js?v=17" type="text/javascript"></script>
+<script src="Assets/js/gateway.js?v=18" type="text/javascript"></script>
 <script src="Assets/js/batchtask.js?v=4" type="text/javascript"></script>
 </body>
 </html>

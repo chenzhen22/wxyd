@@ -88,14 +88,16 @@ public class WbGatewayKeyService {
 
     /**
      * Key 当前是否可用：用户手动启用且生效日期为当天。
+     * 管理员（role=0）属主的 Key 豁免每日停用，启用后长期有效。
      * 生效日期早于今天（或为空）即视为过期，需用户登录后重新点击启用。
      */
     public boolean isActive(WbGatewayKey key) {
         if (key == null || !Integer.valueOf(1).equals(key.getEnabled())) return false;
+        if (Integer.valueOf(0).equals(key.getUserRole())) return true; // 管理员 Key 豁免
         return today().equals(key.getActiveDate());
     }
 
-    /** 自动停用：把生效日期不是今天的 Key 置为停用（定时任务 + 每次列表时兜底） */
+    /** 自动停用：把生效日期不是今天的 Key 置为停用（管理员属主的 Key 跳过；定时任务 + 每次列表时兜底） */
     public int expireInactive() {
         try {
             return wbGatewayMapper.expireInactiveKeys();

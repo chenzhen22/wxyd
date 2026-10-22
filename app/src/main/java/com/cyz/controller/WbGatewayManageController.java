@@ -42,6 +42,7 @@ public class WbGatewayManageController {
     public Result myKeys(HttpSession session) {
         Result result = Result.getInstance();
         Long userId = userId(session);
+        boolean admin = isAdmin(session); // 管理员 Key 豁免每日停用
         List<Map<String, Object>> list = new ArrayList<>();
         for (WbGatewayKey k : keyService.listByUser(userId)) {
             Map<String, Object> m = new HashMap<>();
@@ -50,6 +51,7 @@ public class WbGatewayManageController {
             m.put("model", k.getModel());
             m.put("enabled", k.getEnabled() != null && k.getEnabled() == 1);
             m.put("activeDate", k.getActiveDate());
+            m.put("adminExempt", admin);
             m.put("maskedKey", maskOf(k));
             m.put("createTime", k.getCreateTime());
             m.put("lastUsedTime", k.getLastUsedTime());

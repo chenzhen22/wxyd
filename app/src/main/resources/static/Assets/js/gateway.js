@@ -129,7 +129,8 @@
             $tr.append('<td><input type="text" readonly value="' + esc(k.model || '跟随系统（自动）') + '" ' +
                 'style="width:100%;padding:4px 6px;border-radius:6px;background:var(--glass-2);color:var(--text-2);border:1px solid var(--glass-5);font-size:12px;"></td>');
             /* Key 仅当天有效：停用后次日需用户重新点「启用」 */
-            var statusText = k.enabled ? '🟢 今日启用' : (k.activeDate ? '⏸️ 已过期' : '⏸️ 未启用');
+            var statusText = k.enabled ? (k.adminExempt ? '🟢 长期有效（管理员）' : '🟢 今日启用')
+                : (k.activeDate ? '⏸️ 已过期' : '⏸️ 未启用');
             $tr.append('<td title="' + esc(k.activeDate ? '上次启用日期：' + k.activeDate : '尚未启用') + '">' + statusText + '</td>');
             $tr.append('<td>' + esc(k.lastUsedTime || '从未') + '</td>');
             var ops = $('<td/>');
@@ -211,7 +212,7 @@
                 $tr.append('<td>' + esc(k.name || '(未命名)') + '</td>');
                 $tr.append('<td><code style="color:var(--accent);">' + esc(k.maskedKey) + '</code></td>');
                 $tr.append('<td>' + esc(k.model || '跟随系统（自动）') + '</td>');
-                $tr.append('<td>' + (k.enabled ? '🟢' : '⏸️') + '</td>');
+                $tr.append('<td>' + (k.enabled ? (Number(k.userRole) === 0 ? '🟢 长期' : '🟢') : '⏸️') + '</td>');
                 $tr.append('<td><select class="gw-admin-ov" data-id="' + k.id + '" style="width:100%;padding:4px;border-radius:6px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">' +
                     '<option value="auto"' + (ov === 'auto' ? ' selected' : '') + '>跟随全局</option>' +
                     '<option value="on"' + (ov === 'on' ? ' selected' : '') + '>开（覆盖）</option>' +

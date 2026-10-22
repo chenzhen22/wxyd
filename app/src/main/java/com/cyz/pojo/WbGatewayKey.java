@@ -28,6 +28,8 @@ public class WbGatewayKey {
     private Integer enabled;
     /** 生效日期（yyyy-MM-dd）：仅当天启用有效，次日视为过期需用户重新启用 */
     private String activeDate;
+    /** Key 属主角色（0=管理员）：管理员 Key 豁免每日停用 */
+    private Integer userRole;
     private String createTime;
     private String lastUsedTime;
 }

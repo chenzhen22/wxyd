@@ -60,7 +60,7 @@
             var $card = $('<div/>').css({ background: 'var(--glass-2)', border: '1px solid var(--glass-5)', borderRadius: '12px', padding: '12px', marginBottom: '10px' });
             $card.append('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
                 '<span style="font-weight:600;color:var(--text-1);">' + esc(k.name || '(未命名)') + '</span>' +
-                '<span style="font-size:12px;color:var(--text-5);">' + (k.enabled ? '🟢 今日启用' : (k.activeDate ? '⏸️ 已过期' : '⏸️ 未启用')) + '</span></div>');
+                '<span style="font-size:12px;color:var(--text-5);">' + (k.enabled ? (k.adminExempt ? '🟢 长期有效' : '🟢 今日启用') : (k.activeDate ? '⏸️ 已过期' : '⏸️ 未启用')) + '</span></div>');
             var keyRow = $('<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;"></div>');
             keyRow.append('<code style="flex:1;color:var(--accent);font-size:12px;">' + esc(k.maskedKey) + '</code>');
             keyRow.append('<span class="h5-btn-ghost h5-btn-sm h5-gw-copy" data-id="' + k.id + '">复制</span>');

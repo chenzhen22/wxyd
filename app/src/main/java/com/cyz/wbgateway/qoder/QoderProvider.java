@@ -73,6 +73,8 @@ public class QoderProvider implements UpstreamProvider {
             out.put("user", cred.name);
             out.put("uid", cred.uid);
             out.put("source", cred.source);
+            out.put("expiresAtMs", cred.expiresAtMs);
+            out.put("usable", cred.expiresAtMs <= 0 || cred.expiresAtMs > System.currentTimeMillis());
         }
         QoderCatalog cat = client.models();
         out.put("models", cat.ids().size());

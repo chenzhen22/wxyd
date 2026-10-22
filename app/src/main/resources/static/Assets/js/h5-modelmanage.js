@@ -65,6 +65,7 @@
             loadPool();
             loadUsage();
             loadAutomation();
+            loadFreePriority();
             $.getJSON('gateway/admin/models').done(function (r2) {
                 if (r2.errorCode !== '000000') return;
                 var b = r2.body || {};
@@ -100,6 +101,25 @@
         });
     }
 
+    /* ================= 免费模型优先级 ================= */
+
+    function renderFreePriority(b) {
+        b = b || {};
+        var manual = b.manual || [], auto = b.auto || [], eff = b.effective || [], bad = b.invalid || [];
+        $('#h5MmFree').val(manual.join('\n'));
+        var h = '自动：' + (auto.length ? esc(auto.join(' → ')) : '（暂无）');
+        h += '<br>生效：' + (eff.length ? esc(eff.join(' → ')) : '（没有免费模型）');
+        if (bad.length) h += '<br><span style="color:#f87171;">已失效（忽略）：' + esc(bad.join('、')) + '</span>';
+        $('#h5MmFreeHint').html(h);
+    }
+
+    function loadFreePriority() {
+        $.ajax({ url: 'gateway/admin/free-priority', type: 'GET', dataType: 'json', cache: false })
+            .done(function (res) {
+                if (res.errorCode === '000000') renderFreePriority(res.body);
+            });
+    }
+
     /* ================= 账号池 ================= */
 
     function loadPool() {
@@ -118,7 +138,7 @@
                 var $card = $('<div/>').css({ background: 'var(--glass-3)', border: '1px solid var(--glass-5)', borderRadius: '10px', padding: '10px', marginBottom: '8px' });
                 $card.append('<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-1);margin-bottom:4px;">' +
                     '<span>' + esc(r.label || r.id) + warn + '</span>' +
-                    '<span style="font-size:11px;color:var(--text-5);">' + esc(r.source === 'live' ? '桌面登录' : '快照') + '</span></div>');
+                    '<span style="font-size:11px;color:var(--text-5);">' + esc(r.source === 'live' || r.source === 'desktop' ? '桌面登录' : '快照') + '</span></div>');
                 $card.append('<div style="font-size:12px;color:var(--text-5);margin-bottom:2px;">剩余积分：<b style="color:var(--accent);">' + credits + '</b> · 令牌到期：' + fmtMs(r.expiresAtMs) + '</div>');
                 $card.append('<select style="width:100%;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">' + opts + '</select>');
                 $l.append($card);
@@ -225,6 +245,14 @@
             '<input type="checkbox" id="h5MmSwitch"> <span id="h5MmSwitchLabel"></span></label>' +
             '<div style="font-size:11px;color:var(--text-5);margin:6px 0 8px;">关 = 所有请求自动映射到免费模型（对用户不可见）</div>' +
             '<div id="h5MmAdminModels"></div></div>' +
+            /* 免费模型优先级 */
+            '<div class="h5-mm-sec-head" data-sec="h5MmSecFree" style="font-weight:600;color:var(--text-1);margin:10px 0 6px;cursor:pointer;border-top:1px solid var(--glass-5);padding-top:10px;">🎯 免费模型优先级 <span style="float:right;color:var(--text-5);">▸</span></div>' +
+            '<div id="h5MmSecFree" style="display:none;">' +
+            '<div style="font-size:11px;color:var(--text-5);line-height:1.7;margin-bottom:6px;">模型开关关闭时的静默映射顺序，每行一个模型 id，越靠前越优先；留空或失效时按目录自动顺序。</div>' +
+            '<textarea id="h5MmFree" spellcheck="false" style="width:100%;box-sizing:border-box;min-height:96px;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.7;"></textarea>' +
+            '<div id="h5MmFreeHint" style="font-size:11px;color:var(--text-5);line-height:1.8;margin:6px 0;"></div>' +
+            '<div style="display:flex;gap:8px;"><span class="h5-btn-primary h5-btn-sm" id="h5MmFreeSave">保存优先级</span>' +
+            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmFreeReset">恢复自动</span></div></div>' +
             /* 全部用户 Key */
             '<div class="h5-mm-sec-head" data-sec="h5MmSecKeys" style="font-weight:600;color:var(--text-1);margin:10px 0 6px;cursor:pointer;border-top:1px solid var(--glass-5);padding-top:10px;">🗂️ 全部用户 Key <span style="float:right;color:var(--text-5);">▸</span></div>' +
             '<div id="h5MmSecKeys" style="display:none;">' +
@@ -276,6 +304,23 @@
                 openUsageDetail(Number($(this).data('id')));
             });
             $('#h5MmUsageDate').on('change', function () { loadUsage(); });
+            $('#h5MmFreeSave').off('click').on('click', function () {
+                var lines = ($('#h5MmFree').val() || '').split(/\r?\n/)
+                    .map(function (s) { return $.trim(s); }).filter(function (s) { return !!s; });
+                postJSON('gateway/admin/free-priority', { list: lines }).done(function (res) {
+                    if (res.errorCode !== '000000') { toast(res.errorMsg || '保存失败'); return; }
+                    renderFreePriority(res.body);
+                    toast('优先级已保存');
+                }).fail(function () { toast('保存失败'); });
+            });
+            $('#h5MmFreeReset').off('click').on('click', function () {
+                postJSON('gateway/admin/free-priority', { list: [] }).done(function (res) {
+                    if (res.errorCode !== '000000') { toast(res.errorMsg || '操作失败'); return; }
+                    renderFreePriority(res.body);
+                    toast('已恢复自动顺序');
+                }).fail(function () { toast('操作失败'); });
+            });
+
             $('#h5MmSwitch').off('change').on('change', function () {
                 var on = $(this).prop('checked');
                 postJSON('gateway/admin/switch', { on: on }).done(function (res) {

@@ -90,6 +90,21 @@ public class ProviderRegistry {
         return new Route(best, g.nativeByProvider.get(best.id()), g.display);
     }
 
+    /** 同一模型的可选 provider（按可用性评分降序）；模型不在任何目录时返回全部 provider */
+    public List<UpstreamProvider> candidates(String display) {
+        CompositeCatalog.Group g = publicCatalog().find(display);
+        List<UpstreamProvider> list = new ArrayList<>();
+        if (g != null) {
+            for (UpstreamProvider p : providers) {
+                if (g.nativeByProvider.containsKey(p.id())) list.add(p);
+            }
+        } else {
+            list.addAll(providers);
+        }
+        list.sort((a, b) -> Long.compare(scoreOf(b), scoreOf(a)));
+        return list;
+    }
+
     /** provider 可用性评分：可用账号越多/余额越高越优先；-1 表示不可用 */
     private long scoreOf(UpstreamProvider p) {
         long now = System.currentTimeMillis();

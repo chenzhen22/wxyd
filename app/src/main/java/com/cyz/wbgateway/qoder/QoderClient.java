@@ -101,6 +101,7 @@ public class QoderClient {
         public String name = "";
         public String machineId = "";
         public String source = "";
+        public long expiresAtMs = 0;
     }
 
     public boolean isEnabled() {
@@ -173,6 +174,10 @@ public class QoderClient {
         c.name = user.getString("name") == null ? "" : user.getString("name");
         c.machineId = readMachineId(appDir);
         c.source = "desktop";
+        try {
+            c.expiresAtMs = java.time.Instant.parse(session.getString("expiresAt")).toEpochMilli();
+        } catch (Exception ignore) {
+        }
         log.info("[QODER] 已读取桌面登录态 uid={} expires={}", uid, session.getString("expiresAt"));
         return c;
     }
@@ -308,6 +313,13 @@ public class QoderClient {
      * 发起一次流式对话，返回未消费的上游响应（SSE）。body 为 OpenAI chat-completions 请求体。
      * 调用方负责关闭。
      */
+    /** 当前凭据是否仍可用（有 token 且未过期） */
+    public boolean credentialUsable() {
+        Credential c = credential();
+        if (c == null) return false;
+        return c.expiresAtMs <= 0 || c.expiresAtMs > System.currentTimeMillis();
+    }
+
     public Response chat(String upstreamModelKey, JSONObject body, boolean alwaysThinking) throws WbUpstreamException {
         Credential cred = credential();
         if (cred == null) {

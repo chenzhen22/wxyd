@@ -189,6 +189,35 @@ public class WbGatewayManageController {
                     if (!"workbuddy".equals(e.getKey())) body.put(e.getKey(), e.getValue());
                 }
             }
+            // 账号池视图：把其他 provider（如 Qoder）的登录账号并进来，避免只显示 WorkBuddy 两个号
+            List<Map<String, Object>> pool = new ArrayList<>();
+            Object wbAccounts = body.get("accounts");
+            if (wbAccounts instanceof List) {
+                for (Object o : (List<?>) wbAccounts) {
+                    if (o instanceof Map) pool.add((Map<String, Object>) o);
+                }
+            }
+            int healthy = body.get("healthy") instanceof Number ? ((Number) body.get("healthy")).intValue() : 0;
+            Object raw = providers.statusMap();
+            for (Map.Entry<String, Object> e : ((Map<String, Object>) raw).entrySet()) {
+                if ("workbuddy".equals(e.getKey()) || !(e.getValue() instanceof Map)) continue;
+                Map<String, Object> st = (Map<String, Object>) e.getValue();
+                if (!Boolean.TRUE.equals(st.get("signedIn"))) continue;
+                Map<String, Object> row = new HashMap<>();
+                row.put("id", e.getKey());
+                row.put("label", "备用通道 · " + (st.get("user") == null ? "" : st.get("user")));
+                row.put("source", "desktop");
+                row.put("domain", "");
+                row.put("credits", null);
+                row.put("creditsError", "按量计费");
+                row.put("expiresAtMs", st.get("expiresAtMs"));
+                if (Boolean.FALSE.equals(st.get("usable"))) row.put("credentialDeadUntilMs", 1L);
+                pool.add(row);
+                if (Boolean.TRUE.equals(st.get("usable"))) healthy++;
+            }
+            body.put("accounts", pool);
+            body.put("poolSize", pool.size());
+            body.put("healthy", healthy);
             result.setBody(body);
         } catch (Exception e) {
             result.setErrorMsg("桥接不可用：" + com.cyz.wbgateway.WbGatewayChatService.sanitize(e.getMessage()));
@@ -225,6 +254,48 @@ public class WbGatewayManageController {
         }
         wbGatewayMapper.updateModelSwitch(Boolean.TRUE.equals(on) ? 1 : 0);
         log.info("[WBGATEWAY] 模型开关切换为 {}（by user {}）", on, userId(session));
+        return result;
+    }
+
+    /** 免费模型优先级：自动顺序 / 手动配置 / 实际生效（仅管理员） */
+    @GetMapping("gateway/admin/free-priority")
+    public Result freePriority(HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        List<String> auto = new ArrayList<>();
+        for (com.cyz.wbgateway.provider.UpstreamProvider p : providers.all()) {
+            for (String id : providers.publicCatalog().freeIdsOf(p)) {
+                if (!auto.contains(id)) auto.add(id);
+            }
+        }
+        String csv = wbGatewayMapper.queryFreePriority();
+        Map<String, Object> body = new HashMap<>();
+        body.put("auto", auto);
+        body.put("manual", com.cyz.wbgateway.provider.FreePriority.parse(csv));
+        body.put("effective", com.cyz.wbgateway.provider.FreePriority.order(auto, csv));
+        body.put("invalid", com.cyz.wbgateway.provider.FreePriority.invalid(auto, csv));
+        result.setBody(body);
+        return result;
+    }
+
+    /** 保存免费模型优先级（逗号分隔或数组；留空=恢复自动） */
+    @PostMapping("gateway/admin/free-priority")
+    public Result saveFreePriority(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Object raw = body(req).get("list");
+        List<String> items = new ArrayList<>();
+        if (raw instanceof List) {
+            for (Object o : (List<?>) raw) if (o != null) items.add(String.valueOf(o).trim());
+        } else if (raw != null) {
+            items = com.cyz.wbgateway.provider.FreePriority.parse(String.valueOf(raw));
+        }
+        List<String> clean = new ArrayList<>();
+        for (String s : items) if (!s.isEmpty() && !clean.contains(s)) clean.add(s);
+        String csv = String.join(",", clean);
+        wbGatewayMapper.updateFreePriority(csv);
+        log.info("[WBGATEWAY] 免费模型优先级已更新：{}（by user {}）", csv, userId(session));
+        result.setBody(freePriority(session).getBody());
         return result;
     }
 
@@ -426,7 +497,7 @@ public class WbGatewayManageController {
     /** 应答脱敏：递归替换上游厂商字样（管理页诊断信息也不暴露） */
     private static Object sanitizeDeep(Object o) {
         if (o instanceof String) {
-            return ((String) o).replaceAll("(?i)workbuddy", "上游服务");
+            return ((String) o).replaceAll("(?i)workbuddy|qoder(-cn)?", "上游服务");
         }
         if (o instanceof Map) {
             Map<Object, Object> out = new HashMap<>();

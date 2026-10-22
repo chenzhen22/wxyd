@@ -90,7 +90,8 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
                     try {
                         acc = client.acquireAccount(chain.get(chainIdx));
                     } catch (IllegalStateException ne) {
-                        failure = new WbUpstreamException(WbUpstreamException.KIND_SESSION_DEAD, 0, ne.getMessage());
+                        // 账号池暂时无可用号（全部冷却/判死）属于可重试，交给上层换 provider
+                        failure = new WbUpstreamException(WbUpstreamException.KIND_SOFT_RATE, 429, ne.getMessage());
                         break;
                     }
                     cred = acc.getCredential().toWbCredential();

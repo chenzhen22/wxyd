@@ -644,6 +644,19 @@
                     <div style="font-size:12px;color:var(--text-5);margin-top:6px;">目录来源：<span id="gwModelsSource">-</span></div>
                 </div>
 
+                <div class="gw-collapse-head" data-sec="gwSecFree" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">🎯 免费模型优先级 <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
+                <div id="gwSecFree" style="display:none;">
+                    <div style="font-size:12px;color:var(--text-5);line-height:1.8;margin-bottom:8px;">
+                        模型开关关闭时的静默映射顺序：每行一个模型 id，越靠前越优先。留空或配置的模型失效时按目录自动顺序。
+                    </div>
+                    <textarea id="gwFreePriority" spellcheck="false" placeholder="每行一个模型 id，如：&#10;glm-5.3-flash&#10;deepseek-v4.1-flash" style="width:100%;box-sizing:border-box;min-height:110px;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.7;"></textarea>
+                    <div id="gwFreeHint" style="font-size:12px;color:var(--text-5);margin:8px 0;line-height:1.8;"></div>
+                    <div class="cert-btn-group">
+                        <button class="btn-main" id="gwFreeSave">保存优先级</button>
+                        <button class="btn-api" id="gwFreeReset">恢复自动</button>
+                    </div>
+                </div>
+
                 <div class="gw-collapse-head" data-sec="gwSecKeys" style="border-top:1px solid var(--glass-5);margin-top:6px;padding-top:12px;">🗂️ 全部用户 Key <span class="gw-arrow" style="float:right;color:var(--text-5);">▸</span></div>
                 <div id="gwSecKeys" style="display:none;">
                     <div style="max-height:340px;overflow:auto;">
@@ -938,7 +951,7 @@
 <script src="Assets/js/sqltool.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
-<script src="Assets/js/gateway.js?v=14" type="text/javascript"></script>
+<script src="Assets/js/gateway.js?v=15" type="text/javascript"></script>
 <script src="Assets/js/batchtask.js?v=4" type="text/javascript"></script>
 </body>
 </html>

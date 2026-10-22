@@ -98,7 +98,7 @@
             var opts = (state.models || []).map(function (m) { return '<option>' + esc(m) + '</option>'; }).join('');
             if (!opts) opts = '<option>（目录加载中）</option>';
             $tr.append('<td>' + esc(r.label || r.id) + warn + '</td>');
-            $tr.append('<td>' + esc(r.source === 'live' ? '桌面登录' : '历史快照') + ' <span style="color:var(--text-5);">' + esc(r.domain || '') + '</span></td>');
+            $tr.append('<td>' + esc(r.source === 'live' || r.source === 'desktop' ? '桌面登录' : '历史快照') + ' <span style="color:var(--text-5);">' + esc(r.domain || '') + '</span></td>');
             $tr.append('<td>' + credits + '</td>');
             $tr.append('<td><select class="gw-pool-model" style="width:100%;padding:3px 6px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;">' + opts + '</select></td>');
             $tr.append('<td>' + fmtMs(r.expiresAtMs) + '</td>');
@@ -183,6 +183,7 @@
             loadAdminKeys();
             loadUsage(1);
             loadAutomation();
+            loadFreePriority();
             $.getJSON('gateway/admin/models').done(function (r2) {
                 if (r2.errorCode !== '000000') return;
                 var b = r2.body || {};
@@ -194,6 +195,28 @@
                 });
             });
         }).fail(function () { /* 非管理员，保持隐藏 */ });
+    }
+
+    /* ================= 管理员：免费模型优先级 ================= */
+
+    function renderFreePriority(b) {
+        b = b || {};
+        var manual = b.manual || [], auto = b.auto || [], effective = b.effective || [], invalid = b.invalid || [];
+        $('#gwFreePriority').val(manual.join('\n'));
+        var html = '自动顺序：' + (auto.length ? esc(auto.join(' → ')) : '（暂无）');
+        html += '<br>当前生效：' + (effective.length ? esc(effective.join(' → ')) : '（没有免费模型）');
+        if (invalid.length) {
+            html += '<br><span style="color:#f87171;">已失效（将被忽略）：' + esc(invalid.join('、')) + '</span>';
+        }
+        $('#gwFreeHint').html(html);
+    }
+
+    function loadFreePriority() {
+        $.ajax({ url: 'gateway/admin/free-priority', type: 'GET', dataType: 'json', cache: false })
+            .done(function (res) {
+                if (res.errorCode !== '000000') return;
+                renderFreePriority(res.body);
+            });
     }
 
     /* ================= 管理员：全部用户 Key ================= */
@@ -415,6 +438,24 @@
                     else gwAlert(res.errorMsg || '删除失败');
                 });
             }
+        });
+
+        $('#gwFreeSave').off('click').on('click', function () {
+            var lines = ($('#gwFreePriority').val() || '').split(/\r?\n/)
+                .map(function (s) { return $.trim(s); }).filter(function (s) { return !!s; });
+            postJSON('gateway/admin/free-priority', { list: lines }).done(function (res) {
+                if (res.errorCode !== '000000') { gwAlert(res.errorMsg || '保存失败'); return; }
+                renderFreePriority(res.body);
+                gwAlert('优先级已保存');
+            }).fail(function () { gwAlert('保存失败'); });
+        });
+
+        $('#gwFreeReset').off('click').on('click', function () {
+            postJSON('gateway/admin/free-priority', { list: [] }).done(function (res) {
+                if (res.errorCode !== '000000') { gwAlert(res.errorMsg || '操作失败'); return; }
+                renderFreePriority(res.body);
+                gwAlert('已恢复自动顺序');
+            }).fail(function () { gwAlert('操作失败'); });
         });
 
         $('#gwAdminKeyTable').on('change', '.gw-admin-ov', function () {

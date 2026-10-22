@@ -102,6 +102,8 @@ public class WbGatewayChatService {
         com.cyz.wbgateway.provider.CompositeCatalog catalog = providers.publicCatalog();
         String routeBy = !selected.isEmpty() ? selected : requested;
         ProviderRegistry.Route route = providers.resolve(routeBy);
+        // 免费模型优先级：管理员手动配置优先，未配置/全部失效则按目录自动顺序
+        String freePriority = wbGatewayMapper.queryFreePriority();
 
         List<String> chain = new ArrayList<>();
         String publicModel;
@@ -122,11 +124,14 @@ public class WbGatewayChatService {
                     publicModel = requested.isEmpty() ? dflt : requested;
                 }
             }
-            // 同 provider 的免费模型作为候选链兜底
-            for (String id : catalog.freeIdsOf(route.provider)) if (!chain.contains(id)) chain.add(id);
+            // 同 provider 的免费模型作为候选链兜底（按管理员设置的优先级排序）
+            List<String> free = com.cyz.wbgateway.provider.FreePriority.order(
+                    catalog.freeIdsOf(route.provider), freePriority);
+            for (String id : free) if (!chain.contains(id)) chain.add(id);
         } else {
             // 开关关闭：静默映射到该 provider 的免费模型，用户不可知；对外仍显示用户视角名字
-            chain.addAll(catalog.freeIdsOf(route.provider));
+            chain.addAll(com.cyz.wbgateway.provider.FreePriority.order(
+                    catalog.freeIdsOf(route.provider), freePriority));
             if (chain.isEmpty()) {
                 String dflt = catalog.match(route.provider.defaultModel());
                 chain.add(dflt == null ? route.provider.defaultModel() : dflt);
@@ -137,39 +142,60 @@ public class WbGatewayChatService {
                     key.getUserId(), key.getId(), publicModel, chain);
         }
 
-        // 展示 id -> 选中 provider 的原生模型 id（Qoder 为 qoder:xxx，WorkBuddy 为原名）
-        UpstreamProvider provider = providers.resolve(chain.get(0)).provider;
-        List<String> nativeChain = new ArrayList<>();
-        for (String display : chain) {
-            String nativeId = catalog.nativeIdFor(display, provider.id());
-            if (nativeId != null && !nativeChain.contains(nativeId)) nativeChain.add(nativeId);
+        // 展示 id -> provider 原生链；按可用性依次尝试（WorkBuddy 账号池冷却时可自动落到 Qoder）
+        // 开关关闭时用户看不到实际模型，可跨 provider 兜底；开关开启时只在有该模型的 provider 间兜底
+        List<UpstreamProvider> candidates = switchOn
+                ? providers.candidates(chain.get(0))
+                : providers.candidates(null);
+        UpstreamProvider provider = null;
+        List<String> nativeChain = null;
+        UpstreamProvider.ProviderStream stream = null;
+        WbUpstreamException lastFailure = null;
+        for (UpstreamProvider p : candidates) {
+            List<String> nc = new ArrayList<>();
+            for (String display : chain) {
+                String nativeId = catalog.nativeIdFor(display, p.id());
+                if (nativeId != null && !nc.contains(nativeId)) nc.add(nativeId);
+            }
+            if (nc.isEmpty()) {
+                String dflt = catalog.nativeIdFor(p.defaultModel(), p.id());
+                if (dflt == null || dflt.isEmpty()) dflt = p.defaultModel();
+                if (dflt == null || dflt.isEmpty()) continue;
+                nc.add(dflt);
+            }
+            JSONObject req = WbProtocol.toOpenAIRequest(internal, nc.get(0));
+            req.put("stream", true);
+            WbProtocol.sanitizeOpenAiMessages(req);
+            try {
+                stream = p.open(nc, req.toJSONString());
+                provider = p;
+                nativeChain = nc;
+                break;
+            } catch (WbUpstreamException e) {
+                lastFailure = e;
+                boolean retryable = WbUpstreamException.KIND_SOFT_RATE.equals(e.getKind())
+                        || WbUpstreamException.KIND_SESSION_DEAD.equals(e.getKind())
+                        || WbUpstreamException.KIND_SERVER.equals(e.getKind());
+                log.warn("[WBGATEWAY] provider {} 暂不可用（{}）：{}", p.id(), e.getKind(), e.getMessage());
+                if (!retryable) break;
+            }
         }
-        if (nativeChain.isEmpty()) {
-            nativeChain.add(provider.defaultModel());
-        }
-        log.info("[WBGATEWAY] 路由 userId={} keyId={} 展示模型={} provider={} 原生链={}",
-                key.getUserId(), key.getId(), chain.get(0), provider.id(), nativeChain);
-
-        // ---- 组装上游请求（Anthropic -> OpenAI + WAF 清洗 + prepareBody）----
-        JSONObject openaiReq = WbProtocol.toOpenAIRequest(internal, nativeChain.get(0));
-        openaiReq.put("stream", true); // 上游只接受流式，客户端要非流式时在网关聚合
-        WbProtocol.sanitizeOpenAiMessages(openaiReq);
-
-        // ---- 发起上游请求（provider 内部负责凭据/账号轮换与链内重试）----
-        UpstreamProvider.ProviderStream stream;
-        try {
-            stream = provider.open(nativeChain, openaiReq.toJSONString());
-        } catch (WbUpstreamException failure) {
+        if (stream == null) {
+            WbUpstreamException failure = lastFailure == null
+                    ? new WbUpstreamException(WbUpstreamException.KIND_SERVER, 503, "没有可用的上游 provider")
+                    : lastFailure;
             String detail = failure.getMessage() == null ? "" : failure.getMessage();
             log.error("[WBGATEWAY] 上游错误 provider={} kind={} http={} detail={}",
-                    provider.id(), failure.getKind(), failure.getHttpStatus(), detail);
-            recordUsage(key, protocol, requested, nativeChain.get(0), wantStream, 0, 0,
-                    System.currentTimeMillis() - started, "error", failure.getKind(), clientRequestJson,
-                    JSON.toJSONString(java.util.Collections.singletonMap("error", detail)));
+                    provider == null ? "none" : provider.id(), failure.getKind(), failure.getHttpStatus(), detail);
+            recordUsage(key, protocol, requested, nativeChain == null ? chain.get(0) : nativeChain.get(0),
+                    wantStream, 0, 0, System.currentTimeMillis() - started, "error", failure.getKind(),
+                    clientRequestJson, JSON.toJSONString(java.util.Collections.singletonMap("error", detail)));
             writeError(res, protocol, failure.outboundStatus(), failure.outboundErrorType(),
                     failure.getKind() + ": " + detail);
             return;
         }
+        log.info("[WBGATEWAY] 路由 userId={} keyId={} 展示模型={} provider={} 原生链={}",
+                key.getUserId(), key.getId(), chain.get(0), provider.id(), nativeChain);
         String usedModel = stream.usedModel();
 
         keyService.touch(key.getId());
@@ -316,7 +342,7 @@ public class WbGatewayChatService {
     /** 对外应答脱敏：任何上游厂商信息都不出现在返回给客户端的内容里 */
     public static String sanitize(String message) {
         if (message == null) return "";
-        return message.replaceAll("(?i)workbuddy", "模型服务");
+        return message.replaceAll("(?i)workbuddy|qoder(-cn)?", "模型服务");
     }
 
     public static void writeError(HttpServletResponse res, String protocol, int status,

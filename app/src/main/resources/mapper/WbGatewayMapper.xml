@@ -72,6 +72,14 @@
 		update `wb_gateway_config` set `model_switch`=#{modelSwitch} where `id`=1
 	</update>
 
+	<select id="queryFreePriority" resultType="String">
+		select `free_priority` from `wb_gateway_config` where `id`=1
+	</select>
+
+	<update id="updateFreePriority">
+		update `wb_gateway_config` set `free_priority`=#{freePriority} where `id`=1
+	</update>
+
 	<!-- ===== 令牌消耗统计 ===== -->
 	<insert id="insertUsage" parameterType="com.cyz.pojo.WbGatewayUsage" useGeneratedKeys="true" keyProperty="id">
 		insert into `wb_gateway_usage` (`user_id`,`key_id`,`protocol`,`requested_model`,`used_model`,`stream`,`input_tokens`,`output_tokens`,`duration_ms`,`status`,`error_kind`,`request_data`,`response_data`)

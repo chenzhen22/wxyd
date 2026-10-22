@@ -592,13 +592,15 @@ public class DataInitializer implements ApplicationRunner {
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 工具网关 API Key（每用户最多 5 把）'");
             jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `wb_gateway_config` (" +
                     "`id` BIGINT NOT NULL COMMENT '固定单行 id=1'," +
-                    "`model_switch` TINYINT NOT NULL DEFAULT 1 COMMENT '1=开：用户自选模型生效 0=关：静默映射到 WorkBuddy 免费模型（对用户不可见）'," +
+                    "`model_switch` TINYINT NOT NULL DEFAULT 1 COMMENT '1=开：用户自选模型生效 0=关：静默映射到免费模型（对用户不可见）'," +
+                    "`free_priority` VARCHAR(1000) NOT NULL DEFAULT '' COMMENT '免费模型手动优先级（逗号分隔 id，空=自动）'," +
                     "`update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
                     "PRIMARY KEY (`id`)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型网关全局配置（仅管理员可改）'");
             jdbcTemplate.update("INSERT IGNORE INTO wb_gateway_config (id, model_switch) VALUES (1, 1)");
             ensureWbGatewayKeyOverrideColumn();
             ensureWbGatewayKeyActiveDateColumn();
+            ensureWbGatewayFreePriorityColumn();
             ensureWbGatewayUsageTable();
             ensureWbGatewayUsagePayloadColumns();
             log.info("[INIT] 已自动执行 V19-V21 迁移：wb_gateway_key / wb_gateway_config / wb_gateway_usage（模型网关）");
@@ -664,6 +666,24 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] batch_task 表就绪（批次任务：aiAgent 每日 08:00 / dataScan 每 10 分钟）");
         } catch (Exception e) {
             log.error("[INIT] batch_task 建表/播种失败（请手动执行 sql/V24__batch_task.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * V25 升级兜底：wb_gateway_config 若无 free_priority 列（免费模型手动优先级）则幂等补列。
+     */
+    private void ensureWbGatewayFreePriorityColumn() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='wb_gateway_config' AND COLUMN_NAME='free_priority'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) return;
+            jdbcTemplate.execute("ALTER TABLE `wb_gateway_config` ADD COLUMN `free_priority` VARCHAR(1000) NOT NULL DEFAULT '' " +
+                    "COMMENT '免费模型手动优先级（逗号分隔 id，空=自动）' AFTER `model_switch`");
+            log.info("[INIT] 已自动执行 V25 迁移：wb_gateway_config 补 free_priority 列（免费模型优先级）");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V25 迁移失败（请手动执行 sql/V25__wb_gateway_free_priority.sql）：{}", e.getMessage());
         }
     }
 

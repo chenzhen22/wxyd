@@ -36,6 +36,11 @@ public interface WbGatewayMapper {
 
     int updateModelSwitch(@Param("modelSwitch") Integer modelSwitch);
 
+    /** 免费模型手动优先级（逗号分隔的模型 id，空=自动） */
+    String queryFreePriority();
+
+    int updateFreePriority(@Param("freePriority") String freePriority);
+
     /** 管理员：全部用户的 Key 列表（join users 带属主名） */
     List<Map<String, Object>> adminListKeys();
 

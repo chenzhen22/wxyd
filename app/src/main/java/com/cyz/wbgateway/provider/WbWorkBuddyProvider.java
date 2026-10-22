@@ -54,13 +54,56 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
     }
 
     @Override
-    public boolean owns(String modelId) {
-        return modelId == null || !modelId.startsWith("qoder:");
+    public Map<String, Object> status() {
+        return client.bridgeStatus();
     }
 
     @Override
-    public Map<String, Object> status() {
-        return client.bridgeStatus();
+    public int usableAccountCount() {
+        try {
+            Object h = client.bridgeStatus().get("healthy");
+            return h instanceof Number ? ((Number) h).intValue() : 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    @Override
+    public long remainingCredits() {
+        try {
+            Object accounts = client.bridgeStatus().get("accounts");
+            if (!(accounts instanceof List)) return -1;
+            long sum = 0;
+            boolean any = false;
+            for (Object o : (List<?>) accounts) {
+                if (!(o instanceof Map)) continue;
+                Object cr = ((Map<?, ?>) o).get("credits");
+                if (cr instanceof Number) {
+                    any = true;
+                    sum += ((Number) cr).longValue();
+                }
+            }
+            return any ? sum : -1;
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    /** 账号积分是否过期由上游账号体系决定，这里无法得知，视为不过期 */
+    @Override
+    public long creditsExpireAtMs() {
+        return Long.MAX_VALUE;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> accountRows() {
+        try {
+            Object accounts = client.bridgeStatus().get("accounts");
+            if (accounts instanceof List) return (List<Map<String, Object>>) accounts;
+        } catch (Exception ignore) {
+        }
+        return new java.util.ArrayList<>();
     }
 
     @Override

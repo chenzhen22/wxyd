@@ -59,8 +59,44 @@ public class QoderProvider implements UpstreamProvider {
     }
 
     @Override
-    public boolean owns(String modelId) {
-        return modelId != null && modelId.startsWith(QoderClient.prefix());
+    public String modelPrefix() {
+        return QoderClient.prefix();
+    }
+
+    @Override
+    public int usableAccountCount() {
+        return client.credentialUsable() ? 1 : 0;
+    }
+
+    @Override
+    public long remainingCredits() {
+        QoderClient.Usage u = client.usage();
+        return u == null ? -1 : (long) u.remaining;
+    }
+
+    @Override
+    public long creditsExpireAtMs() {
+        QoderClient.Usage u = client.usage();
+        return u == null || u.expiresAtMs <= 0 ? Long.MAX_VALUE : u.expiresAtMs;
+    }
+
+    @Override
+    public List<Map<String, Object>> accountRows() {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        QoderClient.Credential cred = client.credential();
+        if (cred == null) return rows;
+        QoderClient.Usage usage = client.usage();
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", id());
+        row.put("label", "备用通道 · " + (cred.name == null ? "" : cred.name));
+        row.put("source", cred.source);
+        row.put("domain", "");
+        row.put("credits", usage == null ? null : usage.remaining);
+        row.put("creditsError", usage == null ? "额度未知" : null);
+        row.put("expiresAtMs", cred.expiresAtMs);
+        if (!client.credentialUsable()) row.put("credentialDeadUntilMs", 1L);
+        rows.add(row);
+        return rows;
     }
 
     @Override

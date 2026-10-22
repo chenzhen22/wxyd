@@ -39,7 +39,8 @@ public class CompositeCatalog implements ModelCatalog {
             }
             if (cat == null) continue;
             for (String nativeId : cat.ids()) {
-                String norm = normalize(nativeId);
+                // 归一化时去掉 provider 前缀，否则 qoder:GLM-5.3 与 glm-5.3 不会合并
+                String norm = normalize(stripPrefix(nativeId));
                 Group g = byNorm.get(norm);
                 if (g == null) {
                     g = new Group();
@@ -48,10 +49,8 @@ public class CompositeCatalog implements ModelCatalog {
                     byNorm.put(norm, g);
                     c.groups.add(g);
                 }
-                // 同名时优先保留 WorkBuddy 的原生 id 作为展示（存量 Key 直接可用）
-                if ("workbuddy".equals(p.id()) || g.nativeByProvider.isEmpty()) {
-                    if ("workbuddy".equals(p.id())) g.display = nativeId;
-                }
+                // 同名时优先用「无前缀」provider 的原生 id 作为展示（存量 Key 直接可用）
+                if (p.modelPrefix().isEmpty()) g.display = nativeId;
                 g.nativeByProvider.put(p.id(), nativeId);
                 g.aliases.add(nativeId);
                 g.aliases.add(nativeId.toLowerCase());

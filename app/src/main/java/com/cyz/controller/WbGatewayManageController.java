@@ -3,8 +3,6 @@ package com.cyz.controller;
 import com.cyz.pojo.Result;
 import com.cyz.pojo.WbGatewayKey;
 import com.cyz.service.WbGatewayKeyService;
-import com.cyz.wbgateway.WbModelCatalog;
-import com.cyz.wbgateway.WbWorkBuddyClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -27,17 +25,12 @@ public class WbGatewayManageController {
     private WbGatewayKeyService keyService;
 
     @Autowired
-    private WbWorkBuddyClient client;
-
-    @Autowired
     private com.cyz.mapper.gateway.WbGatewayMapper wbGatewayMapper;
 
     /** 上游 provider 注册表（WorkBuddy / Qoder …） */
     @Autowired
     private com.cyz.wbgateway.provider.ProviderRegistry providers;
 
-    @Autowired
-    private com.cyz.wbgateway.qoder.QoderClient qoderClient;
 
     @Autowired
     private com.cyz.config.Sm4KeyHolder sm4KeyHolder;
@@ -181,47 +174,18 @@ public class WbGatewayManageController {
         Result result = Result.getInstance();
         if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
         try {
-            // 兼容旧前端：账号池字段保持在顶层（accounts/healthy/poolSize…），
-            // 其他 provider 诊断放在对应 key 下（如 qoder-cn）
-            Object wb = sanitizeDeep(client.bridgeStatus());
-            Map<String, Object> body = new HashMap<>();
-            if (wb instanceof Map) body.putAll((Map<String, Object>) wb);
-            Object extra = sanitizeDeep(providers.statusMap());
-            if (extra instanceof Map) {
-                for (Map.Entry<String, Object> e : ((Map<String, Object>) extra).entrySet()) {
-                    if (!"workbuddy".equals(e.getKey())) body.put(e.getKey(), e.getValue());
-                }
-            }
-            // 账号池视图：把其他 provider（如 Qoder）的登录账号并进来，避免只显示 WorkBuddy 两个号
+            // 账号池由各 provider 自己提供展示行，控制器不关心具体厂商
             List<Map<String, Object>> pool = new ArrayList<>();
-            Object wbAccounts = body.get("accounts");
-            if (wbAccounts instanceof List) {
-                for (Object o : (List<?>) wbAccounts) {
-                    if (o instanceof Map) pool.add((Map<String, Object>) o);
-                }
+            int healthy = 0;
+            for (com.cyz.wbgateway.provider.UpstreamProvider p : providers.all()) {
+                pool.addAll(p.accountRows());
+                healthy += Math.max(0, p.usableAccountCount());
             }
-            int healthy = body.get("healthy") instanceof Number ? ((Number) body.get("healthy")).intValue() : 0;
-            Object raw = providers.statusMap();
-            for (Map.Entry<String, Object> e : ((Map<String, Object>) raw).entrySet()) {
-                if ("workbuddy".equals(e.getKey()) || !(e.getValue() instanceof Map)) continue;
-                Map<String, Object> st = (Map<String, Object>) e.getValue();
-                if (!Boolean.TRUE.equals(st.get("signedIn"))) continue;
-                Map<String, Object> row = new HashMap<>();
-                row.put("id", e.getKey());
-                row.put("label", "备用通道 · " + (st.get("user") == null ? "" : st.get("user")));
-                row.put("source", "desktop");
-                row.put("domain", "");
-                Object credits = st.get("credits");
-                row.put("credits", credits instanceof Number ? credits : null);
-                row.put("creditsError", credits instanceof Number ? null : "按量计费");
-                row.put("expiresAtMs", st.get("expiresAtMs"));
-                if (Boolean.FALSE.equals(st.get("usable"))) row.put("credentialDeadUntilMs", 1L);
-                pool.add(row);
-                if (Boolean.TRUE.equals(st.get("usable"))) healthy++;
-            }
-            body.put("accounts", pool);
+            Map<String, Object> body = new HashMap<>();
+            body.put("accounts", sanitizeDeep(pool));
             body.put("poolSize", pool.size());
             body.put("healthy", healthy);
+            body.put("providers", sanitizeDeep(providers.statusMap()));
             result.setBody(body);
         } catch (Exception e) {
             result.setErrorMsg("桥接不可用：" + com.cyz.wbgateway.WbGatewayChatService.sanitize(e.getMessage()));
@@ -259,68 +223,6 @@ public class WbGatewayManageController {
         wbGatewayMapper.updateModelSwitch(Boolean.TRUE.equals(on) ? 1 : 0);
         log.info("[WBGATEWAY] 模型开关切换为 {}（by user {}）", on, userId(session));
         return result;
-    }
-
-    /* ==================== Qoder 每日签到 ==================== */
-
-    /** Qoder 签到状态 + 自动领取开关（仅管理员） */
-    @GetMapping("gateway/admin/qoder/checkin")
-    public Result qoderCheckin(HttpSession session) {
-        Result result = Result.getInstance();
-        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
-        result.setBody(qoderCheckinBody());
-        return result;
-    }
-
-    /** 立即领取签到积分（每天一轮，重复领取幂等） */
-    @PostMapping("gateway/admin/qoder/checkin/claim")
-    public Result qoderClaim(HttpSession session) {
-        Result result = Result.getInstance();
-        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
-        Map<String, Object> claim = qoderClient.claim();
-        Map<String, Object> body = qoderCheckinBody();
-        body.put("claim", claim);
-        log.info("[QODER] 手动签到：{}（by user {}）", claim.get("message"), userId(session));
-        result.setBody(body);
-        return result;
-    }
-
-    /** 自动领取开关 */
-    @PostMapping("gateway/admin/qoder/checkin/enabled")
-    public Result qoderCheckinEnabled(@RequestBody(required = false) Result req, HttpSession session) {
-        Result result = Result.getInstance();
-        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
-        boolean on = Boolean.TRUE.equals(body(req).get("enabled"))
-                || "true".equalsIgnoreCase(String.valueOf(body(req).get("enabled")));
-        wbGatewayMapper.updateQoderAutoCheckin(on ? 1 : 0);
-        result.setBody(qoderCheckinBody());
-        return result;
-    }
-
-    private Map<String, Object> qoderCheckinBody() {
-        Map<String, Object> body = new java.util.LinkedHashMap<>();
-        Integer enabled = wbGatewayMapper.queryQoderAutoCheckin();
-        body.put("enabled", enabled == null || enabled != 0);
-        boolean signedIn = qoderClient.credential() != null;
-        body.put("signedIn", signedIn);
-        body.put("autoHours", "每天 10:10、20:10 各尝试一次（活动每天 10:00 刷新，重复领取不会重复发奖）");
-        if (signedIn) {
-            com.cyz.wbgateway.qoder.QoderClient.Checkin c = qoderClient.checkin(true);
-            if (c != null) {
-                body.put("active", c.active);
-                body.put("todayCheckedIn", c.todayCheckedIn);
-                body.put("amount", c.amount);
-                body.put("unit", c.unit);
-                body.put("validDays", c.validDays);
-                body.put("endsAtMs", c.endsAtMs);
-            }
-            com.cyz.wbgateway.qoder.QoderClient.Usage u = qoderClient.usage();
-            if (u != null) {
-                body.put("credits", u.remaining);
-                body.put("creditsTotal", u.total);
-            }
-        }
-        return body;
     }
 
     /** 免费模型优先级：自动顺序 / 手动配置 / 实际生效（仅管理员） */
@@ -370,21 +272,26 @@ public class WbGatewayManageController {
     public Result adminModels(HttpSession session) {
         Result result = Result.getInstance();
         if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
-        WbModelCatalog wb = client.models();
-        java.util.Set<String> wbFree = new java.util.HashSet<>(wb.freeIds());
         com.cyz.wbgateway.provider.CompositeCatalog catalog = providers.publicCatalog();
+        Map<String, com.cyz.wbgateway.provider.UpstreamProvider> byId = new HashMap<>();
+        for (com.cyz.wbgateway.provider.UpstreamProvider p : providers.all()) byId.put(p.id(), p);
         List<Map<String, Object>> list = new ArrayList<>();
         for (com.cyz.wbgateway.provider.CompositeCatalog.Group g : catalog.getGroups()) {
             Map<String, Object> row = new HashMap<>();
             row.put("id", g.display);
             row.put("name", g.display);
-            row.put("free", g.nativeByProvider.values().stream().anyMatch(wbFree::contains));
+            boolean free = false;
+            for (Map.Entry<String, String> e : g.nativeByProvider.entrySet()) {
+                com.cyz.wbgateway.provider.UpstreamProvider p = byId.get(e.getKey());
+                if (p != null && p.isFree(e.getValue())) { free = true; break; }
+            }
+            row.put("free", free);
             row.put("providers", String.join(",", g.nativeByProvider.keySet()));
             list.add(row);
         }
         Map<String, Object> body = new HashMap<>();
         body.put("list", list);
-        body.put("source", wb.getSource());
+        body.put("source", "live");
         result.setBody(body);
         return result;
     }

@@ -7,7 +7,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /** provider 注册表：按模型 id 路由到对应适配器。 */
 @Component
@@ -17,11 +16,9 @@ public class ProviderRegistry {
     @Autowired(required = false)
     private List<UpstreamProvider> providers = new ArrayList<>();
 
-    /** 合并目录（同名去重）缓存 60s；余额/可用性评分缓存 10 分钟（不每次请求都刷余额） */
+    /** 合并目录（同名去重）缓存 60s；provider 自身的账号/额度信息各自缓存 10 分钟 */
     private volatile CompositeCatalog pubCatalog;
     private volatile long pubAt;
-    private final Map<String, long[]> scoreCache = new ConcurrentHashMap<>();
-    private static final long SCORE_TTL_MS = 10 * 60_000L;
 
     public List<UpstreamProvider> all() {
         return providers;
@@ -71,26 +68,23 @@ public class ProviderRegistry {
     public Route resolve(String requested) {
         CompositeCatalog cat = publicCatalog();
         CompositeCatalog.Group g = cat.find(requested);
-        if (g == null) {
+        List<UpstreamProvider> list = candidates(requested);
+        if (list.isEmpty()) {
             UpstreamProvider p = providers.isEmpty() ? null : providers.get(0);
             return new Route(p, requested, requested);
         }
-        UpstreamProvider best = null;
-        long bestScore = Long.MIN_VALUE;
-        for (UpstreamProvider p : providers) {
-            String nativeId = g.nativeByProvider.get(p.id());
-            if (nativeId == null) continue;
-            long s = scoreOf(p);
-            if (s > bestScore) {
-                bestScore = s;
-                best = p;
-            }
-        }
-        if (best == null) best = providers.get(0);
+        UpstreamProvider best = list.get(0);
+        if (g == null) return new Route(best, requested, requested);
         return new Route(best, g.nativeByProvider.get(best.id()), g.display);
     }
 
-    /** 同一模型的可选 provider（按可用性评分降序）；模型不在任何目录时返回全部 provider */
+    /**
+     * 同一模型的可选 provider，按优先级排序（无厂商特判）：
+     * 1) 免费优先于计量；
+     * 2) 都计量时，积分到期早的先消耗（未知到期视为最晚）；
+     * 3) 同档位按可用账号数、剩余积分排序。
+     * 模型不在任何目录（如静默映射）时，按 3) 的容量排序。
+     */
     public List<UpstreamProvider> candidates(String display) {
         CompositeCatalog.Group g = publicCatalog().find(display);
         List<UpstreamProvider> list = new ArrayList<>();
@@ -101,56 +95,28 @@ public class ProviderRegistry {
         } else {
             list.addAll(providers);
         }
-        list.sort((a, b) -> Long.compare(scoreOf(b), scoreOf(a)));
-        return list;
-    }
-
-    /** provider 可用性评分：可用账号越多/余额越高越优先；-1 表示不可用 */
-    private long scoreOf(UpstreamProvider p) {
-        long now = System.currentTimeMillis();
-        long[] cached = scoreCache.get(p.id());
-        if (cached != null && now - cached[1] < SCORE_TTL_MS) return cached[0];
-        long score;
-        try {
-            Map<String, Object> st = p.status();
-            if ("workbuddy".equals(p.id())) {
-                int healthy = num(st.get("healthy"));
-                long credits = 0;
-                boolean anyCredits = false;
-                Object accounts = st.get("accounts");
-                if (accounts instanceof List) {
-                    for (Object o : (List<?>) accounts) {
-                        if (!(o instanceof Map)) continue;
-                        Object cr = ((Map<?, ?>) o).get("credits");
-                        if (cr instanceof Number) {
-                            anyCredits = true;
-                            credits += ((Number) cr).longValue();
-                        }
-                    }
-                }
-                if (healthy <= 0) score = -1;
-                else if (anyCredits && credits <= 0) score = 800; // 有号但余额耗尽
-                else score = 1000 + Math.min(credits, 500);
-            } else if (p.id().startsWith("qoder")) {
-                if (!Boolean.TRUE.equals(st.get("signedIn"))) {
-                    score = -1;
-                } else {
-                    Object cr = st.get("credits");
-                    double credits = cr instanceof Number ? ((Number) cr).doubleValue() : -1;
-                    score = credits == 0 ? 850 : 900;
-                }
-            } else {
-                score = 100;
-            }
-        } catch (Exception e) {
-            score = -1;
+        // 不可用（无账号/余额明确为 0）的 provider 排到最后，仅作兜底
+        List<UpstreamProvider> usable = new ArrayList<>();
+        List<UpstreamProvider> unusable = new ArrayList<>();
+        for (UpstreamProvider p : list) {
+            if (p.usableAccountCount() > 0 && p.remainingCredits() != 0) usable.add(p);
+            else unusable.add(p);
         }
-        scoreCache.put(p.id(), new long[]{score, now});
-        return score;
-    }
-
-    private static int num(Object o) {
-        return o instanceof Number ? ((Number) o).intValue() : 0;
+        usable.sort((a, b) -> {
+            boolean fa = g != null && a.isFree(g.nativeByProvider.get(a.id()));
+            boolean fb = g != null && b.isFree(g.nativeByProvider.get(b.id()));
+            if (fa != fb) return fa ? -1 : 1;
+            if (!fa && !fb) {
+                long ea = a.creditsExpireAtMs();
+                long eb = b.creditsExpireAtMs();
+                if (ea != eb) return Long.compare(ea, eb);
+            }
+            int c = Integer.compare(b.usableAccountCount(), a.usableAccountCount());
+            if (c != 0) return c;
+            return Long.compare(b.remainingCredits(), a.remainingCredits());
+        });
+        usable.addAll(unusable);
+        return usable;
     }
 
     /** 跨 provider 命中模型（用于校验用户选的模型是否存在） */

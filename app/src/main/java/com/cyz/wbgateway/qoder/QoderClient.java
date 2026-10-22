@@ -317,6 +317,8 @@ public class QoderClient {
         public double total;
         public String unit = "credits";
         public String expiresAt = "";
+        /** 套餐/积分到期时间（毫秒；0=未知） */
+        public long expiresAtMs;
     }
 
     /** 账号额度（10 分钟缓存；读不到返回 null 或上次缓存） */
@@ -356,7 +358,24 @@ public class QoderClient {
         if (payload.getJSONObject("qoderUsage") != null) root = payload.getJSONObject("qoderUsage");
         else if (payload.get("data") instanceof JSONObject) root = payload.getJSONObject("data");
         Usage u = new Usage();
-        u.expiresAt = root.getString("expires_at") != null ? root.getString("expires_at") : root.getString("expiresAt");
+        // expiresAt 可能是毫秒/秒时间戳，也可能是 ISO 字符串
+        Object exp = root.get("expiresAt") != null ? root.get("expiresAt") : root.get("expires_at");
+        if (exp instanceof Number) {
+            long n = ((Number) exp).longValue();
+            u.expiresAtMs = n < 10_000_000_000L ? n * 1000L : n;
+            u.expiresAt = String.valueOf(n);
+        } else if (exp != null) {
+            u.expiresAt = String.valueOf(exp);
+            try {
+                u.expiresAtMs = java.time.Instant.parse(u.expiresAt).toEpochMilli();
+            } catch (Exception e) {
+                try {
+                    long n = Long.parseLong(u.expiresAt.trim());
+                    u.expiresAtMs = n < 10_000_000_000L ? n * 1000L : n;
+                } catch (Exception ignore) {
+                }
+            }
+        }
         for (String key : new String[]{"user_quota", "userQuota", "add_on_quota", "addOnQuota"}) {
             JSONObject bucket = root.getJSONObject(key);
             if (bucket == null) continue;

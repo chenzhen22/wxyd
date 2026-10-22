@@ -12,7 +12,7 @@ import java.util.List;
  * 只保留网关关心的字段：id/名称/免费标记（billing.free）。
  */
 @Data
-public class WbModelCatalog {
+public class WbModelCatalog implements com.cyz.wbgateway.provider.ModelCatalog {
 
     public List<ModelInfo> models = new ArrayList<>();
     /** 目录来源：live=实时拉取 fallback=内置兜底 */
@@ -25,6 +25,12 @@ public class WbModelCatalog {
         public long maxTokens;
     }
 
+    @Override
+    public String source() {
+        return source;
+    }
+
+    @Override
     public List<String> ids() {
         List<String> ids = new ArrayList<>();
         for (ModelInfo m : models) ids.add(m.id);
@@ -32,6 +38,7 @@ public class WbModelCatalog {
     }
 
     /** 免费模型 id 列表（billing.free，按目录顺序）——模型开关关闭时的静默映射目标 */
+    @Override
     public List<String> freeIds() {
         List<String> ids = new ArrayList<>();
         for (ModelInfo m : models) if (m.free) ids.add(m.id);
@@ -39,6 +46,7 @@ public class WbModelCatalog {
     }
 
     /** 精确或大小写不敏感命中目录，返回规范 id；未命中返回 null */
+    @Override
     public String match(String requested) {
         if (requested == null || requested.isEmpty()) return null;
         for (ModelInfo m : models) if (m.id.equals(requested)) return m.id;

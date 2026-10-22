@@ -7,8 +7,10 @@ import com.cyz.mapper.gateway.WbGatewayMapper;
 import com.cyz.pojo.WbGatewayKey;
 import com.cyz.pojo.WbGatewayUsage;
 import com.cyz.service.WbGatewayKeyService;
+import com.cyz.wbgateway.provider.ModelCatalog;
+import com.cyz.wbgateway.provider.ProviderRegistry;
+import com.cyz.wbgateway.provider.UpstreamProvider;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -41,8 +43,9 @@ public class WbGatewayChatService {
     @Value("${wxyd.wbgateway.usage-retention-days:7}")
     private int usageRetentionDays;
 
+    /** 上游适配器注册表：按模型 id 路由到 WorkBuddy / Qoder 等 provider */
     @Autowired
-    private WbWorkBuddyClient client;
+    private ProviderRegistry providers;
 
     @Autowired
     private WbGatewayMapper wbGatewayMapper;
@@ -74,7 +77,6 @@ public class WbGatewayChatService {
                 internal.getJSONArray("tools") == null ? 0 : internal.getJSONArray("tools").size(), protocol);
 
         // ---- 模型候选链 + 对外模型名 ----
-        WbModelCatalog catalog = client.models();
         // 模型开关判定：Key 级覆盖优先（管理员设置），否则跟随全局开关
         Integer keyOverride = key.getModelOverride();
         boolean switchOn = keyOverride != null
@@ -94,6 +96,16 @@ public class WbGatewayChatService {
                             + " 不匹配，请在 AI 工具中将模型名改为 Key 配置的模型");
             return;
         }
+        // provider 路由：Key 绑定的模型优先，其次请求模型；都没带则走默认 provider
+        String routeBy = !selected.isEmpty() ? selected : requested;
+        UpstreamProvider provider = providers.providerFor(routeBy);
+        ModelCatalog catalog = provider.catalog();
+        if (catalog.match(selected) == null && !selected.isEmpty()) {
+            // Key 绑定的模型不属于该 provider 的目录（例如目录刷新后下线），按请求模型重新路由
+            provider = providers.providerFor(requested);
+            catalog = provider.catalog();
+        }
+
         List<String> chain = new ArrayList<>();
         String publicModel;
         if (switchOn) {
@@ -107,7 +119,7 @@ public class WbGatewayChatService {
                     chain.add(canon);
                     publicModel = canon;
                 } else {
-                    String dflt = defaultOrFirst(catalog);
+                    String dflt = defaultOrFirst(catalog, provider);
                     chain.add(dflt);
                     publicModel = requested.isEmpty() ? dflt : requested;
                 }
@@ -117,9 +129,9 @@ public class WbGatewayChatService {
         } else {
             // 开关关闭：静默映射到免费模型，用户不可知；对外仍显示用户视角的名字
             chain.addAll(catalog.freeIds());
-            if (chain.isEmpty()) chain.add(defaultOrFirst(catalog));
+            if (chain.isEmpty()) chain.add(defaultOrFirst(catalog, provider));
             publicModel = !selected.isEmpty() ? selected
-                    : (!requested.isEmpty() ? requested : client.getDefaultModel());
+                    : (!requested.isEmpty() ? requested : provider.defaultModel());
             log.info("[WBGATEWAY] 模型开关关闭：静默映射 userId={} keyId={} 视角模型={} 实际链={}",
                     key.getUserId(), key.getId(), publicModel, chain);
         }
@@ -129,90 +141,22 @@ public class WbGatewayChatService {
         openaiReq.put("stream", true); // 上游只接受流式，客户端要非流式时在网关聚合
         WbProtocol.sanitizeOpenAiMessages(openaiReq);
 
-        // ---- 发起上游请求（候选链重试 + 账号池自动换号）----
-        Response upstream = null;
-        WbUpstreamException failure = null;
-        int chainIdx = 0;
-        com.cyz.wbgateway.pool.WbPoolAccount acc = null;
-        WbCredential cred = null;
-        boolean refreshedOnce = false; // 当前账号令牌刷新过一次
-        int switched = 0;
-        int maxSwitch = 8; // 换号/换模型总步数上限（池会跳过冷却号，理论到不了）
-        while (true) {
-            openaiReq.put("model", chain.get(chainIdx));
-            String bodyJson = client.prepareBody(openaiReq.toJSONString());
-            try {
-                if (acc == null) {
-                    try {
-                        acc = client.acquireAccount(chain.get(chainIdx));
-                    } catch (IllegalStateException ne) {
-                        failure = new WbUpstreamException(WbUpstreamException.KIND_SESSION_DEAD, 0, ne.getMessage());
-                        break;
-                    }
-                    cred = acc.getCredential().toWbCredential();
-                    refreshedOnce = false;
-                }
-                upstream = client.chatStream(cred, bodyJson);
-                client.onSuccess(acc.getId());
-                break;
-            } catch (WbUpstreamException e) {
-                boolean canChain = chainIdx < chain.size() - 1 && WbWorkBuddyClient.isModelFallbackRetryable(e);
-                if (WbUpstreamException.KIND_SESSION_DEAD.equals(e.getKind()) && !refreshedOnce && acc != null) {
-                    // 令牌被上游判死：先刷新当前账号重试一次
-                    refreshedOnce = true;
-                    try {
-                        client.refreshAccount(acc.getId());
-                        cred = acc.getCredential().toWbCredential();
-                        log.warn("[WBGATEWAY] 账号 {} 令牌被上游判死，已刷新重试", acc.getLabel());
-                        continue;
-                    } catch (Exception re) {
-                        client.onCredentialDead(acc.getId(), re.getMessage());
-                        acc = null;
-                        continue;
-                    }
-                }
-                if (WbUpstreamException.KIND_SOFT_RATE.equals(e.getKind()) && acc != null) {
-                    // 限流是模型级的：冷却该号该模型，池自动跳到下一号
-                    client.onModelRateLimited(acc.getId(), chain.get(chainIdx));
-                    acc = null;
-                    if (switched++ < maxSwitch) continue;
-                    if (canChain) { chainIdx++; continue; }
-                    failure = e;
-                    break;
-                }
-                if (WbUpstreamException.KIND_HARD_CREDIT.equals(e.getKind()) && acc != null) {
-                    // 积分耗尽：账号级冷却，换号
-                    client.onHardCredit(acc.getId());
-                    acc = null;
-                    if (switched++ < maxSwitch) continue;
-                    if (canChain) { chainIdx++; continue; }
-                    failure = e;
-                    break;
-                }
-                if (canChain) {
-                    log.warn("[WBGATEWAY] 模型 {} 失败（{}），切换候选链下一个 {}",
-                            chain.get(chainIdx), e.getKind(), chain.get(chainIdx + 1));
-                    chainIdx++;
-                    acc = null;
-                    continue;
-                }
-                failure = e;
-                break;
-            }
-        }
-        if (failure != null) {
+        // ---- 发起上游请求（provider 内部负责凭据/账号轮换与链内重试）----
+        UpstreamProvider.ProviderStream stream;
+        try {
+            stream = provider.open(chain, openaiReq.toJSONString());
+        } catch (WbUpstreamException failure) {
             String detail = failure.getMessage() == null ? "" : failure.getMessage();
-            log.error("[WBGATEWAY] 上游错误 kind={} http={} detail={}", failure.getKind(), failure.getHttpStatus(), detail);
-            if (WbUpstreamException.KIND_SESSION_DEAD.equals(failure.getKind()) && acc != null) {
-                client.onCredentialDead(acc.getId(), failure.getMessage());
-            }
-            recordUsage(key, protocol, requested, chain.get(chainIdx), wantStream, 0, 0,
+            log.error("[WBGATEWAY] 上游错误 provider={} kind={} http={} detail={}",
+                    provider.id(), failure.getKind(), failure.getHttpStatus(), detail);
+            recordUsage(key, protocol, requested, chain.get(0), wantStream, 0, 0,
                     System.currentTimeMillis() - started, "error", failure.getKind(), clientRequestJson,
                     JSON.toJSONString(java.util.Collections.singletonMap("error", detail)));
             writeError(res, protocol, failure.outboundStatus(), failure.outboundErrorType(),
                     failure.getKind() + ": " + detail);
             return;
         }
+        String usedModel = stream.usedModel();
 
         keyService.touch(key.getId());
 
@@ -230,7 +174,7 @@ public class WbGatewayChatService {
                 boolean streamOk = false;
                 try {
                     writer.start();
-                    WbUpstreamSseReader.read(upstream, chunk -> {
+                    stream.read(chunk -> {
                         WbProtocol.feedChunk(agg, chunk);
                         try { writer.handleChunk(chunk); } catch (IOException ie) { throw new RuntimeException(ie); }
                     });
@@ -248,7 +192,7 @@ public class WbGatewayChatService {
                 WbOpenAiSseWriter writer = new WbOpenAiSseWriter(res, publicModel);
                 boolean streamOk = false;
                 try {
-                    WbUpstreamSseReader.read(upstream, chunk -> {
+                    stream.read(chunk -> {
                         WbProtocol.feedChunk(agg, chunk);
                         try { writer.handleChunk(chunk); } catch (IOException ie) { throw new RuntimeException(ie); }
                     });
@@ -268,11 +212,11 @@ public class WbGatewayChatService {
         }
 
         WbProtocol.Aggregated agg = new WbProtocol.Aggregated();
-        agg.usedModel = chain.get(chainIdx);
+        agg.usedModel = usedModel;
         try {
-            WbUpstreamSseReader.read(upstream, chunk -> WbProtocol.feedChunk(agg, chunk));
+            stream.read(chunk -> WbProtocol.feedChunk(agg, chunk));
         } catch (IOException e) {
-            recordUsage(key, protocol, requested, chain.get(chainIdx), false, 0, 0,
+            recordUsage(key, protocol, requested, usedModel, false, 0, 0,
                     System.currentTimeMillis() - started, "error", "parse_failed", clientRequestJson, null);
             writeError(res, protocol, 502, "api_error", "解析响应失败: " + e.getMessage());
             return;
@@ -286,7 +230,7 @@ public class WbGatewayChatService {
         res.setCharacterEncoding("UTF-8");
         res.getWriter().write(out.toJSONString());
         res.flushBuffer();
-        recordUsage(key, protocol, requested, chain.get(chainIdx), wantStream,
+        recordUsage(key, protocol, requested, usedModel, wantStream,
                 agg.usageIn > 0 ? agg.usageIn : estimateIn, agg.usageOut, System.currentTimeMillis() - started, "ok", null,
                 clientRequestJson, WbProtocol.toTraceJson(agg).toJSONString());
         log.info("[WBGATEWAY] 完成 ms={} in={} out={}", System.currentTimeMillis() - started,
@@ -346,8 +290,8 @@ public class WbGatewayChatService {
         }
     }
 
-    private String defaultOrFirst(WbModelCatalog catalog) {
-        String dflt = client.getDefaultModel();
+    private String defaultOrFirst(ModelCatalog catalog, UpstreamProvider provider) {
+        String dflt = provider.defaultModel();
         String canon = catalog.match(dflt);
         if (canon != null) return canon;
         List<String> ids = catalog.ids();

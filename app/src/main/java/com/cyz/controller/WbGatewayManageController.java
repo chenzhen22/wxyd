@@ -32,6 +32,10 @@ public class WbGatewayManageController {
     @Autowired
     private com.cyz.mapper.gateway.WbGatewayMapper wbGatewayMapper;
 
+    /** 上游 provider 注册表（WorkBuddy / Qoder …） */
+    @Autowired
+    private com.cyz.wbgateway.provider.ProviderRegistry providers;
+
     @Autowired
     private com.cyz.config.Sm4KeyHolder sm4KeyHolder;
 
@@ -81,7 +85,7 @@ public class WbGatewayManageController {
         try {
             // "auto" = 跟随系统：不绑定具体模型，按请求模型（需在目录内）/系统默认模型执行
             String model = normalizeModel(str(body.get("model")));
-            if (!model.isEmpty() && client.models().match(model) == null) {
+            if (!model.isEmpty() && providers.match(model) == null) {
                 throw new IllegalArgumentException("模型不在目录中：" + model);
             }
             WbGatewayKey key = keyService.create(userId(session), str(body.get("name")), model);
@@ -139,7 +143,7 @@ public class WbGatewayManageController {
         Map<String, Object> body = body(req);
         try {
             String model = normalizeModel(str(body.get("model")));
-            if (!model.isEmpty() && client.models().match(model) == null) {
+            if (!model.isEmpty() && providers.match(model) == null) {
                 throw new IllegalArgumentException("模型不在目录中：" + model);
             }
             if (!keyService.updateModel(userId(session), longVal(body.get("id")), model)) {
@@ -154,17 +158,16 @@ public class WbGatewayManageController {
 
     /* ==================== 目录 / 状态（登录可见） ==================== */
 
-    /** 实时模型 id 列表 + 默认模型（不暴露免费标记——开关映射对用户不可知） */
+    /** 实时模型 id 列表（WorkBuddy + Qoder 合并）+ 默认模型（不暴露免费标记） */
     @GetMapping("gateway/models")
     public Result models() {
         Result result = Result.getInstance();
-        WbModelCatalog catalog = client.models();
-        String dflt = client.getDefaultModel();
-        String canon = catalog.match(dflt);
-        if (canon == null && !catalog.ids().isEmpty()) canon = catalog.ids().get(0);
+        List<String> ids = providers.allModelIds();
+        String dflt = providers.match(providers.defaultModel());
+        if (dflt == null && !ids.isEmpty()) dflt = ids.get(0);
         Map<String, Object> body = new HashMap<>();
-        body.put("models", catalog.ids());
-        body.put("default", canon == null ? "" : canon);
+        body.put("models", ids);
+        body.put("default", dflt == null ? "" : dflt);
         result.setBody(body);
         return result;
     }
@@ -175,7 +178,11 @@ public class WbGatewayManageController {
         Result result = Result.getInstance();
         if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
         try {
-            result.setBody(sanitizeDeep(client.bridgeStatus()));
+            Map<String, Object> body = new HashMap<>();
+            body.put("workbuddy", sanitizeDeep(client.bridgeStatus()));
+            Object qoderStatus = sanitizeDeep(providers.statusMap());
+            if (qoderStatus instanceof Map) body.putAll((Map<String, Object>) qoderStatus);
+            result.setBody(body);
         } catch (Exception e) {
             result.setErrorMsg("桥接不可用：" + com.cyz.wbgateway.WbGatewayChatService.sanitize(e.getMessage()));
             result.setErrorCode("000015");
@@ -227,6 +234,21 @@ public class WbGatewayManageController {
             row.put("name", m.name);
             row.put("free", m.free);
             list.add(row);
+        }
+        // Qoder 目录（id 带 qoder: 前缀，计费走 Qoder 额度）
+        try {
+            com.cyz.wbgateway.provider.UpstreamProvider qoder =
+                    providers.providerFor(com.cyz.wbgateway.qoder.QoderClient.prefix() + "Auto");
+            if ("qoder-cn".equals(qoder.id())) {
+                for (String id : qoder.catalog().ids()) {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("id", id);
+                    row.put("name", id.substring(com.cyz.wbgateway.qoder.QoderClient.prefix().length()));
+                    row.put("free", false);
+                    list.add(row);
+                }
+            }
+        } catch (Exception ignore) {
         }
         Map<String, Object> body = new HashMap<>();
         body.put("list", list);

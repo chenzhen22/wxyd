@@ -119,14 +119,10 @@ public class ProviderRegistry {
         return usable;
     }
 
-    /** 跨 provider 命中模型（用于校验用户选的模型是否存在） */
+    /** 跨 provider 命中模型（合并目录，支持带前缀或不带前缀的写法） */
     public String match(String requested) {
         if (requested == null || requested.isEmpty()) return null;
-        for (UpstreamProvider p : providers) {
-            String hit = p.catalog().match(requested);
-            if (hit != null) return hit;
-        }
-        return null;
+        return publicCatalog().match(requested);
     }
 
     /** 合并去重后的模型 id 列表（页面模型选择用） */

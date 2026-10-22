@@ -124,10 +124,17 @@ public class WbGatewayChatService {
                     publicModel = requested.isEmpty() ? dflt : requested;
                 }
             }
-            // 同 provider 的免费模型作为候选链兜底（按管理员设置的优先级排序）
-            List<String> free = com.cyz.wbgateway.provider.FreePriority.order(
-                    catalog.freeIdsOf(route.provider), freePriority);
-            for (String id : free) if (!chain.contains(id)) chain.add(id);
+            // 请求/选中的模型本身免费时，就按这个模型跑，不再追加其它候选模型
+            ProviderRegistry.Route head = providers.resolve(chain.get(0));
+            boolean headFree = head.nativeId != null && head.provider.isFree(head.nativeId);
+            if (headFree) {
+                log.info("[WBGATEWAY] 请求模型 {} 为免费模型，使用该模型且不再切换候选", chain.get(0));
+            } else {
+                // 否则把同 provider 的免费模型作为候选链兜底（按管理员设置的优先级排序）
+                List<String> free = com.cyz.wbgateway.provider.FreePriority.order(
+                        catalog.freeIdsOf(route.provider), freePriority);
+                for (String id : free) if (!chain.contains(id)) chain.add(id);
+            }
         } else {
             // 开关关闭：静默映射到该 provider 的免费模型，用户不可知；对外仍显示用户视角名字
             chain.addAll(com.cyz.wbgateway.provider.FreePriority.order(

@@ -7,7 +7,7 @@ import com.cyz.pojo.WbGatewayKey;
 import com.cyz.service.WbGatewayKeyService;
 import com.cyz.wbgateway.WbGatewayChatService;
 import com.cyz.wbgateway.WbProtocol;
-import com.cyz.wbgateway.WbWorkBuddyClient;
+import com.cyz.wbgateway.provider.ProviderRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,7 +37,7 @@ public class WbAnthropicController {
     private WbGatewayKeyService keyService;
 
     @Autowired
-    private WbWorkBuddyClient client;
+    private ProviderRegistry providers;
 
     /** POST /anthropic/v1/messages（流式 + 非流式） */
     @PostMapping("anthropic/v1/messages")
@@ -93,9 +93,10 @@ public class WbAnthropicController {
         res.getWriter().write(out.toJSONString());
     }
 
+    /** 合并去重后的模型列表（各 provider 目录） */
     private List<String> catalogIds() {
         try {
-            return client.models().ids();
+            return providers.allModelIds();
         } catch (Exception e) {
             return new ArrayList<>();
         }

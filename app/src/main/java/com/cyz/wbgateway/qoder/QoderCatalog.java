@@ -89,6 +89,14 @@ public class QoderCatalog implements ModelCatalog {
         for (ModelInfo m : models) if (m.id.equals(requested)) return m.id;
         String lower = requested.toLowerCase();
         for (ModelInfo m : models) if (m.id.toLowerCase().equals(lower)) return m.id;
+        // 允许不带前缀（页面展示名）或带空格的显示名
+        String norm = requested.toLowerCase().replaceAll("[^a-z0-9]", "");
+        for (ModelInfo m : models) {
+            String bare = m.id.substring(m.id.indexOf(':') + 1).toLowerCase();
+            if (bare.equalsIgnoreCase(requested)) return m.id;
+            if (bare.replaceAll("[^a-z0-9]", "").equals(norm)) return m.id;
+            if (m.name != null && m.name.toLowerCase().replaceAll("[^a-z0-9]", "").equals(norm)) return m.id;
+        }
         return null;
     }
 

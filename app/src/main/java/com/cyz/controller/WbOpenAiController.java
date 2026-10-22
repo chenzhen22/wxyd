@@ -6,7 +6,7 @@ import com.cyz.pojo.WbGatewayKey;
 import com.cyz.service.WbGatewayKeyService;
 import com.cyz.wbgateway.WbGatewayChatService;
 import com.cyz.wbgateway.WbProtocol;
-import com.cyz.wbgateway.WbWorkBuddyClient;
+import com.cyz.wbgateway.provider.ProviderRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,7 +34,7 @@ public class WbOpenAiController {
     private WbGatewayKeyService keyService;
 
     @Autowired
-    private WbWorkBuddyClient client;
+    private ProviderRegistry providers;
 
     /**
      * POST /openai/v1/chat/completions（也接受 /openai/chat/completions）。
@@ -70,7 +70,7 @@ public class WbOpenAiController {
         if (key == null) return;
         List<String> ids;
         try {
-            ids = client.models().ids();
+            ids = providers.allModelIds(); // 合并去重（同名模型只出现一次）
         } catch (Exception e) {
             ids = new ArrayList<>();
         }

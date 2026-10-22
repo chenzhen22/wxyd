@@ -650,6 +650,8 @@
                         模型开关关闭时的静默映射顺序：每行一个模型 id，越靠前越优先。留空或配置的模型失效时按目录自动顺序。
                     </div>
                     <textarea id="gwFreePriority" spellcheck="false" placeholder="每行一个模型 id，如：&#10;glm-5.3-flash&#10;deepseek-v4.1-flash" style="width:100%;box-sizing:border-box;min-height:110px;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.7;"></textarea>
+                    <div style="font-size:12px;color:var(--text-5);margin-top:8px;">可选免费模型（点击加入）：</div>
+                    <div id="gwFreeCandidates" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;"></div>
                     <div id="gwFreeHint" style="font-size:12px;color:var(--text-5);margin:8px 0;line-height:1.8;"></div>
                     <div class="cert-btn-group">
                         <button class="btn-main" id="gwFreeSave">保存优先级</button>
@@ -951,7 +953,7 @@
 <script src="Assets/js/sqltool.js?v=3" type="text/javascript"></script>
 <script src="Assets/js/sharefile.js?v=4" type="text/javascript"></script>
 <script src="Assets/js/pdftool.js?v=1" type="text/javascript"></script>
-<script src="Assets/js/gateway.js?v=15" type="text/javascript"></script>
+<script src="Assets/js/gateway.js?v=16" type="text/javascript"></script>
 <script src="Assets/js/batchtask.js?v=4" type="text/javascript"></script>
 </body>
 </html>

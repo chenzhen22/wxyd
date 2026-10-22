@@ -203,6 +203,18 @@
         b = b || {};
         var manual = b.manual || [], auto = b.auto || [], effective = b.effective || [], invalid = b.invalid || [];
         $('#gwFreePriority').val(manual.join('\n'));
+        var $c = $('#gwFreeCandidates').html('');
+        if (!auto.length) $c.append('<span style="font-size:12px;color:var(--text-5);">（当前没有免费模型）</span>');
+        auto.forEach(function (m) {
+            $c.append($('<span class="admin-badge" style="cursor:pointer;font-size:12px;">' + esc(m) + '</span>')
+                .attr('data-free-id', m)
+                .on('click', function () {
+                    var cur = ($('#gwFreePriority').val() || '').split(/\r?\n/)
+                        .map(function (s) { return $.trim(s); }).filter(function (s) { return !!s; });
+                    if (cur.indexOf(m) < 0) cur.push(m);
+                    $('#gwFreePriority').val(cur.join('\n'));
+                }));
+        });
         var html = '自动顺序：' + (auto.length ? esc(auto.join(' → ')) : '（暂无）');
         html += '<br>当前生效：' + (effective.length ? esc(effective.join(' → ')) : '（没有免费模型）');
         if (invalid.length) {

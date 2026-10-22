@@ -90,6 +90,8 @@ public class QoderClient {
 
     private volatile QoderCatalog cachedCatalog;
     private volatile long catalogAt;
+    private volatile Usage cachedUsage;
+    private volatile long usageAt;
     private volatile Credential cachedCred;
     private volatile long credAt;
 
@@ -298,13 +300,88 @@ public class QoderClient {
                 QoderCatalog cat = QoderCatalog.parse(chat, MODEL_ID_PREFIX);
                 cachedCatalog = cat;
                 catalogAt = System.currentTimeMillis();
-                log.info("[QODER] 模型目录已刷新：{} 个模型", cat.ids().size());
+                log.info("[QODER] 模型目录已刷新：{} 个模型，其中免费 {} 个",
+                        cat.ids().size(), cat.freeIds().size());
                 return cat;
             }
         } catch (Exception e) {
             log.warn("[QODER] 拉取模型目录失败：{}", e.getMessage());
             return cachedCatalog == null ? QoderCatalog.empty() : cachedCatalog;
         }
+    }
+
+    /* ==================== 额度 ==================== */
+
+    public static class Usage {
+        public double remaining;
+        public double total;
+        public String unit = "credits";
+        public String expiresAt = "";
+    }
+
+    /** 账号额度（10 分钟缓存；读不到返回 null 或上次缓存） */
+    public synchronized Usage usage() {
+        if (cachedUsage != null && System.currentTimeMillis() - usageAt < 10 * 60_000L) return cachedUsage;
+        Credential cred = credential();
+        if (cred == null) return cachedUsage;
+        try {
+            String url = "https://openapi.qoder.com.cn/sash/api/v2/me/usage";
+            Request req = new Request.Builder().url(url)
+                    .header("Authorization", "Bearer " + cred.token)
+                    .header("Accept", "application/json")
+                    .get().build();
+            try (Response resp = http.newCall(req).execute()) {
+                String text = resp.body() == null ? "" : resp.body().string();
+                if (resp.isSuccessful()) {
+                    Usage u = parseUsage(JSON.parseObject(text));
+                    if (u != null) {
+                        cachedUsage = u;
+                        usageAt = System.currentTimeMillis();
+                        log.info("[QODER] 额度：剩余 {} / 共 {} {}", u.remaining, u.total, u.unit);
+                        return u;
+                    }
+                } else {
+                    log.warn("[QODER] 读取额度失败 HTTP {}：{}", resp.code(), excerpt(text));
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[QODER] 读取额度异常：{}", e.getMessage());
+        }
+        return cachedUsage;
+    }
+
+    private static Usage parseUsage(JSONObject payload) {
+        if (payload == null) return null;
+        JSONObject root = payload;
+        if (payload.getJSONObject("qoderUsage") != null) root = payload.getJSONObject("qoderUsage");
+        else if (payload.get("data") instanceof JSONObject) root = payload.getJSONObject("data");
+        Usage u = new Usage();
+        u.expiresAt = root.getString("expires_at") != null ? root.getString("expires_at") : root.getString("expiresAt");
+        for (String key : new String[]{"user_quota", "userQuota", "add_on_quota", "addOnQuota"}) {
+            JSONObject bucket = root.getJSONObject(key);
+            if (bucket == null) continue;
+            double total = bucket.getDoubleValue("total");
+            double remaining = bucket.containsKey("remaining") ? bucket.getDoubleValue("remaining")
+                    : Math.max(0, total - bucket.getDoubleValue("used"));
+            u.total += total;
+            u.remaining += remaining;
+            String unit = bucket.getString("unit");
+            if (notBlank(unit)) u.unit = unit;
+        }
+        for (String key : new String[]{"dedicated_resource_packages", "dedicatedResourcePackages"}) {
+            JSONArray pkgs = root.getJSONArray(key);
+            if (pkgs == null) continue;
+            for (int i = 0; i < pkgs.size(); i++) {
+                JSONObject pkg = pkgs.getJSONObject(i);
+                if (pkg == null || Boolean.FALSE.equals(pkg.getBoolean("available"))) continue;
+                double total = pkg.getDoubleValue("total");
+                double remaining = pkg.containsKey("remaining") ? pkg.getDoubleValue("remaining")
+                        : Math.max(0, total - pkg.getDoubleValue("used"));
+                u.total += total;
+                u.remaining += remaining;
+            }
+        }
+        return u;
     }
 
     /* ==================== 对话 ==================== */

@@ -132,7 +132,13 @@ public class ProviderRegistry {
                 else if (anyCredits && credits <= 0) score = 800; // 有号但余额耗尽
                 else score = 1000 + Math.min(credits, 500);
             } else if (p.id().startsWith("qoder")) {
-                score = Boolean.TRUE.equals(st.get("signedIn")) ? 900 : -1;
+                if (!Boolean.TRUE.equals(st.get("signedIn"))) {
+                    score = -1;
+                } else {
+                    Object cr = st.get("credits");
+                    double credits = cr instanceof Number ? ((Number) cr).doubleValue() : -1;
+                    score = credits == 0 ? 850 : 900;
+                }
             } else {
                 score = 100;
             }

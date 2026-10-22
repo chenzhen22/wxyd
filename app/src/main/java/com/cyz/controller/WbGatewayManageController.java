@@ -208,8 +208,9 @@ public class WbGatewayManageController {
                 row.put("label", "备用通道 · " + (st.get("user") == null ? "" : st.get("user")));
                 row.put("source", "desktop");
                 row.put("domain", "");
-                row.put("credits", null);
-                row.put("creditsError", "按量计费");
+                Object credits = st.get("credits");
+                row.put("credits", credits instanceof Number ? credits : null);
+                row.put("creditsError", credits instanceof Number ? null : "按量计费");
                 row.put("expiresAtMs", st.get("expiresAtMs"));
                 if (Boolean.FALSE.equals(st.get("usable"))) row.put("credentialDeadUntilMs", 1L);
                 pool.add(row);

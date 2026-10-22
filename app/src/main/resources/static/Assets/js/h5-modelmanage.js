@@ -107,6 +107,18 @@
         b = b || {};
         var manual = b.manual || [], auto = b.auto || [], eff = b.effective || [], bad = b.invalid || [];
         $('#h5MmFree').val(manual.join('\n'));
+        var $c = $('#h5MmFreeCandidates').html('');
+        if (!auto.length) $c.html('<span style="font-size:11px;color:var(--text-5);">（当前没有免费模型）</span>');
+        auto.forEach(function (m) {
+            $('<span class="h5-btn-ghost h5-btn-sm" style="margin:0 6px 6px 0;">' + esc(m) + '</span>')
+                .on('click', function () {
+                    var cur = ($('#h5MmFree').val() || '').split(/\r?\n/)
+                        .map(function (s) { return $.trim(s); }).filter(function (s) { return !!s; });
+                    if (cur.indexOf(m) < 0) cur.push(m);
+                    $('#h5MmFree').val(cur.join('\n'));
+                })
+                .appendTo($c);
+        });
         var h = '自动：' + (auto.length ? esc(auto.join(' → ')) : '（暂无）');
         h += '<br>生效：' + (eff.length ? esc(eff.join(' → ')) : '（没有免费模型）');
         if (bad.length) h += '<br><span style="color:#f87171;">已失效（忽略）：' + esc(bad.join('、')) + '</span>';
@@ -250,6 +262,8 @@
             '<div id="h5MmSecFree" style="display:none;">' +
             '<div style="font-size:11px;color:var(--text-5);line-height:1.7;margin-bottom:6px;">模型开关关闭时的静默映射顺序，每行一个模型 id，越靠前越优先；留空或失效时按目录自动顺序。</div>' +
             '<textarea id="h5MmFree" spellcheck="false" style="width:100%;box-sizing:border-box;min-height:96px;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.7;"></textarea>' +
+            '<div style="font-size:11px;color:var(--text-5);margin-top:6px;">可选免费模型（点击加入）</div>' +
+            '<div id="h5MmFreeCandidates" style="display:flex;flex-wrap:wrap;margin:6px 0 4px;"></div>' +
             '<div id="h5MmFreeHint" style="font-size:11px;color:var(--text-5);line-height:1.8;margin:6px 0;"></div>' +
             '<div style="display:flex;gap:8px;"><span class="h5-btn-primary h5-btn-sm" id="h5MmFreeSave">保存优先级</span>' +
             '<span class="h5-btn-ghost h5-btn-sm" id="h5MmFreeReset">恢复自动</span></div></div>' +

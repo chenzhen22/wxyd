@@ -18,6 +18,8 @@ public class QoderCatalog implements ModelCatalog {
         public String key;
         public String name;
         public boolean alwaysThinking;
+        /** 目录标记为免费（is_free=true 或 price_factor=0） */
+        public boolean free;
     }
 
     private final List<ModelInfo> models;
@@ -46,6 +48,10 @@ public class QoderCatalog implements ModelCatalog {
                 m.id = prefix + name.replaceAll("\\s+", "");
                 JSONObject thinking = row.getJSONObject("thinking_config");
                 m.alwaysThinking = thinking != null && !thinking.containsKey("disabled");
+                boolean free = Boolean.TRUE.equals(row.getBoolean("is_free"));
+                Object price = row.get("price_factor");
+                if (!free && price instanceof Number && ((Number) price).doubleValue() == 0d) free = true;
+                m.free = free;
                 list.add(m);
             }
         }
@@ -69,14 +75,11 @@ public class QoderCatalog implements ModelCatalog {
         return out;
     }
 
-    /** Qoder 无免费模型概念：模型开关关闭时统一映射到 auto */
+    /** 目录标记为免费的模型（模型开关关闭时的静默映射目标） */
     @Override
     public List<String> freeIds() {
         List<String> out = new ArrayList<>();
-        for (ModelInfo m : models) {
-            if ("auto".equalsIgnoreCase(m.key)) out.add(m.id);
-        }
-        if (out.isEmpty() && !models.isEmpty()) out.add(models.get(0).id);
+        for (ModelInfo m : models) if (m.free) out.add(m.id);
         return out;
     }
 

@@ -5,7 +5,8 @@
 > **改完后必须同步更新本文件**，保持与实际代码一致。详见仓库根 `CLAUDE.md` 的
 > 「文档同步约束」一节。
 >
-> 文档基于 `V3.0` 分支、代码版本截至 2026-10-23（成长计划事件链补分：`WbTaskEventChains` + `events` job）。
+> 文档基于 `V3.0` 分支、代码版本截至 2026-10-23（成长计划事件链补分：`WbTaskEventChains` + `events` job；
+> 本次改动：用量表实际模型改记真实上游模型 + 账号池单账号启停开关 + 调用明细加 ID 列）。
 
 ---
 
@@ -211,6 +212,14 @@ for 每个候选模型:
 **冷却时长**（`WbAccountPool.java:37-42`）：模型级 429 冷却 **60s**；积分耗尽账号级
 **5min**；登录态判死 **30min**（只有重登能解）。
 
+**单账号启停开关（2026-10-23 新增）**：`WbPoolAccount.enabled`（默认 true），
+关闭后 `pick()` / `available()` 直接跳过该账号——模型调用不再使用它，但**展示、
+积分查询、令牌刷新不受影响**（bridgeStatus 的 healthy 计数也排除停用账号）。
+入口：管理端点 `gateway/admin/pool/enabled`（仅管理员，body: `{id, enabled}`）+
+PC「账号池」页签 / H5「账号池」卡片的「启用」勾选框。状态持久化到
+`data/wb-pool/accounts.json`（旧 store 无该字段视为启用），扫描合并/浏览器重登
+覆盖凭据时均保留原开关值。
+
 **判死（`credential_dead`）有两条独立触发链**，都收敛到 `onCredentialDead()`：
 
 1. 对话路径：`WbWorkBuddyProvider.open()` 内 session_dead → 刷新一次失败；
@@ -319,6 +328,8 @@ candidates = candidates(链头) 按「免费>到期早>账号多>积分多」排
       DB 的 `request_data`/`response_data` 旧列仅为存量回退，新记录不写
 - [ ] 新 provider 的 `ProviderStream.account()` 要返回可读的账号/来源
       （WorkBuddy=池账号 label，Qoder=凭据来源 config/device/desktop）
+- [ ] 流式与非流式的 `recordUsage` 均记 `stream.usedModel()`（真实上游模型），
+      不要回写 `publicModel`——对外响应才回写用户视角名
 - [ ] 详情接口 `gateway/admin/usage/detail`：文件优先，DB 旧列回退
 
 ---
@@ -327,8 +338,10 @@ candidates = candidates(链头) 按「免费>到期早>账号多>积分多」排
 
 1. **余额排序是近实时**：`resolve()` 与 `candidates()` 共用 `publicCatalog()` 60s TTL，
    provider 账号/额度各自 10 分钟缓存。刚用完积分可能要等一个 TTL 才会在排序里体现。
-2. **静默映射时用户完全无感**，`usage` 表里 `usedModel` 记的是 `publicModel`（用户视角），
-   排查实际用了哪个模型要看日志的「静默映射 ... 实际链=」。
+2. **静默映射时用户完全无感**：响应里的 `model` 字段回写 `publicModel`（用户视角）。
+   `usage` 表的 `usedModel` 自 2026-10-23 起改记**真实上游模型**（`stream.usedModel()`，
+   流式与非流式一致），调用明细页「实际模型」列即真实路由结果，无需再翻日志。
+   此前版本记录的是 `publicModel`，导致管理员误以为用户真的用上了请求的模型。
 3. `WbGatewayChatService.defaultOrFirst()` 是**死代码**，无调用方，清理时可删。
 4. 对外错误信息一律过 `sanitize()`，禁止把上游厂商名/域名透传给客户端。
 5. **前端拉取管理配置必须 `cache: false`**：`gateway/admin/config`、`gateway/admin/keys`
@@ -495,6 +508,23 @@ QoderAdminController）+ PC 自动化页签 Qoder 卡片 / H5 同卡片的
 对每账号 `listTasks` → 码在 `EVENT_CHAIN_CODES` 且未锁定未达标 → 构造链并发送
 （`sendChainsFor` switch）→ 发过则睡 `EVENT_SCORE_WAIT_MS=9s` 等评分落地，
 **同轮随后跑的 `tasks` job 领取批次即可当场收奖**。单链失败只记录不中断。
+
+**定向专家类（2026-10-23 实测补充）**：`WorkBuddy_Valorant` / `expert_use_maidehao`
+/ `expert_use_douyinyin` / `expert_use_shangjia_xuanchuan` / `expert_use_bowangwang`
+这类「体验某专家」任务，其专家 id **不在市场列表里**（翻 140 条无果），而是编码在
+任务行 `jump_url` 的 deeplink（`expertId=ex_XXX`）中。`sendChainsFor` 先解析
+`jump_url`，命中则走 `sendFixedExpertChain`（召唤 → 真实 X-Expert-Id 会话 → 使用事件），
+不进市场列表择取。已实测 5 个任务同日全部点亮并领奖（+300c +25e）。
+
+**令牌临期刷新**：任务端点不走网关 chat 路径的 `acquireAccount` 临期刷新，曾导致
+`tasks` 全程 `HTTP 401 非 JSON 响应`。`eligibleAccounts` 现按 xdpool `ensureFresh`
+补齐：`expiresAtMs` 临期（<60s）且有 refreshToken 时先 `refreshAccount` 再入列，
+刷新失败仍用旧令牌尝试（可能仍 401，但下次窗口会重试刷新）。
+
+**进度字段嵌套回退**：上游任务行的进度在嵌套 `progress:{current,target}`（部分任务
+顶层 `current/target` 恒 0），`runTasks`/`runEvents`/`sendExpertChains` 统一经
+`progressOf()` 读取（顶层缺失回退嵌套，照 xdpool `parseTask`）——否则达标任务
+永远判不出可领。
 
 ### 端点速查（新增部分）
 

@@ -40,6 +40,7 @@ public class WbCreditAutomationService {
     private final WbAccountPool accountPool;
     private final WbGrowthClient growth;
     private final WbTaskEventChains chains;
+    private final com.cyz.wbgateway.WbWorkBuddyClient client;
 
     private boolean enabled = true;
     private final Map<String, int[]> hours = new LinkedHashMap<>();
@@ -51,10 +52,12 @@ public class WbCreditAutomationService {
     private final Object lock = new Object();
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    public WbCreditAutomationService(WbAccountPool accountPool, WbGrowthClient growth, WbTaskEventChains chains) {
+    public WbCreditAutomationService(WbAccountPool accountPool, WbGrowthClient growth, WbTaskEventChains chains,
+                                     com.cyz.wbgateway.WbWorkBuddyClient client) {
         this.accountPool = accountPool;
         this.growth = growth;
         this.chains = chains;
+        this.client = client;
     }
 
     @Data
@@ -226,13 +229,27 @@ public class WbCreditAutomationService {
         return s;
     }
 
-    /** 参与自动化的账号：CN 域名 + 会话未判死（普通冷却不影响签到类任务） */
+    /** 参与自动化的账号：CN 域名 + 会话未判死（普通冷却不影响签到类任务）+ 临期令牌先刷新 */
     private List<WbPoolAccount> eligibleAccounts() {
         List<WbPoolAccount> out = new ArrayList<>();
         long now = System.currentTimeMillis();
         for (WbPoolAccount a : accountPool.statusRows().isEmpty() ? Collections.<WbPoolAccount>emptyList() : listAccounts()) {
             if (a.getCredential().isGlobal()) continue; // global 无成长体系
             if (a.getCredentialDeadUntilMs() > now) continue;
+            // xdpool ensureFresh：任务端点不吃网关的 acquireAccount 临期刷新，这里补齐——
+            // 否则 token 过期后 tasks 全程 401「HTTP 401 非 JSON 响应」
+            WbPoolCredential c = a.getCredential();
+            boolean expiring = c.getExpiresAtMs() == null || c.getExpiresAtMs() <= 0
+                    || c.getExpiresAtMs() < now + 60_000L;
+            if (expiring && c.getRefreshToken() != null && !c.getRefreshToken().isEmpty()) {
+                try {
+                    client.refreshAccount(a.getId());
+                    WbPoolAccount fresh = accountPool.get(a.getId());
+                    if (fresh != null) a = fresh;
+                } catch (Exception e) {
+                    log.warn("[WBAUTO] {} 令牌刷新失败（继续用旧令牌尝试）：{}", a.getLabel(), e.getMessage());
+                }
+            }
             out.add(a);
         }
         return out;
@@ -261,6 +278,19 @@ public class WbCreditAutomationService {
         return growth.growthStreakDays(acc.getCredential());
     }
 
+    /** 进度读取：优先顶层 target/current，缺失回退嵌套 progress.{current,target}（xdpool parseTask） */
+    private static long[] progressOf(JSONObject t) {
+        long target = t.getLongValue("target"), current = t.getLongValue("current");
+        if (target == 0 && current == 0) {
+            JSONObject p = t.getJSONObject("progress");
+            if (p != null) {
+                current = p.getLongValue("current");
+                target = p.getLongValue("target");
+            }
+        }
+        return new long[]{current, target};
+    }
+
     /** 报名未报名且未锁定的任务 → 重读 → 领取已达标的奖励；返回 [claimed, credit, energy] */
     private long[] runTasks(WbPoolAccount acc, List<String> detail) throws Exception {
         WbPoolCredential c = acc.getCredential();
@@ -281,7 +311,8 @@ public class WbCreditAutomationService {
             JSONObject t = refreshed.getJSONObject(i);
             if (t == null) continue;
             boolean alreadyClaimed = "claimed".equals(t.getString("accept_status"));
-            long target = t.getLongValue("target"), current = t.getLongValue("current");
+            long[] prog = progressOf(t);
+            long target = prog[1], current = prog[0];
             boolean claimable = !alreadyClaimed && target > 0 && current >= target && !t.getBooleanValue("locked");
             if (!claimable) continue;
             JSONObject reward = growth.claimTaskReward(c, t.getString("task_code"));
@@ -309,7 +340,8 @@ public class WbCreditAutomationService {
             JSONObject t = tasks.getJSONObject(i);
             if (t == null) continue;
             String code = t.getString("task_code");
-            long target = t.getLongValue("target"), current = t.getLongValue("current");
+            long[] prog = progressOf(t);
+            long target = prog[1], current = prog[0];
             if (!EVENT_CHAIN_CODES.contains(code)) continue;
             if (t.getBooleanValue("locked") || (target > 0 && current >= target)) continue;
             try {
@@ -330,6 +362,13 @@ public class WbCreditAutomationService {
     /** 按任务码构造并发送链，返回发送条数 */
     private int sendChainsFor(WbPoolAccount acc, WbPoolCredential c, String code, JSONObject task,
                               List<String> detail) throws Exception {
+        // 「体验某专家」类（WorkBuddy_Valorant / expert_use_*）：专家 id 编码在 jump_url
+        // deeplink（expertId=ex_XXX）而非市场列表，须按任务行定向召唤
+        String jumpExpertId = expertIdFromJumpUrl(task);
+        if (jumpExpertId != null) {
+            String name = expertNameFromTitle(task);
+            return sendFixedExpertChain(acc, c, code, jumpExpertId, name, detail);
+        }
         List<WbTaskEventChains.Chain> chains;
         switch (code) {
             case "Buddy_App":
@@ -389,8 +428,8 @@ public class WbCreditAutomationService {
     /** expert 家族：召唤事件 + 真实会话（X-Expert-Id）+ 使用事件；只补缺口，链间留间隔防合并计分 */
     private int sendExpertChains(WbPoolAccount acc, WbPoolCredential c, String expertType,
                                  JSONObject task, List<String> detail) throws Exception {
-        long target = task.getLongValue("target"), current = task.getLongValue("current");
-        int needed = (int) Math.max(0, target - current);
+        long[] prog = progressOf(task);
+        int needed = (int) Math.max(0, prog[1] - prog[0]);
         if (needed == 0) return 0;
         JSONArray experts = growth.marketExpertList(c, expertType);
         int sent = 0;
@@ -460,11 +499,53 @@ public class WbCreditAutomationService {
         }
     }
 
-    /** 事件链任务码全集（xdpool EVENT_CHAIN_BUILDERS） */
+    /** 事件链任务码全集（xdpool EVENT_CHAIN_BUILDERS + 2026-10 新增体验专家类） */
     private static final Set<String> EVENT_CHAIN_CODES = new LinkedHashSet<>(Arrays.asList(
             "Buddy_App", "Buddy_App_QQ", "create_canvas", "automation_1", "RichMeow_Chat",
             "playbook_prompt", "template_5", "Hp_Appearance", "Library_read", "skill_1",
-            "expert_5", "Expert_team_use_3", "Expert_lighthouse"));
+            "expert_5", "Expert_team_use_3", "Expert_lighthouse",
+            "WorkBuddy_Valorant", "expert_use_maidehao", "expert_use_douyinyin",
+            "expert_use_shangjia_xuanchuan", "expert_use_bowangwang"));
+
+    /** 从任务行 jump_url 提取固定专家 id（deeplink expertId=ex_XXX）；无则 null */
+    private static String expertIdFromJumpUrl(JSONObject task) {
+        String url = task.getString("jump_url");
+        if (url == null || url.isEmpty()) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("expertId=(ex_[A-Za-z0-9]+)").matcher(url);
+        return m.find() ? m.group(1) : null;
+    }
+
+    /** 从任务标题「体验「XXX」」里取专家名；取不到就用任务码 */
+    private static String expertNameFromTitle(JSONObject task) {
+        String title = task.getString("title");
+        if (title == null || title.isEmpty()) return task.getString("task_code");
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("「([^」]+)」").matcher(title);
+        return m.find() ? m.group(1) : title;
+    }
+
+    /** 定向专家链：召唤 → 真实会话（X-Expert-Id）→ 使用事件（新增体验专家类专用） */
+    private int sendFixedExpertChain(WbPoolAccount acc, WbPoolCredential c, String code,
+                                     String expertId, String expertName, List<String> detail) throws Exception {
+        JSONObject expert = new JSONObject();
+        expert.put("expertId", expertId);
+        expert.put("expertType", "agent");
+        expert.put("displayName", expertName);
+        expert.put("profession", "");
+        expert.put("version", "1.0.0");
+        expert.put("categories", new JSONArray());
+        growth.reportDesktopEvents(c, WbTaskEventChains.expertSummonEvents(expert));
+        Thread.sleep(500);
+        JSONObject chat = growth.openConversation(c, expertId);
+        if (chat == null) throw new IllegalStateException("无法打开真实会话（" + expertName + "）");
+        String convId = chat.getString("conversationId");
+        String reqId = chat.getString("requestId");
+        JSONArray events = WbTaskEventChains.expertChatEvents(expert, convId, reqId);
+        events.add(WbTaskEventChains.expertActualUseEvent(expert, convId, reqId, "craft"));
+        growth.reportDesktopEvents(c, events);
+        detail.add(acc.getLabel() + "：" + code + " 定向链已发（" + expertName + "）");
+        return 1;
+    }
 
     /** 连登兑换 + 抽奖；返回本次兑换的积分 */
     private long runStreak(WbPoolAccount acc, List<String> detail) throws Exception {

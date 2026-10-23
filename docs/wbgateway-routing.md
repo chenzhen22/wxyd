@@ -5,7 +5,7 @@
 > **改完后必须同步更新本文件**，保持与实际代码一致。详见仓库根 `CLAUDE.md` 的
 > 「文档同步约束」一节。
 >
-> 文档基于 `V3.0` 分支、代码版本截至 2026-10-23（含提交 `8a74e20` 静默映射失败续切）。
+> 文档基于 `V3.0` 分支、代码版本截至 2026-10-23（成长计划事件链补分：`WbTaskEventChains` + `events` job）。
 
 ---
 
@@ -56,6 +56,9 @@ ProviderRegistry  resolve() / candidates()
 | `pool/WbAccountPool.java` | 多账号池：扫描/合并/冷却/持久化/注入 |
 | `pool/WbAtRestKeyService.java` | at-rest 密钥（账号池读取用） |
 | `pool/WbAuthParser.java` | 桌面 App auth 文件解密解析 |
+| `pool/WbGrowthClient.java` | 成长体系端点（签到/任务/连登/猫猫/补偿）+ **事件链上报**（desktop/web 指纹、外观、专家市场、真实会话打开） |
+| `pool/WbTaskEventChains.java` | 客户端评分任务的**事件链构造器**（xdpool task-events.ts 移植，纯数据） |
+| `pool/WbCreditAutomationService.java` | 积分自动化调度（checkin/report/events/tasks/streak/travel/compensation 七类 job） |
 | `qoder/QoderProvider.java` | Qoder 适配器（单账号 + 双层 SSE + prefetch） |
 | `qoder/QoderClient.java` | Qoder HTTP 客户端、COSY 协议、签到；凭据来源 config > device > desktop |
 | `qoder/QoderDeviceLoginService.java` | Qoder device login（PKCE + poll + 凭据持久化 + rotation merge 刷新） |
@@ -453,3 +456,59 @@ QoderAdminController）+ PC 自动化页签 Qoder 卡片 / H5 同卡片的
 - 管理页（PC/H5）Qoder 卡片加「扫码/网页登录」按钮 → 弹二维码或跳转链接 →
   轮询至 authorized → 刷新状态；
 - PKCE verifier 属于秘密，**绝不落日志**（协议层注释反复强调 poll URL 带 verifier）。
+
+---
+
+## 十三、成长计划「事件链」补分（2026-10-23，xdpool 移植）
+
+### 背景与结论
+
+成长计划任务中心新增一批**客户端评分任务**（打开应用/创建画布/用五个模板/召唤专家…）。
+它们看似只能真人操作，但**评分器不看客户端，只看事件流**：以正确的指纹重放同样的事件链即计分。
+移植自 dsh-workbuddy-xdpool 的 `scheduler.ts sendEventChains` / `task-events.ts`，
+每条链均对线上实测过（见 xdpool 注释里的实测记录）。
+
+### 硬约束（违反 = 200 收下但静默丢弃，最难排查）
+
+1. **指纹族=通道**，发错通道等于没发：
+   - `Buddy_App*` / `create_canvas` / `automation_1` / `RichMeow_Chat` / `playbook_prompt`
+     / `template_5` / `Hp_Appearance` / `skill_1` / expert 家族 → **desktop 指纹**，
+     `chatBase + /v2/report`（桌面 UA，`X-Product: SaaS`）；
+   - `Library_read` → **只认 web 指纹**：`https://www.workbuddy.cn/v2/report` +
+     `x-client-platform: web` + 浏览器 UA（`WbGrowthClient.reportWebEvent`）。
+2. **desktop 指纹字段整表携带**（`desktopFingerprint`），machineId/sessionId 由 uid 派生
+   （`sha256(salt+":"+uid)` 前 36 位）——同账号同机器，每次随机反而是异常信号。
+3. **skill/expert 类必须挂真实会话**：`openConversation` 先打一条真 `/v2/chat/completions`
+   （SSE，只扫前 1MB 提取服务端 `"id":"(cmb-)?[32位hex]"`），本地编造的 requestId 不计分。
+4. **skill_1** 还要求 `chat_message_response.finishReason = 'tool_calls'`（技能被当工具加载）。
+5. **expert_5/Expert_team_use_3**：召唤事件只是曝光、use 事件单独发也不计分；只有
+   「召唤三事件 → 真实 X-Expert-Id 会话 → expert_actual_use」整链算数；且**背靠背使用被合并
+   计一**，链间必须隔 `EXPERT_GAP_MS=6s`，只补 `target-current` 缺口。
+6. **Expert_lighthouse**：同 expert 流程，但 use 事件必须 `mode:'LOCAL'`、`type:''`、`cost:0`。
+7. **template_5** 计 distinct `template_used`，5 条不同模板（id 无所谓，上游不校验存在性）。
+8. **Hp_Appearance**：事件不够，须先 `POST /v2/user-asset/appearance/set`（PATCH 皮肤）
+   再报 `appearance_skin_apply`（source=settings_close），等 2s。
+
+### 调度接入
+
+`WbCreditAutomationService` 新增 **`events`** job（默认 10/11 点档，`KINDS` 顺序在 `tasks` 之前）：
+对每账号 `listTasks` → 码在 `EVENT_CHAIN_CODES` 且未锁定未达标 → 构造链并发送
+（`sendChainsFor` switch）→ 发过则睡 `EVENT_SCORE_WAIT_MS=9s` 等评分落地，
+**同轮随后跑的 `tasks` job 领取批次即可当场收奖**。单链失败只记录不中断。
+
+### 端点速查（新增部分）
+
+| 端点 | 用途 |
+|------|------|
+| `{chatBase}/v2/report` | desktop 指纹事件批量上报（body=事件数组，逐条 merge 指纹） |
+| `https://www.workbuddy.cn/v2/report` | web 指纹事件（`x-client-platform: web`，body=单事件数组） |
+| `{chatBase}/v2/user-asset/appearance/set` | 应用外观皮肤（`{kind:'theme', resource_key}`） |
+| `{chatBase}/portal/operation-platform/market/expert/list` | 专家市场（评分器校验 expert id 真实存在，编造不计分） |
+| `{chatBase}/v2/chat/completions`（`X-Expert-Id` 头） | 真实会话（取服务端 id；答案内容无关） |
+
+### 检查清单：改事件链
+
+- [ ] 新增任务码先确认其指纹族（web 任务用 desktop 通道发=白报），加进 `EVENT_CHAIN_CODES`
+- [ ] 新链的事件形状照真实客户端抓包整表搬运，不要精简字段
+- [ ] expert 家族改动必须考虑间隔（合并计分）与真实会话 id
+- [ ] 改完用单个账号手动「立即执行 events」验证任务进度回读（`current` 上涨）再提交

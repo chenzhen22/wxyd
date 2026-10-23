@@ -443,7 +443,7 @@
 
     /* ================= 积分自动化 ================= */
 
-    var AUTO_KIND_LABEL = { checkin: '签到', report: '活跃上报', tasks: '任务领奖', streak: '连登兑换+抽奖', travel: '猫猫旅行', compensation: '故障补偿' };
+    var AUTO_KIND_LABEL = { checkin: '签到', report: '活跃上报', events: '事件链补分', tasks: '任务领奖', streak: '连登兑换+抽奖', travel: '猫猫旅行', compensation: '故障补偿' };
 
     function renderAuto(b) {
         b = b || state.autoData || {};

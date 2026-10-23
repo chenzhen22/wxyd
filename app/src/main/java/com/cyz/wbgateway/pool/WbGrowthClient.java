@@ -14,6 +14,7 @@ import okhttp3.Response;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -233,6 +234,240 @@ public class WbGrowthClient {
         events.add(event);
         envelope(billing(c, billingBase(c) + "/v2/report")
                 .post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), events.toJSONString())), "report");
+    }
+
+    /* ==================== 事件链上报（xdpool reportDesktopEvents/reportWebEvent 移植） ==================== */
+
+    /**
+     * 桌面指纹（照 xdpool desktopFingerprint 整表搬运，字段不可裁剪）。
+     * 上游对部分字段做 200-接受-静默丢弃，缺字段等于白报。
+     * machineId/sessionId 由 uid 派生（同账号同机器），随机反而是异常信号。
+     */
+    public JSONObject desktopFingerprint(WbPoolCredential c) {
+        String uid = c.getUid() == null ? "" : c.getUid();
+        String nickname = c.getNickname() == null ? "" : c.getNickname();
+        long now = System.currentTimeMillis();
+        JSONObject f = new JSONObject();
+        f.put("timezone", "Asia/Shanghai");
+        f.put("reportDelay", 2000);
+        f.put("userId", uid);
+        f.put("username", nickname);
+        f.put("userNickname", nickname);
+        f.put("product", "SaaS");
+        f.put("releaseDate", 1789036585355L);
+        f.put("commit", "5f9692923c93033111c51ad7b003eb80204a9b75");
+        f.put("ideName", "WorkBuddy");
+        f.put("ideType", "WorkBuddy");
+        f.put("ideVersion", clientVersion);
+        f.put("machineId", deriveDeviceId(uid, "machine"));
+        f.put("sessionId", deriveDeviceId(uid, "session"));
+        f.put("extName", "workbuddy-desktop");
+        f.put("extVersion", clientVersion);
+        f.put("os", "win32");
+        f.put("arch", "x64");
+        f.put("osVersion", "10.0.26220");
+        f.put("cpuCores", 20);
+        f.put("memorySize", 24);
+        f.put("timestamp", now);
+        f.put("presentAt", now);
+        return f;
+    }
+
+    /** sha256(salt + ":" + uid) 取前 36 位（xdpool deriveDeviceId） */
+    static String deriveDeviceId(String uid, String salt) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest((salt + ":" + uid).getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : digest) hex.append(String.format("%02x", b));
+            return hex.substring(0, 36);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 桌面指纹事件批量上报（chatBase /v2/report，桌面 UA）。
+     * 不同任务按指纹族校验：desktop 指纹的事件用 web 通道发=收下但不计分，通道是链的一部分。
+     */
+    public void reportDesktopEvents(WbPoolCredential c, JSONArray events) throws Exception {
+        if (events == null || events.isEmpty()) return;
+        JSONObject fp = desktopFingerprint(c);
+        JSONArray body = new JSONArray();
+        for (int i = 0; i < events.size(); i++) {
+            JSONObject e = events.getJSONObject(i);
+            JSONObject merged = new JSONObject();
+            merged.putAll(fp);
+            if (e != null) merged.putAll(e);
+            body.add(merged);
+        }
+        Request.Builder rb = new Request.Builder().url(chatBase(c) + "/v2/report")
+                .header("Authorization", "Bearer " + c.getAccessToken())
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .header("User-Agent", "WorkBuddy/" + clientVersion + " WorkBuddy/" + clientVersion + " CLI/2.137.1")
+                .header("X-Product", "SaaS")
+                .header("X-Request-ID", deriveDeviceId(c.getUid() == null ? "" : c.getUid(), "req")
+                        + System.currentTimeMillis() % 1_000_000L);
+        if (c.getUid() != null && !c.getUid().isEmpty()) rb.header("X-User-Id", c.getUid());
+        if (c.getDomain() != null && !c.getDomain().isEmpty()) rb.header("X-Domain", c.getDomain());
+        rb.post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), body.toJSONString()));
+        envelope(rb, "report-desktop-events");
+    }
+
+    /**
+     * WEB 指纹单事件上报（www.workbuddy.cn/v2/report，x-client-platform: web）。
+     * Library_read 等页面行为任务只认 web 指纹。
+     */
+    public void reportWebEvent(WbPoolCredential c, String eventCode, String pageUrl,
+                               String elementId, String elementName) throws Exception {
+        String ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36";
+        JSONObject event = new JSONObject();
+        event.put("eventCode", eventCode);
+        event.put("timestamp", System.currentTimeMillis());
+        event.put("reportDelay", 0);
+        event.put("pageURL", pageUrl);
+        event.put("elementId", elementId);
+        event.put("elementName", elementName);
+        event.put("os", "Win32");
+        event.put("arch", "");
+        event.put("osVersion", "10.0");
+        event.put("userAgent", ua);
+        event.put("machineId", deriveDeviceId(c.getUid() == null ? "" : c.getUid(), "webmachine"));
+        event.put("userId", c.getUid() == null ? "" : c.getUid());
+        event.put("userNickname", c.getNickname() == null ? "" : c.getNickname());
+        event.put("enterpriseId", c.getEnterpriseId() == null ? "" : c.getEnterpriseId());
+        JSONArray body = new JSONArray();
+        body.add(event);
+        Request.Builder rb = new Request.Builder().url("https://www.workbuddy.cn/v2/report")
+                .header("Authorization", "Bearer " + c.getAccessToken())
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .header("x-client-platform", "web")
+                .header("Origin", "https://www.workbuddy.cn")
+                .header("Referer", pageUrl)
+                .header("User-Agent", ua);
+        if (c.getUid() != null && !c.getUid().isEmpty()) rb.header("X-User-Id", c.getUid());
+        rb.post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), body.toJSONString()));
+        envelope(rb, "report-web-event");
+    }
+
+    /** 应用外观皮肤（Hp_Appearance 前置：先 PATCH 皮肤再报事件才是真实客户端行为） */
+    public void setAppearanceTheme(WbPoolCredential c, String resourceKey) throws Exception {
+        JSONObject body = new JSONObject();
+        body.put("kind", "theme");
+        body.put("resource_key", resourceKey);
+        Request.Builder rb = new Request.Builder().url(chatBase(c) + "/v2/user-asset/appearance/set")
+                .header("Authorization", "Bearer " + c.getAccessToken())
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .header("User-Agent", "WorkBuddy/" + clientVersion + " WorkBuddy/" + clientVersion + " CLI/2.137.1")
+                .header("X-Product", "SaaS");
+        if (c.getUid() != null && !c.getUid().isEmpty()) rb.header("X-User-Id", c.getUid());
+        rb.post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), body.toJSONString()));
+        envelope(rb, "appearance-set");
+    }
+
+    /** 专家市场列表（评分器校验 expert id 在平台上真实存在，编造 id 不计分） */
+    public JSONArray marketExpertList(WbPoolCredential c, String expertType) throws Exception {
+        JSONObject request = new JSONObject();
+        request.put("page", 1);
+        request.put("page_size", 20);
+        request.put("sort_by", "reco_rank");
+        request.put("sort_order", "desc");
+        if (expertType != null && !expertType.isEmpty()) request.put("expert_type", expertType);
+        JSONObject data = envelope(chat(c, chatBase(c) + "/portal/operation-platform/market/expert/list")
+                .post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), request.toJSONString())),
+                "market-expert-list");
+        JSONArray raw = data.getJSONArray("experts");
+        JSONArray out = new JSONArray();
+        if (raw == null) return out;
+        for (int i = 0; i < raw.size(); i++) {
+            JSONObject e = raw.getJSONObject(i);
+            if (e == null || e.getString("expert_id") == null || e.getString("expert_id").isEmpty()) continue;
+            JSONObject m = new JSONObject();
+            m.put("expertId", e.getString("expert_id"));
+            m.put("expertType", e.getString("expert_type") == null ? "" : e.getString("expert_type"));
+            m.put("displayName", e.getString("display_name_zh") == null ? "" : e.getString("display_name_zh"));
+            m.put("profession", e.getString("profession_zh") == null ? "" : e.getString("profession_zh"));
+            m.put("version", e.getString("version") == null ? "" : e.getString("version"));
+            JSONArray cats = new JSONArray();
+            JSONArray rawCats = e.getJSONArray("categories");
+            if (rawCats != null) for (int j = 0; j < rawCats.size(); j++) cats.add(rawCats.getString(j));
+            m.put("categories", cats);
+            out.add(m);
+        }
+        return out;
+    }
+
+    /**
+     * 打开一条真实桌面会话并返回服务端分配的 ids（xdpool openConversation）。
+     * expert/skill 类任务的事件要挂到服务端见过的会话上，本地编造的 requestId 不计分。
+     * 只读 SSE 头部拿 id，答案内容无关紧要。失败返回 null（调用方按 best-effort 处理）。
+     */
+    public JSONObject openConversation(WbPoolCredential c, String expertId) {
+        String conversationId = "wb2auto-conv-" + Long.toString(System.currentTimeMillis(), 36)
+                + "-" + UUID.randomUUID().toString().substring(0, 6);
+        JSONObject bodyObj = new JSONObject();
+        bodyObj.put("model", "fast-model");
+        JSONArray messages = new JSONArray();
+        JSONObject sys = new JSONObject();
+        sys.put("role", "system");
+        sys.put("content", "You are a helpful assistant. 当前处于中文环境，使用简体中文回答。");
+        JSONObject user = new JSONObject();
+        user.put("role", "user");
+        user.put("content", "1+1等于几？直接回答。");
+        messages.add(sys);
+        messages.add(user);
+        bodyObj.put("messages", messages);
+        bodyObj.put("agent", "cli");
+        bodyObj.put("temperature", 1);
+        bodyObj.put("stream", true);
+        JSONObject streamOptions = new JSONObject();
+        streamOptions.put("include_usage", true);
+        bodyObj.put("stream_options", streamOptions);
+
+        StringBuilder sse = new StringBuilder();
+        try {
+            Request.Builder rb = chat(c, chatBase(c) + "/v2/chat/completions")
+                    .header("Accept", "text/event-stream")
+                    .header("User-Agent", "WorkBuddy/" + clientVersion + " WorkBuddy/" + clientVersion + " CLI/2.137.1")
+                    .header("X-Conversation-ID", conversationId)
+                    .header("X-Request-ID", System.currentTimeMillis() + "000000")
+                    .header("X-Agent-Intent", "craft")
+                    .header("X-Agent-Type", "main")
+                    .header("x-codebuddy-request", "1");
+            if (expertId != null && !expertId.isEmpty()) rb.header("X-Expert-Id", expertId);
+            rb.post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bodyObj.toJSONString()));
+            Response resp = http.newCall(rb.build()).execute();
+            try (Response r = resp) {
+                if (!r.isSuccessful() || r.body() == null) return null;
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(r.body().byteStream(), StandardCharsets.UTF_8));
+                char[] buf = new char[8192];
+                int n;
+                int scanned = 0;
+                // 服务端请求 id：("id":"cmb-|32位hex")；只扫前 1MB（xdpool SSE_SCAN_LIMIT）
+                java.util.regex.Pattern idPattern =
+                        java.util.regex.Pattern.compile("\"id\"\\s*:\\s*\"((?:cmb-)?[0-9a-f]{32})\"");
+                while (scanned < (1 << 20) && (n = reader.read(buf)) > 0) {
+                    sse.append(buf, 0, n);
+                    scanned += n;
+                    java.util.regex.Matcher m = idPattern.matcher(sse);
+                    if (m.find()) {
+                        JSONObject out = new JSONObject();
+                        out.put("conversationId", conversationId);
+                        out.put("requestId", m.group(1));
+                        return out;
+                    }
+                    // 只留尾部，避免 matcher 反复扫全长
+                    if (sse.length() > 65536) sse.delete(0, sse.length() - 4096);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("[WBGROWTH] openConversation 失败：{}", e.getMessage());
+        }
+        return null;
     }
 
     /* ==================== 成长体系（/activity/growth/*，无 /v2） ==================== */

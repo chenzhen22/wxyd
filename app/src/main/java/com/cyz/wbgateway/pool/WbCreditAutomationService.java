@@ -32,13 +32,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class WbCreditAutomationService {
 
-    private static final List<String> KINDS = Arrays.asList("checkin", "report", "tasks", "streak", "travel", "compensation");
+    private static final List<String> KINDS = Arrays.asList("checkin", "report", "events", "tasks", "streak", "travel", "compensation");
     private static final long ACCOUNT_DELAY_MS = 800;
     /** 每次领奖之间的间隔（上游对连发敏感） */
     private static final long CLAIM_DELAY_MS = 800;
 
     private final WbAccountPool accountPool;
     private final WbGrowthClient growth;
+    private final WbTaskEventChains chains;
 
     private boolean enabled = true;
     private final Map<String, int[]> hours = new LinkedHashMap<>();
@@ -50,9 +51,10 @@ public class WbCreditAutomationService {
     private final Object lock = new Object();
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    public WbCreditAutomationService(WbAccountPool accountPool, WbGrowthClient growth) {
+    public WbCreditAutomationService(WbAccountPool accountPool, WbGrowthClient growth, WbTaskEventChains chains) {
         this.accountPool = accountPool;
         this.growth = growth;
+        this.chains = chains;
     }
 
     @Data
@@ -77,6 +79,8 @@ public class WbCreditAutomationService {
         }
         hours.put("checkin", new int[]{9});
         hours.put("report", new int[]{10});
+        // events 在 tasks 之前跑：事件链计分要几秒落地，随后 tasks 的领取批次当场收奖
+        hours.put("events", new int[]{10, 11});
         hours.put("tasks", new int[]{11});
         hours.put("streak", new int[]{12});
         hours.put("travel", new int[]{9, 21});
@@ -155,6 +159,10 @@ public class WbCreditAutomationService {
                     case "report": {
                         int days = runReport(acc);
                         detail.add(acc.getLabel() + "：连登 " + days + " 天");
+                        break;
+                    }
+                    case "events": {
+                        runEvents(acc, detail);
                         break;
                     }
                     case "tasks": {
@@ -287,6 +295,176 @@ public class WbCreditAutomationService {
         }
         return new long[]{claimed, credit, energy};
     }
+
+    /**
+     * 事件链补分（xdpool sendEventChains 移植）：对仍未达标且未锁定的客户端评分任务，
+     * 构造并上报对应事件链。之后 tasks 批次的领奖即可当场收数（评分几秒内落地）。
+     * 每条链失败只影响自己，不中断整轮。
+     */
+    private void runEvents(WbPoolAccount acc, List<String> detail) throws Exception {
+        WbPoolCredential c = acc.getCredential();
+        JSONArray tasks = growth.listTasks(c);
+        boolean sentAnything = false;
+        for (int i = 0; i < tasks.size(); i++) {
+            JSONObject t = tasks.getJSONObject(i);
+            if (t == null) continue;
+            String code = t.getString("task_code");
+            long target = t.getLongValue("target"), current = t.getLongValue("current");
+            if (!EVENT_CHAIN_CODES.contains(code)) continue;
+            if (t.getBooleanValue("locked") || (target > 0 && current >= target)) continue;
+            try {
+                int sent = sendChainsFor(acc, c, code, t, detail);
+                if (sent > 0) sentAnything = true;
+            } catch (Exception e) {
+                detail.add("⚠ " + acc.getLabel() + "：事件链 " + code + " 失败 " + brief(e.getMessage()));
+                log.warn("[WBAUTO] events {} {} 失败：{}", acc.getLabel(), code, e.getMessage());
+            }
+        }
+        // 等评分落地，同轮随后的 tasks 批次即可领
+        if (sentAnything) {
+            detail.add(acc.getLabel() + "：事件链已发送，等待评分落地");
+            Thread.sleep(WbTaskEventChains.EVENT_SCORE_WAIT_MS);
+        }
+    }
+
+    /** 按任务码构造并发送链，返回发送条数 */
+    private int sendChainsFor(WbPoolAccount acc, WbPoolCredential c, String code, JSONObject task,
+                              List<String> detail) throws Exception {
+        List<WbTaskEventChains.Chain> chains;
+        switch (code) {
+            case "Buddy_App":
+            case "Buddy_App_QQ":
+                chains = Collections.singletonList(WbTaskEventChains.buddyAppChain());
+                break;
+            case "create_canvas":
+                chains = Collections.singletonList(WbTaskEventChains.canvasChain());
+                break;
+            case "automation_1":
+                chains = Collections.singletonList(WbTaskEventChains.automationChain());
+                break;
+            case "RichMeow_Chat":
+                chains = Collections.singletonList(WbTaskEventChains.chatChain());
+                break;
+            case "playbook_prompt":
+                chains = Collections.singletonList(WbTaskEventChains.playbookChain());
+                break;
+            case "template_5":
+                chains = WbTaskEventChains.templateChains();
+                break;
+            case "Hp_Appearance":
+                // 真实客户端行为是先 PATCH 皮肤再在设置关闭时报事件，只有事件不够
+                growth.setAppearanceTheme(c, WbTaskEventChains.APPEARANCE_THEME_KEY);
+                Thread.sleep(2_000);
+                chains = Collections.singletonList(WbTaskEventChains.appearanceChain());
+                break;
+            case "Library_read":
+                chains = Collections.singletonList(WbTaskEventChains.libraryReadChain());
+                break;
+            case "skill_1": {
+                JSONObject chat = growth.openConversation(c, null);
+                if (chat == null) throw new IllegalStateException("无法打开真实会话");
+                chains = Collections.singletonList(
+                        WbTaskEventChains.skillChain(chat.getString("conversationId"), chat.getString("requestId")));
+                break;
+            }
+            case "expert_5":
+                return sendExpertChains(acc, c, "agent", task, detail);
+            case "Expert_team_use_3":
+                return sendExpertChains(acc, c, "team", task, detail);
+            case "Expert_lighthouse":
+                return sendLighthouseChain(acc, c, detail);
+            default:
+                return 0;
+        }
+        int sent = 0;
+        for (WbTaskEventChains.Chain chain : chains) {
+            sendChain(c, chain);
+            sent++;
+            Thread.sleep(500);
+        }
+        if (sent > 0) detail.add(acc.getLabel() + "：" + code + " 已发 " + sent + " 条链（" + task.getString("title") + "）");
+        return sent;
+    }
+
+    /** expert 家族：召唤事件 + 真实会话（X-Expert-Id）+ 使用事件；只补缺口，链间留间隔防合并计分 */
+    private int sendExpertChains(WbPoolAccount acc, WbPoolCredential c, String expertType,
+                                 JSONObject task, List<String> detail) throws Exception {
+        long target = task.getLongValue("target"), current = task.getLongValue("current");
+        int needed = (int) Math.max(0, target - current);
+        if (needed == 0) return 0;
+        JSONArray experts = growth.marketExpertList(c, expertType);
+        int sent = 0;
+        for (int i = 0; i < experts.size() && sent < needed; i++) {
+            JSONObject expert = experts.getJSONObject(i);
+            try {
+                growth.reportDesktopEvents(c, WbTaskEventChains.expertSummonEvents(expert));
+                Thread.sleep(500);
+                JSONObject chat = growth.openConversation(c, expert.getString("expertId"));
+                if (chat == null) continue;
+                String convId = chat.getString("conversationId");
+                String reqId = chat.getString("requestId");
+                JSONArray events = WbTaskEventChains.expertChatEvents(expert, convId, reqId);
+                events.add(WbTaskEventChains.expertActualUseEvent(expert, convId, reqId, "craft"));
+                growth.reportDesktopEvents(c, events);
+                sent++;
+                detail.add(acc.getLabel() + "：expert 使用 " + expert.getString("displayName") + "（" + sent + "/" + needed + "）");
+            } catch (Exception e) {
+                log.warn("[WBAUTO] events {} expert {} 失败：{}", acc.getLabel(), expert.getString("expertId"), e.getMessage());
+            }
+            Thread.sleep(WbTaskEventChains.EXPERT_GAP_MS);
+        }
+        return sent;
+    }
+
+    /** Expert_lighthouse：同 expert 流程，但 use 事件要对齐 mode=LOCAL、type 空、cost=0 */
+    private int sendLighthouseChain(WbPoolAccount acc, WbPoolCredential c, List<String> detail) throws Exception {
+        JSONObject expert = null;
+        JSONArray listed = growth.marketExpertList(c, "agent");
+        for (int i = 0; i < listed.size(); i++) {
+            if (WbTaskEventChains.LIGHTHOUSE_EXPERT_ID.equals(listed.getJSONObject(i).getString("expertId"))) {
+                expert = listed.getJSONObject(i);
+                break;
+            }
+        }
+        if (expert == null) {
+            expert = new JSONObject();
+            expert.put("expertId", WbTaskEventChains.LIGHTHOUSE_EXPERT_ID);
+            expert.put("expertType", "agent");
+            expert.put("displayName", WbTaskEventChains.LIGHTHOUSE_EXPERT_NAME);
+            expert.put("profession", "");
+            expert.put("version", "1.0.0");
+            expert.put("categories", new JSONArray());
+        }
+        growth.reportDesktopEvents(c, WbTaskEventChains.expertSummonEvents(expert));
+        Thread.sleep(500);
+        JSONObject chat = growth.openConversation(c, expert.getString("expertId"));
+        if (chat == null) throw new IllegalStateException("Expert_lighthouse 无法打开真实会话");
+        String convId = chat.getString("conversationId");
+        String reqId = chat.getString("requestId");
+        JSONObject use = WbTaskEventChains.expertActualUseEvent(expert, convId, reqId, "LOCAL");
+        use.put("type", "");
+        use.put("cost", 0);
+        JSONArray events = WbTaskEventChains.expertChatEvents(expert, convId, reqId);
+        events.add(use);
+        growth.reportDesktopEvents(c, events);
+        detail.add(acc.getLabel() + "：Expert_lighthouse 链已发送");
+        return 1;
+    }
+
+    /** 一条链按其通道发送（通道即指纹族，发错通道=收下不计分） */
+    private void sendChain(WbPoolCredential c, WbTaskEventChains.Chain chain) throws Exception {
+        if (chain.web) {
+            growth.reportWebEvent(c, chain.eventCode, chain.pageUrl, chain.elementId, chain.elementName);
+        } else {
+            growth.reportDesktopEvents(c, chain.events);
+        }
+    }
+
+    /** 事件链任务码全集（xdpool EVENT_CHAIN_BUILDERS） */
+    private static final Set<String> EVENT_CHAIN_CODES = new LinkedHashSet<>(Arrays.asList(
+            "Buddy_App", "Buddy_App_QQ", "create_canvas", "automation_1", "RichMeow_Chat",
+            "playbook_prompt", "template_5", "Hp_Appearance", "Library_read", "skill_1",
+            "expert_5", "Expert_team_use_3", "Expert_lighthouse"));
 
     /** 连登兑换 + 抽奖；返回本次兑换的积分 */
     private long runStreak(WbPoolAccount acc, List<String> detail) throws Exception {

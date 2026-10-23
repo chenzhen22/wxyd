@@ -205,10 +205,16 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
 
         final Response resp = upstream;
         final String usedModel = chain.get(chainIdx);
+        final String account = acc == null ? "" : acc.getLabel();
         return new ProviderStream() {
             @Override
             public String usedModel() {
                 return usedModel;
+            }
+
+            @Override
+            public String account() {
+                return account;
             }
 
             @Override

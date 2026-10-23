@@ -20,8 +20,10 @@ public class WbGatewayUsage {
     private String status;
     private String errorKind;
     private String createTime;
-    /** 客户端请求数据 JSON（超长截断） */
+    /** 服务本请求的账号/来源（WorkBuddy 账号 label / Qoder 凭据来源） */
+    private String account;
+    /** 客户端请求数据 JSON（存 /apps/shareFile/gateway/{id}.json，DB 不再保存） */
     private String requestData;
-    /** 应答数据 JSON（聚合后的内容/工具调用/usage，超长截断） */
+    /** 应答数据 JSON（存 /apps/shareFile/gateway/{id}.json，DB 不再保存） */
     private String responseData;
 }

@@ -90,8 +90,8 @@
 
 	<!-- ===== 令牌消耗统计 ===== -->
 	<insert id="insertUsage" parameterType="com.cyz.pojo.WbGatewayUsage" useGeneratedKeys="true" keyProperty="id">
-		insert into `wb_gateway_usage` (`user_id`,`key_id`,`protocol`,`requested_model`,`used_model`,`stream`,`input_tokens`,`output_tokens`,`duration_ms`,`status`,`error_kind`,`request_data`,`response_data`)
-		values (#{userId},#{keyId},#{protocol},#{requestedModel},#{usedModel},#{stream},#{inputTokens},#{outputTokens},#{durationMs},#{status},#{errorKind},#{requestData},#{responseData})
+		insert into `wb_gateway_usage` (`user_id`,`key_id`,`protocol`,`requested_model`,`used_model`,`stream`,`input_tokens`,`output_tokens`,`duration_ms`,`status`,`error_kind`,`account`)
+		values (#{userId},#{keyId},#{protocol},#{requestedModel},#{usedModel},#{stream},#{inputTokens},#{outputTokens},#{durationMs},#{status},#{errorKind},#{account})
 	</insert>
 
 	<select id="usageTotals" resultType="java.util.HashMap">
@@ -135,6 +135,7 @@
 		       g.`protocol`, g.`requested_model` as "requestedModel", g.`used_model` as "usedModel",
 		       g.`stream`, g.`input_tokens` as "inputTokens", g.`output_tokens` as "outputTokens",
 		       g.`duration_ms` as "durationMs", g.`status`, g.`error_kind` as "errorKind",
+		       COALESCE(NULLIF(g.`account`,''), g.`protocol`) as "account",
 		       date_format(g.`create_time`,'%Y-%m-%d %H:%i:%s') as "createTime"
 		from `wb_gateway_usage` g left join `users` u on g.`user_id` = u.`id`
 		<where>
@@ -163,6 +164,7 @@
 		       g.`protocol`, g.`requested_model` as "requestedModel", g.`used_model` as "usedModel",
 		       g.`stream`, g.`input_tokens` as "inputTokens", g.`output_tokens` as "outputTokens",
 		       g.`duration_ms` as "durationMs", g.`status`, g.`error_kind` as "errorKind",
+		       COALESCE(NULLIF(g.`account`,''), g.`protocol`) as "account",
 		       date_format(g.`create_time`,'%Y-%m-%d %H:%i:%s') as "createTime",
 		       g.`request_data` as "requestData", g.`response_data` as "responseData"
 		from `wb_gateway_usage` g left join `users` u on g.`user_id` = u.`id`

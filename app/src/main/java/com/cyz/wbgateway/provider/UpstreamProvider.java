@@ -81,6 +81,11 @@ public interface UpstreamProvider {
         /** 实际使用的上游模型（用于用量统计） */
         String usedModel();
 
+        /** 服务本请求的账号/来源（用量记录展示用，如账号 label 或凭据来源；未知给空串） */
+        default String account() {
+            return "";
+        }
+
         /** 逐块回调 OpenAI 风格 chunk（内部负责协议差异，如 SSE 解包） */
         void read(Consumer<JSONObject> onChunk) throws IOException;
     }

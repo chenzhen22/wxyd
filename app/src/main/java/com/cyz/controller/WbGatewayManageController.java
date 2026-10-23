@@ -3,8 +3,10 @@ package com.cyz.controller;
 import com.cyz.pojo.Result;
 import com.cyz.pojo.WbGatewayKey;
 import com.cyz.service.WbGatewayKeyService;
+import com.alibaba.fastjson2.JSONObject;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpSession;
@@ -336,6 +338,10 @@ public class WbGatewayManageController {
 
     /* ==================== 令牌消耗统计（仅管理员） ==================== */
 
+    /** 调用明细（请求/应答 JSON）存放目录（与 WbGatewayChatService 同配置项） */
+    @Value("${wxyd.wbgateway.usage-detail-dir:/apps/shareFile/gateway}")
+    private String usageDetailDir;
+
     /** 汇总：总量 + 今日 + 按用户 + 按模型 */
     @GetMapping("gateway/admin/usage/summary")
     public Result usageSummary(HttpSession session) {
@@ -380,15 +386,33 @@ public class WbGatewayManageController {
         return result;
     }
 
-    /** 单条调用详情（含请求/应答数据，仅管理员） */
+    /** 单条调用详情（含请求/应答数据，仅管理员）。明细从 /apps/shareFile/gateway/{id}.json 读，DB 旧列为存量回退 */
     @GetMapping("gateway/admin/usage/detail")
     public Result usageDetail(@RequestParam Long id, HttpSession session) {
         Result result = Result.getInstance();
         if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
         Map<String, Object> detail = wbGatewayMapper.usageDetail(id);
         if (detail == null) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000022);
+        // 明细文件优先（新数据 DB 不存大字段）；读不到回退 DB 旧列（存量记录）
+        JSONObject fileDoc = readDetailFile(id);
+        if (fileDoc != null) {
+            detail.put("requestData", fileDoc.getString("requestData"));
+            detail.put("responseData", fileDoc.getString("responseData"));
+        }
         result.setBody(detail);
         return result;
+    }
+
+    private JSONObject readDetailFile(Long id) {
+        try {
+            java.nio.file.Path p = java.nio.file.Paths.get(usageDetailDir, id + ".json");
+            if (!java.nio.file.Files.exists(p)) return null;
+            return com.alibaba.fastjson2.JSON.parseObject(
+                    new String(java.nio.file.Files.readAllBytes(p), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            log.warn("[WBGATEWAY] 调用明细文件读取失败 id={}：{}", id, e.getMessage());
+            return null;
+        }
     }
 
     /* ==================== 积分自动化（仅管理员） ==================== */

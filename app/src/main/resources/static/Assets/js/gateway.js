@@ -426,21 +426,18 @@
             $('#gwUsagePageInfo').text('第 ' + (b.pageNum || 1) + ' / ' + pages + ' 页 · 共 ' + total + ' 条');
             var $tb = $('#gwUsageLogBody').html('');
             (b.list || []).forEach(function (x) {
-                var model = esc(x.usedModel || '?') + (x.requestedModel && x.requestedModel !== x.usedModel ? ' <span style="color:var(--text-5);">(' + esc(x.requestedModel) + ')</span>' : '');
                 var $tr = $('<tr/>');
                 $tr.append('<td>' + esc(x.createTime) + '</td>');
                 $tr.append('<td>' + esc(x.ownerName || x.userId) + '</td>');
-                $tr.append('<td>' + model + '</td>');
-                $tr.append('<td>' + esc(x.protocol) + '</td>');
-                $tr.append('<td>' + (x.stream ? '是' : '否') + '</td>');
-                $tr.append('<td>' + fmtNum(x.inputTokens) + '</td>');
-                $tr.append('<td>' + fmtNum(x.outputTokens) + '</td>');
+                $tr.append('<td>' + esc(x.requestedModel || '(默认)') + '</td>');
+                $tr.append('<td>' + esc(x.usedModel || '?') + '</td>');
+                $tr.append('<td>' + esc(x.account || '-') + '</td>');
                 $tr.append('<td>' + (x.durationMs != null ? Math.round(x.durationMs / 100) / 10 + 's' : '-') + '</td>');
                 $tr.append('<td>' + (x.status === 'ok' ? '<span style="color:#4ade80;">成功</span>' : '<span style="color:#f87171;">失败</span>' + (x.errorKind ? ' <span style="font-size:11px;color:var(--text-5);">' + esc(x.errorKind) + '</span>' : '')) + '</td>');
                 $tr.append('<td><button class="btn-main gw-usage-detail" data-id="' + x.id + '" style="padding:2px 8px;font-size:12px;">详情</button></td>');
                 $tb.append($tr);
             });
-            if (!(b.list || []).length) $tb.append('<tr><td colspan="9" style="color:var(--text-5);">暂无调用记录</td></tr>');
+            if (!(b.list || []).length) $tb.append('<tr><td colspan="8" style="color:var(--text-5);">暂无调用记录</td></tr>');
         });
     }
 

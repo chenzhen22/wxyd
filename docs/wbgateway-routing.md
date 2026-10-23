@@ -280,7 +280,8 @@ candidates = candidates(链头) 按「免费>到期早>账号多>积分多」排
   └─ Qoder:     prefetch 首帧 → 失败换模型；日额度尽则整天跳过
   │
   ├─ 全部失败 ──► 按 kind 映射 HTTP 状态（402/429/401/502）+ sanitize 后返回
-  └─ 成功 ──► SSE 流按入站协议输出，同时记录 usage（wb_gateway_usage，保留 7 天）
+  └─ 成功 ──► SSE 流按入站协议输出，同时记录 usage（wb_gateway_usage，保留 7 天；
+              请求/应答明细不入库，存 /apps/shareFile/gateway/{id}.json）
 ```
 
 ---
@@ -307,6 +308,15 @@ candidates = candidates(链头) 按「免费>到期早>账号多>积分多」排
 
 - [ ] 冷却时长改动需评估对可用性的影响（见第六节表格）
 - [ ] `pick()` 必须能优雅抛出 `IllegalStateException`（由 provider 转成链推进）
+
+改用量记录：
+
+- [ ] `wb_gateway_usage` 只存元数据 + `account`（账号/来源）；请求/应答明细
+      写 `/apps/shareFile/gateway/{id}.json`（`WbGatewayChatService.saveDetailFile`），
+      DB 的 `request_data`/`response_data` 旧列仅为存量回退，新记录不写
+- [ ] 新 provider 的 `ProviderStream.account()` 要返回可读的账号/来源
+      （WorkBuddy=池账号 label，Qoder=凭据来源 config/device/desktop）
+- [ ] 详情接口 `gateway/admin/usage/detail`：文件优先，DB 旧列回退
 
 ---
 

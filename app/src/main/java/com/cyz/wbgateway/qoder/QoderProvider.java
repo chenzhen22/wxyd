@@ -193,7 +193,9 @@ public class QoderProvider implements UpstreamProvider {
             QoderCatalog.ModelInfo info = candidates.get(i);
             QoderStream stream = null;
             try {
-                stream = new QoderStream(client.chat(info.key, body, info.alwaysThinking), info.id);
+                QoderClient.Credential cred = client.credential();
+                stream = new QoderStream(client.chat(info.key, body, info.alwaysThinking), info.id,
+                        cred == null ? "" : cred.source);
                 // 预读首个事件：排队失败（10605）/鉴权失效在 open 阶段就暴露，网关可立刻换模型或换 provider，
                 // 而不是把「排队失败」当成流式响应里的解析错误（原来会变成 502 解析响应失败）。
                 stream.prefetch();
@@ -228,13 +230,16 @@ public class QoderProvider implements UpstreamProvider {
         private final Response resp;
         private final BufferedReader in;
         private final String modelId;
+        /** 服务本请求的凭据来源（config/device/desktop） */
+        private final String account;
         /** prefetch 抢出来的第一帧，read 时先吐出来 */
         private final ArrayDeque<JSONObject> ahead = new ArrayDeque<>();
         private boolean prefetched;
 
-        QoderStream(Response resp, String modelId) {
+        QoderStream(Response resp, String modelId, String account) {
             this.resp = resp;
             this.modelId = modelId;
+            this.account = account == null ? "" : account;
             this.in = resp.body() == null ? null
                     : new BufferedReader(new InputStreamReader(resp.body().byteStream(), StandardCharsets.UTF_8), 8192);
         }
@@ -242,6 +247,11 @@ public class QoderProvider implements UpstreamProvider {
         @Override
         public String usedModel() {
             return modelId;
+        }
+
+        @Override
+        public String account() {
+            return account;
         }
 
         /** 读到第一个有效 chunk（或流结束）为止；错误信封抛 WbUpstreamException */

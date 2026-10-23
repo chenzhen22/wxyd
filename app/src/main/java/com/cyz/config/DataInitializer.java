@@ -753,6 +753,7 @@ public class DataInitializer implements ApplicationRunner {
                     "`duration_ms` BIGINT NOT NULL DEFAULT 0," +
                     "`status` VARCHAR(16) NOT NULL DEFAULT 'ok' COMMENT 'ok | error'," +
                     "`error_kind` VARCHAR(32) NULL COMMENT '失败类别（invalid_request/auth_error/...）'," +
+                    "`account` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '服务本请求的账号/来源'," +
                     "`request_data` MEDIUMTEXT NULL COMMENT '客户端请求数据 JSON（超长截断）'," +
                     "`response_data` MEDIUMTEXT NULL COMMENT '应答数据 JSON（聚合后的内容/工具调用/usage，超长截断）'," +
                     "`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
@@ -769,12 +770,14 @@ public class DataInitializer implements ApplicationRunner {
 
     /**
      * V22 升级兜底：wb_gateway_usage 若无 request_data / response_data 列则幂等补列。
+     * V27：补 account 列（调用明细大字段改存 /apps/shareFile/gateway/ 后，DB 只留账号/来源元数据）。
      */
     private void ensureWbGatewayUsagePayloadColumns() {
         try {
             for (String[] col : new String[][]{
                     {"request_data", "MEDIUMTEXT NULL COMMENT '客户端请求数据 JSON（超长截断）'"},
-                    {"response_data", "MEDIUMTEXT NULL COMMENT '应答数据 JSON（聚合后的内容/工具调用/usage，超长截断）'"}}) {
+                    {"response_data", "MEDIUMTEXT NULL COMMENT '应答数据 JSON（聚合后的内容/工具调用/usage，超长截断）'"},
+                    {"account", "VARCHAR(128) NOT NULL DEFAULT '' COMMENT '服务本请求的账号/来源'"}}) {
                 Integer cnt = jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM information_schema.COLUMNS " +
                                 "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='wb_gateway_usage' AND COLUMN_NAME=?",

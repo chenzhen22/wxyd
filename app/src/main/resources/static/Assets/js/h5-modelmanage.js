@@ -219,8 +219,10 @@
                 var $row = $('<div/>').css({ padding: '6px 0', borderBottom: '1px solid var(--glass-5)', fontSize: '12px' });
                 $row.append('<div style="display:flex;justify-content:space-between;align-items:center;">' +
                     '<div><span style="color:var(--text-1);">' + esc(x.ownerName || x.userId) + '</span>' +
-                    ' <span style="color:var(--text-5);">' + esc(x.usedModel || '?') + '</span>' +
-                    '<div style="color:var(--text-5);font-size:11px;">' + esc(x.createTime) + ' · in ' + fmtNum(x.inputTokens) + ' / out ' + fmtNum(x.outputTokens) + ' · ' + Math.round(x.durationMs / 100) / 10 + 's</div></div>' +
+                    ' <span style="color:var(--accent);">' + esc(x.requestedModel || '(默认)') + '</span>' +
+                    (x.requestedModel && x.requestedModel !== x.usedModel ? ' <span style="color:var(--text-5);">→ ' + esc(x.usedModel || '?') + '</span>' : '') +
+                    '<div style="color:var(--text-5);font-size:11px;">' + esc(x.createTime) + ' · ' + esc(x.account || '-') + ' · ' + Math.round(x.durationMs / 100) / 10 + 's' +
+                    (x.status !== 'ok' ? ' · <span style="color:#f87171;">' + esc(x.errorKind || '失败') + '</span>' : '') + '</div></div>' +
                     '<span class="h5-btn-ghost h5-btn-sm h5-mm-detail" data-id="' + x.id + '">详情</span></div>');
                 $l.append($row);
             });

@@ -44,6 +44,10 @@ public class WbGatewayChatService {
     @Value("${wxyd.wbgateway.usage-retention-days:7}")
     private int usageRetentionDays;
 
+    /** 调用明细（请求/应答 JSON）存放目录 */
+    @Value("${wxyd.wbgateway.usage-detail-dir:/apps/shareFile/gateway}")
+    private String usageDetailDir;
+
     /** 上游适配器注册表：按模型 id 路由到 WorkBuddy / Qoder 等 provider */
     @Autowired
     private ProviderRegistry providers;
@@ -263,7 +267,7 @@ public class WbGatewayChatService {
                         agg.usageIn > 0 ? agg.usageIn : estimateIn,
                         agg.usageOut > 0 ? agg.usageOut : writer.outputTokens(), System.currentTimeMillis() - started,
                         streamOk ? "ok" : "error", streamOk ? null : "stream_interrupted",
-                        clientRequestJson, WbProtocol.toTraceJson(agg).toJSONString());
+                        clientRequestJson, WbProtocol.toTraceJson(agg).toJSONString(), stream.account());
             } else {
                 WbOpenAiSseWriter writer = new WbOpenAiSseWriter(res, publicModel);
                 boolean streamOk = false;
@@ -281,7 +285,7 @@ public class WbGatewayChatService {
                         agg.usageIn > 0 ? agg.usageIn : estimateIn,
                         agg.usageOut, System.currentTimeMillis() - started,
                         streamOk ? "ok" : "error", streamOk ? null : "stream_interrupted",
-                        clientRequestJson, WbProtocol.toTraceJson(agg).toJSONString());
+                        clientRequestJson, WbProtocol.toTraceJson(agg).toJSONString(), stream.account());
             }
             log.info("[WBGATEWAY] 流式完成 ms={}", System.currentTimeMillis() - started);
             return;
@@ -308,7 +312,7 @@ public class WbGatewayChatService {
         res.flushBuffer();
         recordUsage(key, protocol, requested, usedModel, wantStream,
                 agg.usageIn > 0 ? agg.usageIn : estimateIn, agg.usageOut, System.currentTimeMillis() - started, "ok", null,
-                clientRequestJson, WbProtocol.toTraceJson(agg).toJSONString());
+                clientRequestJson, WbProtocol.toTraceJson(agg).toJSONString(), stream.account());
         log.info("[WBGATEWAY] 完成 ms={} in={} out={}", System.currentTimeMillis() - started,
                 agg.usageIn > 0 ? agg.usageIn : estimateIn, agg.usageOut);
     }
@@ -320,10 +324,18 @@ public class WbGatewayChatService {
         return s.length() > TRACE_MAX_CHARS ? s.substring(0, TRACE_MAX_CHARS) + "\n...(已截断)" : s;
     }
 
-    /** 落一条令牌消耗记录（失败不影响主流程） */
+    /** 落一条令牌消耗记录（失败不影响主流程）。请求/应答明细写 /apps/shareFile/gateway/{id}.json，DB 不存大字段 */
     private void recordUsage(WbGatewayKey key, String protocol, String requestedModel, String usedModel,
                              boolean stream, long in, long out, long durationMs, String status, String errorKind,
                              String requestData, String responseData) {
+        recordUsage(key, protocol, requestedModel, usedModel, stream, in, out, durationMs, status, errorKind,
+                requestData, responseData, "");
+    }
+
+    /** 同上，带账号/来源（provider stream 打开后调用） */
+    private void recordUsage(WbGatewayKey key, String protocol, String requestedModel, String usedModel,
+                             boolean stream, long in, long out, long durationMs, String status, String errorKind,
+                             String requestData, String responseData, String account) {
         try {
             WbGatewayUsage u = new WbGatewayUsage();
             u.setUserId(key.getUserId());
@@ -337,11 +349,31 @@ public class WbGatewayChatService {
             u.setDurationMs(Math.max(0, durationMs));
             u.setStatus(status);
             u.setErrorKind(errorKind);
-            u.setRequestData(capTrace(requestData));
-            u.setResponseData(capTrace(responseData));
+            u.setAccount(account == null ? "" : account);
             wbGatewayMapper.insertUsage(u);
+            saveDetailFile(u.getId(), capTrace(requestData), capTrace(responseData));
         } catch (Exception e) {
             log.warn("[WBGATEWAY] 用量记录失败：{}", e.getMessage());
+        }
+    }
+
+    /** 明细文件：{detailDir}/{id}.json = {id, requestData, responseData}；失败仅告警不影响主流程 */
+    private void saveDetailFile(Long id, String requestData, String responseData) {
+        if (id == null || (requestData == null && responseData == null)) return;
+        try {
+            java.nio.file.Path dir = java.nio.file.Paths.get(usageDetailDir);
+            java.nio.file.Files.createDirectories(dir);
+            JSONObject doc = new JSONObject();
+            doc.put("id", id);
+            doc.put("requestData", requestData);
+            doc.put("responseData", responseData);
+            java.nio.file.Path p = dir.resolve(id + ".json");
+            java.nio.file.Path tmp = p.resolveSibling(p.getFileName() + ".tmp");
+            java.nio.file.Files.write(tmp, doc.toJSONString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            java.nio.file.Files.move(tmp, p,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (Exception e) {
+            log.warn("[WBGATEWAY] 调用明细文件写入失败 id={}：{}", id, e.getMessage());
         }
     }
 

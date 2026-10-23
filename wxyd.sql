@@ -3,13 +3,14 @@
 -- 适用：MySQL 8.0+；全新安装执行一次：mysql -u root -p < wxyd.sql
 --
 -- 说明：
--- 1. 本脚本已合并 sql/V2~V18 全部增量迁移的最终表结构（含索引与表参数），
+-- 1. 本脚本已合并 sql/V2~V26 全部增量迁移的最终表结构（含索引与表参数），
 --    全新库只需执行本脚本；存量旧库无需执行，应用启动时 DataInitializer
---    会自动自检补列/建表/升级（V7~V18）。
+--    会自动自检补列/建表/升级。
 -- 2. 超级管理员、菜单项（menu_item）等种子数据由应用首次启动自动播种，
---    本脚本不含业务数据（仅保留遗留网关的 action/pwmanagement 种子）。
--- 3. 结构来源：以生产库实际 schema 为准整理，乱码注释已修正；
---    day_info 等新表字段与代码中 DataInitializer 的建表语句保持一致。
+--    本脚本不含业务数据（仅保留遗留网关的 action 种子）。
+-- 3. 遗留网关（tbphx.do）仅保留代码实际引用的 4 张表：
+--    action / requestlog / client / socketMessages
+--    （其余遗留表已无代码引用，不再创建）
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS `wxyd` DEFAULT CHARSET = utf8mb4;
@@ -210,7 +211,6 @@ CREATE TABLE IF NOT EXISTS `radar_subscribe` (
   KEY `idx_user` (`user_id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '羊毛雷达订阅';
 
--- patrol_asset 已废弃（巡检改为零配置系统自检），由 DataInitializer 启动时 DROP
 CREATE TABLE IF NOT EXISTS `patrol_setting` (
   `user_id` bigint NOT NULL,
   `push_hour` tinyint NOT NULL DEFAULT '8' COMMENT '日报推送小时（0-23）',
@@ -314,7 +314,7 @@ CREATE TABLE IF NOT EXISTS `day_info` (
 
 CREATE TABLE IF NOT EXISTS `day_info_subscribe` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '订阅属主，一人多条（V16：多个钉钉机器人/多个邮箱）',
+  `user_id` bigint NOT NULL COMMENT '订阅属主，一人多条（多个钉钉机器人/多个邮箱）',
   `channel` varchar(10) NOT NULL COMMENT 'dingtalk | email',
   `robot_id` bigint DEFAULT NULL COMMENT 'channel=dingtalk 时必填',
   `email` varchar(128) DEFAULT NULL COMMENT 'channel=email 时必填',
@@ -326,111 +326,32 @@ CREATE TABLE IF NOT EXISTS `day_info_subscribe` (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '金融日报订阅提醒';
 
 -- ============================================================
--- 十、遗留网关（tbphx.do）表，可按需保留
+-- 十、遗留网关（tbphx.do）——仅代码实际引用的表
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS `action` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
   `actions` varchar(40) NOT NULL,
   PRIMARY KEY (`id`, `actions`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
-INSERT IGNORE INTO `action` (id, actions) VALUES (1, 'queryMsgCode');
-INSERT IGNORE INTO `action` (id, actions) VALUES (2, 'uploadFileToBank');
-INSERT IGNORE INTO `action` (id, actions) VALUES (4, 'message');
-INSERT IGNORE INTO `action` (id, actions) VALUES (5, 'queryMessage');
-INSERT IGNORE INTO `action` (id, actions) VALUES (6, 'queryUdInfo');
-INSERT IGNORE INTO `action` (id, actions) VALUES (7, 'start');
-INSERT IGNORE INTO `action` (id, actions) VALUES (8, 'orderCreate');
-INSERT IGNORE INTO `action` (id, actions) VALUES (9, 'error');
-INSERT IGNORE INTO `action` (id, actions) VALUES (10, 'queryMsgCode');
-INSERT IGNORE INTO `action` (id, actions) VALUES (11, 'uploadFileToBank');
-INSERT IGNORE INTO `action` (id, actions) VALUES (13, 'message');
-INSERT IGNORE INTO `action` (id, actions) VALUES (14, 'queryMessage');
-INSERT IGNORE INTO `action` (id, actions) VALUES (15, 'queryUdInfo');
-INSERT IGNORE INTO `action` (id, actions) VALUES (16, 'addWhite');
-INSERT IGNORE INTO `action` (id, actions) VALUES (17, 'queryWhiteInfo');
-INSERT IGNORE INTO `action` (id, actions) VALUES (18, 'updateWhite');
-INSERT IGNORE INTO `action` (id, actions) VALUES (19, 'deleteWhite');
-INSERT IGNORE INTO `action` (id, actions) VALUES (20, 'queryUdOper');
-INSERT IGNORE INTO `action` (id, actions) VALUES (21, 'queryMsgCode');
-INSERT IGNORE INTO `action` (id, actions) VALUES (22, 'uploadFileToBank');
-INSERT IGNORE INTO `action` (id, actions) VALUES (23, 'mmLogin');
-INSERT IGNORE INTO `action` (id, actions) VALUES (24, 'addMessage');
-INSERT IGNORE INTO `action` (id, actions) VALUES (25, 'queryMessage');
-INSERT IGNORE INTO `action` (id, actions) VALUES (26, 'queryUdInfo');
-INSERT IGNORE INTO `action` (id, actions) VALUES (27, 'start');
-INSERT IGNORE INTO `action` (id, actions) VALUES (28, 'orderCreate');
-INSERT IGNORE INTO `action` (id, actions) VALUES (29, 'error');
-INSERT IGNORE INTO `action` (id, actions) VALUES (30, 'addWhite');
-INSERT IGNORE INTO `action` (id, actions) VALUES (31, 'queryWhiteInfo');
-INSERT IGNORE INTO `action` (id, actions) VALUES (32, 'updateWhite');
-INSERT IGNORE INTO `action` (id, actions) VALUES (33, 'deleteWhite');
-INSERT IGNORE INTO `action` (id, actions) VALUES (34, 'queryUdOper');
-INSERT IGNORE INTO `action` (id, actions) VALUES (35, 'docQry');
-INSERT IGNORE INTO `action` (id, actions) VALUES (36, 'delMessage');
-INSERT IGNORE INTO `action` (id, actions) VALUES (37, 'uploadDocumentFile');
-INSERT IGNORE INTO `action` (id, actions) VALUES (38, 'queryDocumentFileList');
-INSERT IGNORE INTO `action` (id, actions) VALUES (39, 'deleteDocumentFile');
-
-CREATE TABLE IF NOT EXISTS `pwmanagement` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `type` varchar(20) NOT NULL,
-  `password` varchar(20) NOT NULL,
-  `desc` varchar(20),
-  PRIMARY KEY (`id`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
-
-INSERT IGNORE INTO `pwmanagement` (`type`, `password`, `desc`)
-VALUES ('restart', '~1q2w3e4r', '重启应用密码');
+INSERT IGNORE INTO `action` (id, actions) VALUES
+  (1, 'queryMsgCode'), (2, 'uploadFileToBank'), (4, 'message'), (5, 'queryMessage'),
+  (6, 'queryUdInfo'), (7, 'start'), (8, 'orderCreate'), (9, 'error'),
+  (10, 'queryMsgCode'), (11, 'uploadFileToBank'), (13, 'message'), (14, 'queryMessage'),
+  (15, 'queryUdInfo'), (16, 'addWhite'), (17, 'queryWhiteInfo'), (18, 'updateWhite'),
+  (19, 'deleteWhite'), (20, 'queryUdOper'), (21, 'queryMsgCode'), (22, 'uploadFileToBank'),
+  (23, 'mmLogin'), (24, 'addMessage'), (25, 'queryMessage'), (26, 'queryUdInfo'),
+  (27, 'start'), (28, 'orderCreate'), (29, 'error'), (30, 'addWhite'),
+  (31, 'queryWhiteInfo'), (32, 'updateWhite'), (33, 'deleteWhite'), (34, 'queryUdOper'),
+  (35, 'docQry'), (36, 'delMessage'), (37, 'uploadDocumentFile'), (38, 'queryDocumentFileList'),
+  (39, 'deleteDocumentFile');
 
 CREATE TABLE IF NOT EXISTS `requestlog` (
   `clinetIp` varchar(20) NOT NULL,
   `url` varchar(200) NOT NULL,
   `data` varchar(6000),
   `now` varchar(20)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
-
-CREATE TABLE IF NOT EXISTS `doc` (
-  `transcode` varchar(60),
-  `transname` varchar(80),
-  `project` varchar(60),
-  `blname` varchar(100),
-  `type` varchar(10),
-  PRIMARY KEY (`transcode`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
-
-CREATE TABLE IF NOT EXISTS `docFile` (
-  `fileName` varchar(60),
-  `type` varchar(10),
-  `time` varchar(60),
-  PRIMARY KEY (`fileName`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
-
-CREATE TABLE IF NOT EXISTS `documentFile` (
-  `fileUUID` varchar(60),
-  `clientIp` varchar(30),
-  `userName` varchar(80),
-  `fileName` varchar(200),
-  `createTime` varchar(20),
-  PRIMARY KEY (`fileUUID`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
-
-CREATE TABLE IF NOT EXISTS `note` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `ip` varchar(64) NOT NULL,
-  `string` varchar(6400) NOT NULL,
-  `time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
-
-CREATE TABLE IF NOT EXISTS `operinfo` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `ip` varchar(64) NOT NULL,
-  `info` varchar(256),
-  `time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `operinfo_index` (`ip`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `client` (
@@ -440,7 +361,7 @@ CREATE TABLE IF NOT EXISTS `client` (
   PRIMARY KEY (`ip`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
-CREATE TABLE IF NOT EXISTS `socketMessage` (
+CREATE TABLE IF NOT EXISTS `socketMessages` (
   `date` varchar(20),
   `clientIp` varchar(20),
   `serverIp` varchar(20),

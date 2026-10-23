@@ -26,6 +26,8 @@ public class CompositeCatalog implements ModelCatalog {
     }
 
     private final List<Group> groups = new ArrayList<>();
+    /** 任一 provider 标记为免费的模型（按归一化 key 记录） */
+    private final Set<String> freeNorms = new LinkedHashSet<>();
 
     public static CompositeCatalog build(List<UpstreamProvider> providers, ModelCatalog defaults) {
         CompositeCatalog c = new CompositeCatalog();
@@ -38,6 +40,11 @@ public class CompositeCatalog implements ModelCatalog {
                 continue;
             }
             if (cat == null) continue;
+            Set<String> pFree = new LinkedHashSet<>();
+            try {
+                pFree.addAll(cat.freeIds());
+            } catch (Exception ignore) {
+            }
             for (String nativeId : cat.ids()) {
                 // 归一化时去掉 provider 前缀，否则 qoder:GLM-5.3 与 glm-5.3 不会合并
                 String norm = normalize(stripPrefix(nativeId));
@@ -52,6 +59,7 @@ public class CompositeCatalog implements ModelCatalog {
                 // 同名时优先用「无前缀」provider 的原生 id 作为展示（存量 Key 直接可用）
                 if (p.modelPrefix().isEmpty()) g.display = nativeId;
                 g.nativeByProvider.put(p.id(), nativeId);
+                if (pFree.contains(nativeId)) c.freeNorms.add(norm);
                 g.aliases.add(nativeId);
                 g.aliases.add(nativeId.toLowerCase());
                 g.aliases.add(stripPrefix(nativeId).toLowerCase());
@@ -116,14 +124,11 @@ public class CompositeCatalog implements ModelCatalog {
         return out;
     }
 
+    /** 合并目录里所有免费模型（任一 provider 标免费即算），按目录顺序 */
     @Override
     public List<String> freeIds() {
         List<String> out = new ArrayList<>();
-        for (Group g : groups) {
-            for (String nativeId : g.nativeByProvider.values()) {
-                if (nativeId.endsWith("Auto") || nativeId.endsWith("auto")) out.add(g.display);
-            }
-        }
+        for (Group g : groups) if (freeNorms.contains(g.norm)) out.add(g.display);
         return out;
     }
 

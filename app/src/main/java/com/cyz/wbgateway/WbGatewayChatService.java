@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -148,8 +149,14 @@ public class WbGatewayChatService {
                 log.info("[WBGATEWAY] 模型开关关闭，但请求模型 {} 免费，直接使用 userId={} keyId={}",
                         wanted, key.getUserId(), key.getId());
             } else {
-                chain.addAll(com.cyz.wbgateway.provider.FreePriority.order(
-                        catalog.freeIdsOf(route.provider), freePriority));
+                // 免费模型优先级跨 provider 生效：先按管理员配置的顺序排全部免费模型，
+                // 再让每个 provider 用它自己有的那些（否则只会拿到路由 provider 的免费模型）
+                List<String> free = com.cyz.wbgateway.provider.FreePriority.order(catalog.freeIds(), freePriority);
+                if (free.isEmpty()) {
+                    free = com.cyz.wbgateway.provider.FreePriority.order(
+                            catalog.freeIdsOf(route.provider), freePriority);
+                }
+                chain.addAll(free);
                 if (chain.isEmpty()) {
                     String dflt = catalog.match(route.provider.defaultModel());
                     chain.add(dflt == null ? route.provider.defaultModel() : dflt);
@@ -167,6 +174,8 @@ public class WbGatewayChatService {
             for (UpstreamProvider p : providers.candidates(null)) {
                 if (!candidates.contains(p)) candidates.add(p);
             }
+            // 按免费优先级：手里有更靠前模型的 provider 先上（同等条件下保留原可用性排序）
+            candidates.sort(Comparator.comparingInt(p -> firstChainIndex(p, chain, catalog)));
         }
         UpstreamProvider provider = null;
         List<String> nativeChain = null;
@@ -366,6 +375,18 @@ public class WbGatewayChatService {
     }
 
     /** 按协议输出错误形状 */
+    /** 该 provider 在候选链里最早能接的模型下标；一个都没有则排到最后 */
+    private static int firstChainIndex(UpstreamProvider p, List<String> chain,
+                                       com.cyz.wbgateway.provider.CompositeCatalog catalog) {
+        for (int i = 0; i < chain.size(); i++) {
+            String display = chain.get(i);
+            String nativeId = catalog.nativeIdFor(display, p.id());
+            if (nativeId == null) nativeId = p.catalog().match(display);
+            if (nativeId != null) return i;
+        }
+        return Integer.MAX_VALUE;
+    }
+
     /** 对外应答脱敏：任何上游厂商信息都不出现在返回给客户端的内容里 */
     public static String sanitize(String message) {
         if (message == null) return "";

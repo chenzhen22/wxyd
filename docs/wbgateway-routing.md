@@ -52,7 +52,8 @@ ProviderRegistry  resolve() / candidates()
 | `provider/FreePriority.java` | 免费模型手动优先级排序 |
 | `provider/WbWorkBuddyProvider.java` | WorkBuddy 适配器（账号池容错在内部完成） |
 | `WbWorkBuddyClient.java` | WorkBuddy HTTP 客户端、目录拉取、令牌刷新 |
-| `pool/WbAccountPool.java` | 多账号池：扫描/合并/冷却/持久化 |
+| `WbBrowserLoginService.java` | 浏览器扫码/网页登录（buddy-oauth 协议），凭据注入账号池 |
+| `pool/WbAccountPool.java` | 多账号池：扫描/合并/冷却/持久化/注入 |
 | `pool/WbAtRestKeyService.java` | at-rest 密钥（账号池读取用） |
 | `pool/WbAuthParser.java` | 桌面 App auth 文件解密解析 |
 | `qoder/QoderProvider.java` | Qoder 适配器（单账号 + 双层 SSE + prefetch） |
@@ -319,3 +320,101 @@ candidates = candidates(链头) 按「免费>到期早>账号多>积分多」排
 5. **前端拉取管理配置必须 `cache: false`**：`gateway/admin/config`、`gateway/admin/keys`
    承载开关/override 状态，`$.getJSON` 默认缓存会导致「保存后刷新回旧值」（2026-10-23 修复，
    `gateway.js` / `h5-modelmanage.js`）；新增管理员读接口时沿用此约定。
+
+---
+
+## 十二、账号失效的「浏览器重登」可行性（2026-10-23 研究结论）
+
+**需求**：账号判死（登录态失效）后，不用开桌面 App，在管理页点按钮 → 浏览器完成登录 → 账号恢复。
+
+### WorkBuddy / CodeBuddy：**可行（优先实现）**——channel-pack 的 buddy-oauth 协议
+
+xdpool README「插件不替你登录 WorkBuddy」指的是**它自己的账号池卡片**；但 vendored
+的 `vendor/channel-pack/pack.js`（`src/buddy-oauth.ts`）里有完整的**浏览器登录协议**，
+登录后的账号经 `pack-accounts.ts` 桥接进同一个池，凭据结构与 wxyd 的
+`WbPoolCredential` 同构。CodeBuddy 国内版与 WorkBuddy 国际版**同一套协议**，
+只换 endpoint / UA / productCode（国内版与 CodeBuddy 共用端点与积分）：
+
+```
+1. POST {endpoint}/v2/plugin/auth/state?platform=ide        ← 请求头 X-Domain + X-No-Authorization/No-User-Id/
+   → data: { state, authUrl }                                  No-Enterprise-Id/No-Department-Info 均 true + 产品 UA
+2. 浏览器打开 authUrl（腾讯 SSO 扫码页；可附加 loginSessionId=<uuid>）
+3. GET {endpoint}/v2/plugin/auth/token?state=...            ← 1s 间隔轮询，5min 超时
+   code=11217 → 未就绪，continue；200+data → access_token/refreshToken/
+   expiresAt/expiresIn/refreshExpiresAt/domain
+4. GET {endpoint}/v2/plugin/login/account?state=...         ← Bearer <accessToken>，同样轮询
+   code=12151 → 未就绪；data → uid/nickname/enterpriseId/type
+5. 组装凭据（buildCredential）：access_token/refresh_token/expires_at/user_id/
+   enterprise_id/nickname/domain —— 字段与 WbPoolCredential 一一对应
+6. 过期时间解析顺序：expiresAt 绝对值(秒/毫秒/ISO) → expiresIn 相对秒（基于 JWT iat 或 now）
+```
+
+**产品常量**（`CODEBUDDY` / `WORKBUDDY`，pack.js 34297/34452）：
+
+| | CodeBuddy 国内版 | WorkBuddy 国际版 |
+|---|---|---|
+| endpoint / apiDomain | `copilot.tencent.com` | `www.workbuddy.ai` |
+| productCode | `codebuddy` | `workbuddy` |
+| User-Agent | `CodeBuddyIDE/1.106.1` | `WorkBuddy/5.5.2 WorkBuddy AI/5.5.2 CLI/5.5.2`（国内系模型用 `WorkBuddy/5.5.2 WorkBuddy/5.5.2 CLI/5.5.2`） |
+| refresh 端点 | `/v2/plugin/auth/token/refresh`（同 wxyd 现有 `refreshAccount`） | 同左 |
+
+**落地要点**：
+- 登录成功后把凭据写入池 store（`data/wb-pool/accounts.json` 已有双向合并 +
+  saveStore 机制），live 文件优先级更高——桌面重登时自然覆盖；判死账号同 uid 重登
+  会因「fresher」胜出并清冷却（`WbAccountPool.scan()` 的合并语义已支持）；
+- 判死账号重登后 uid 不变 → `accountId` 不变 → 直接复活；如果上游换 uid（新账号），
+  池里新增一行、旧行 7 天后过期出池；
+- state 是本次登录的凭证，**不落日志**；轮询接口要在 open 阶段消费（wxyd 现有
+  「预读首帧」模式同理——登录流程与对话流不同，这里本来就是 open 阶段完成）。
+
+**已实现（2026-10-23）**：`WbBrowserLoginService` + 管理端点
+`gateway/admin/browser-login/start|poll|cancel`（仅管理员）+ PC「账号池」页签 /
+H5「账号池」卡片里的「🌐 扫码/网页登录」按钮。行为：
+
+1. `start`（product=`buddy` 国内 / `workbuddy` 国际）：调上游 auth/state，返回
+   `{sessionId, authUrl}`，前端引导管理员浏览器打开扫码页；
+2. 前端每 2s 调 `poll`：服务端按阶段推进——先轮询 auth/token（业务码 11217=未就绪，
+   继续等待），拿到 token 后再轮询 login/account（业务码 12151=未就绪）；
+3. 授权完成 → `buildCredential` 组装凭据（expiresAt 绝对值(秒/毫秒/ISO) →
+   expiresIn 相对秒 → JWT exp 兜底）→ **`WbAccountPool.inject()`** 注入池：
+   同 uid 重登顶掉旧凭据并清全部冷却（判死账号复活），新 uid 入池为新账号，
+   立即持久化到 store；
+4. 会话 TTL 5 分钟，内存态；`status` 取值 pending / authorized / failed；
+   sessionId/state/token 均不落日志；
+5. 后续令牌刷新复用现有 `WbWorkBuddyClient.refreshAccount`
+   （同一 `/v2/plugin/auth/token/refresh` 协议），桌面重登时 live 文件凭据按
+   freshness 自然覆盖浏览器登录凭据（`sourcePath=browser-login`）。
+
+### Qoder（国内版 qoder-cn）：**可行，等 WorkBuddy 做完再做**
+
+`dsh-connect-qoder` 仓库实现了完整的 **device login** 协议
+（`package/lib/index.js` 6022-6520 行 `src/host/device-login.ts`，纯协议层无依赖）：
+
+1. 本地生成 PKCE（RFC 7636 S256，verifier 43~128 位）+ nonce + machineID(UUID)；
+2. 引导用户打开 `{authBase}/device/selectAccounts?challenge=...&client_id=...`
+   （CN 区 `https://qoder.cn`，clientId=`732aef47-9cf2-46a2-95fe-4cebb5d0d1fa`，
+   clientMetadata: client_type=5 / business_product=cli / business_type=agent）；
+3. 轮询 `{openApiBase}/api/v1/deviceToken/poll`（CN 区 `openapi.qoder.com.cn`，
+   **注意 poll 打在 openApiBase 而非 authBase**）；**404 = 待授权**（正常轮询态，非错误）；
+4. 授权成功 payload 里拿 `token/refresh_token/user_id/user_name/email/expires_at`；
+5. 后续刷新走 `/api/v1/deviceToken/refresh`，**必须带 machineID**（poll 信封不含它，
+   machineID 是本地要记住的）；rotation 要与原凭据 merge 而非替换（refresh 响应不带
+   user_id，丢 uid 会导致 COSY 签名 403 Signature invalid）；
+6. 拿到的 token 与桌面登录**完全等价**：COSY 签名就是
+   `Bearer COSY.<payload>.<sig>`（`authHeaders`，1601-1633 行），签名输入
+   `{uid, security_oauth_token, name, email}` + RSA 加密 aesKey + md5——
+   device login 的 payload 字段齐备，可直接喂给 `QoderClient.authHeaders()`。
+
+参考流程实现（`device-login-flow.ts`，8902-9040 行）：内存 session 按 region 键控、
+TTL 5 分钟、前端每 2s 轮询一次「单次 poll」接口——wxyd 可照此模式做
+`start → (前端轮询) poll → authorized` 三个端点，凭据落库/落文件交给现有
+`QoderClient.credential()` 链路（需加一个「自持凭据」来源，优先级高于桌面文件）。
+
+### 落地建议（Qoder 部分）
+
+- 新增 `QoderDeviceLoginService`：start/poll/cancel 三个接口 + 内存 session（TTL 5min）；
+- 授权成功后把 device 凭据持久化（如 `data/qoder/device-auth.json`，含 machineID），
+  `QoderClient.credential()` 读取顺序：device 凭据 > 桌面 auth.v1.dat；
+- 管理页（PC/H5）Qoder 卡片加「扫码/网页登录」按钮 → 弹二维码或跳转链接 →
+  轮询至 authorized → 刷新状态；
+- PKCE verifier 属于秘密，**绝不落日志**（协议层注释反复强调 poll URL 带 verifier）。

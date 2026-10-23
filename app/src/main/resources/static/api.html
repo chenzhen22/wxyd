@@ -902,7 +902,12 @@
                                 <tbody id="gwPoolBody"></tbody>
                             </table>
                         </div>
-                        <div class="mm-note">限流按模型冷却 1 分钟、积分耗尽冷却 5 分钟、登录失效冷却 30 分钟，期间自动换号。</div>
+                        <div class="mm-note" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">限流按模型冷却 1 分钟、积分耗尽冷却 5 分钟、登录失效冷却 30 分钟，期间自动换号。
+                            <span style="flex:1;"></span>
+                            <select id="gwLoginProduct" class="gw-mini" style="padding:3px 6px;"><option value="buddy">国内通道</option><option value="workbuddy">国际通道</option></select>
+                            <button class="gw-mini" id="gwBrowserLoginBtn" style="display:none;">🌐 扫码/网页登录</button>
+                        </div>
+                        <div id="gwLoginStatus" class="mm-note" style="display:none;margin-top:6px;"></div>
                     </div>
                 </div>
 

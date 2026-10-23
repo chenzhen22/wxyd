@@ -476,6 +476,77 @@
         });
     }
 
+    /* ================= 管理员：浏览器扫码登录 ================= */
+
+    var loginTimer = null;
+
+    function stopLoginPolling() {
+        if (loginTimer) { clearInterval(loginTimer); loginTimer = null; }
+    }
+
+    function setLoginStatus(html, show) {
+        var $s = $('#gwLoginStatus');
+        if (show === false) { $s.hide().html(''); return; }
+        $s.html(html).show();
+    }
+
+    function startBrowserLogin() {
+        var product = $('#gwLoginProduct').val() || 'buddy';
+        stopLoginPolling();
+        var $btn = $('#gwBrowserLoginBtn').prop('disabled', true).text('发起中…');
+        postJSON('gateway/admin/browser-login/start', { product: product }).done(function (res) {
+            $btn.prop('disabled', false).text('取消登录');
+            if (res.errorCode !== '000000' || !res.body) {
+                gwAlert(res.errorMsg || '发起登录失败');
+                $btn.text('🌐 扫码/网页登录');
+                return;
+            }
+            var sessionId = res.body.sessionId;
+            var authUrl = res.body.authUrl;
+            setLoginStatus('登录链接已生成，<a href="' + esc(authUrl) + '" target="_blank" rel="noopener">点此打开登录页</a>' +
+                '（或复制到手机浏览器打开），完成扫码后本页自动检测。<a href="' + esc(authUrl) + '" id="gwLoginCopyUrl" style="color:var(--text-5);font-size:11px;">链接</a>');
+            $('#gwLoginCopyUrl').on('click', function (e) {
+                e.preventDefault();
+                copyText(authUrl, '登录链接已复制');
+            });
+            var deadline = Date.now() + 5 * 60 * 1000;
+            loginTimer = setInterval(function () {
+                if (Date.now() > deadline) {
+                    stopLoginPolling();
+                    setLoginStatus('登录超时，请重新发起。', true);
+                    $('#gwBrowserLoginBtn').text('🌐 扫码/网页登录');
+                    return;
+                }
+                postJSON('gateway/admin/browser-login/poll', { sessionId: sessionId }).done(function (r) {
+                    if (r.errorCode !== '000000' || !r.body) return;
+                    var b = r.body;
+                    if (b.status === 'authorized') {
+                        stopLoginPolling();
+                        setLoginStatus('🟢 ' + esc(b.message || '登录成功，账号已入池'), true);
+                        $('#gwBrowserLoginBtn').text('🌐 扫码/网页登录');
+                        refreshStatus();
+                    } else if (b.status === 'failed') {
+                        stopLoginPolling();
+                        setLoginStatus('🔴 ' + esc(b.message || '登录失败'), true);
+                        $('#gwBrowserLoginBtn').text('🌐 扫码/网页登录');
+                    } else {
+                        setLoginStatus('🟡 等待扫码授权中…（<a href="' + esc(authUrl) + '" target="_blank" rel="noopener">打开登录页</a>）', true);
+                    }
+                }).fail(function () { /* 网络抖动：下个周期重试 */ });
+            }, 2000);
+        }).fail(function (xhr) {
+            $btn.prop('disabled', false).text('🌐 扫码/网页登录');
+            var r = xhr.responseJSON || {};
+            gwAlert(r.errorMsg || '发起登录失败');
+        });
+    }
+
+    function cancelBrowserLogin() {
+        stopLoginPolling();
+        setLoginStatus('', false);
+        $('#gwBrowserLoginBtn').text('🌐 扫码/网页登录');
+    }
+
     /* ================= 事件绑定 ================= */
 
     function bindEvents() {
@@ -721,6 +792,13 @@
                 }
                 $('#gwSwitchLabel').text(on ? '开（用户自选模型生效）' : '关（静默映射免费模型）');
             });
+        });
+
+        /* 浏览器扫码登录：按钮在管理员加载完成后显示 */
+        $('#gwBrowserLoginBtn').show();
+        $('#gwBrowserLoginBtn').on('click', function () {
+            if (loginTimer) cancelBrowserLogin();
+            else startBrowserLogin();
         });
     }
 

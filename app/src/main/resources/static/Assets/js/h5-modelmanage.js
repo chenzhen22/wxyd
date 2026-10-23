@@ -253,6 +253,67 @@
         });
     }
 
+    /* ================= 浏览器扫码登录 ================= */
+
+    var loginTimer = null;
+
+    function stopLoginPolling() {
+        if (loginTimer) { clearInterval(loginTimer); loginTimer = null; }
+    }
+
+    function setLoginStatus(html, show) {
+        var $s = $('#h5MmLoginStatus');
+        if (show === false) { $s.hide().html(''); return; }
+        $s.html(html).show();
+    }
+
+    function startBrowserLogin() {
+        var product = $('#h5MmLoginProduct').attr('data-product') || 'buddy';
+        stopLoginPolling();
+        toast('正在生成登录链接…');
+        postJSON('gateway/admin/browser-login/start', { product: product }).done(function (res) {
+            if (res.errorCode !== '000000' || !res.body) {
+                toast(res.errorMsg || '发起登录失败');
+                return;
+            }
+            var sessionId = res.body.sessionId;
+            var authUrl = res.body.authUrl;
+            setLoginStatus('<a href="' + esc(authUrl) + '" target="_blank" rel="noopener" style="color:var(--accent);word-break:break-all;">点此打开登录页扫码</a>，完成后本页自动检测。', true);
+            var deadline = Date.now() + 5 * 60 * 1000;
+            loginTimer = setInterval(function () {
+                if (Date.now() > deadline) {
+                    stopLoginPolling();
+                    setLoginStatus('登录超时，请重新发起。', true);
+                    $('#h5MmBrowserLoginBtn').text('🌐 扫码/网页登录');
+                    return;
+                }
+                postJSON('gateway/admin/browser-login/poll', { sessionId: sessionId }).done(function (r) {
+                    if (r.errorCode !== '000000' || !r.body) return;
+                    var b = r.body;
+                    if (b.status === 'authorized') {
+                        stopLoginPolling();
+                        setLoginStatus('🟢 ' + esc(b.message || '登录成功，账号已入池'), true);
+                        $('#h5MmBrowserLoginBtn').text('🌐 扫码/网页登录');
+                        loadPool();
+                    } else if (b.status === 'failed') {
+                        stopLoginPolling();
+                        setLoginStatus('🔴 ' + esc(b.message || '登录失败'), true);
+                        $('#h5MmBrowserLoginBtn').text('🌐 扫码/网页登录');
+                    }
+                }).fail(function () { /* 网络抖动：下个周期重试 */ });
+            }, 2000);
+        }).fail(function (xhr) {
+            var r = xhr.responseJSON || {};
+            toast(r.errorMsg || '发起登录失败');
+        });
+    }
+
+    function cancelBrowserLogin() {
+        stopLoginPolling();
+        setLoginStatus('', false);
+        $('#h5MmBrowserLoginBtn').text('🌐 扫码/网页登录');
+    }
+
     /* ================= Qoder 每日签到 ================= */
 
     function renderQoderCheckin(b) {
@@ -401,7 +462,11 @@
             '<div class="h5-mm-panel" data-panel="pool">' +
             '<div class="h5-mm-card"><div class="h5-mm-card-tit">账号池</div>' +
             '<div id="h5MmPool"></div>' +
-            '<div class="h5-empty" id="h5MmPoolEmpty" style="display:none;">池内没有账号（桌面 App 未登录？）</div></div></div>' +
+            '<div class="h5-empty" id="h5MmPoolEmpty" style="display:none;">池内没有账号（桌面 App 未登录？）</div>' +
+            '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">' +
+            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmLoginProduct" style="cursor:pointer;" data-product="buddy">国内通道 ▾</span>' +
+            '<span class="h5-btn-primary h5-btn-sm" id="h5MmBrowserLoginBtn" style="display:none;">🌐 扫码/网页登录</span></div>' +
+            '<div id="h5MmLoginStatus" style="font-size:12px;color:var(--text-2);line-height:1.8;margin-top:6px;display:none;"></div></div></div>' +
 
             '<div class="h5-mm-panel" data-panel="usage">' +
             '<div class="h5-mm-card"><div class="h5-mm-card-tit">用量概览</div>' +
@@ -542,6 +607,18 @@
                         toast(res.errorMsg || '执行失败');
                     }
                 }).fail(function () { $btn.text('立即执行'); toast('执行失败'); });
+            });
+
+            /* 浏览器扫码登录 */
+            $('#h5MmBrowserLoginBtn').show();
+            $('#h5MmBrowserLoginBtn').off('click').on('click', function () {
+                if (loginTimer) cancelBrowserLogin();
+                else startBrowserLogin();
+            });
+            $('#h5MmLoginProduct').off('click').on('click', function () {
+                var $t = $(this);
+                var next = $t.attr('data-product') === 'buddy' ? 'workbuddy' : 'buddy';
+                $t.attr('data-product', next).text(next === 'buddy' ? '国内通道 ▾' : '国际通道 ▾');
             });
         }
 

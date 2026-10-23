@@ -256,6 +256,28 @@ public class WbAccountPool {
         }
     }
 
+    /**
+     * 注入新凭据（浏览器扫码登录用）：按计费身份算 accountId——同 uid 重登会顶掉
+     * 旧凭据并清全部冷却（判死账号复活），新 uid 则入池为新账号；立刻持久化。
+     */
+    public void inject(WbPoolCredential credential) {
+        String id = accountId(credential);
+        synchronized (lock) {
+            WbPoolAccount old = accounts.get(id);
+            WbPoolAccount acc = new WbPoolAccount();
+            acc.setId(id);
+            acc.setCredential(credential);
+            acc.setLabel(label(credential));
+            acc.setLastSuccessAtMs(old == null ? 0 : old.getLastSuccessAtMs());
+            accounts.remove(id);          // 重排：新凭据按 freshness 排到最前
+            accounts.put(id, acc);
+            lastScanAt = System.currentTimeMillis(); // 防止 TTL 重扫抢先覆盖
+            saveStore();
+            log.info("[WBPOOL] 账号 {} 已注入（{}）", acc.getLabel(),
+                    old == null ? "新账号" : "覆盖旧凭据并清冷却");
+        }
+    }
+
     public void onSuccess(String id) {
         synchronized (lock) {
             WbPoolAccount a = accounts.get(id);

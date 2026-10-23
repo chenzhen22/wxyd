@@ -447,6 +447,62 @@ public class WbGatewayManageController {
         return result;
     }
 
+    /* ==================== 浏览器扫码登录（仅管理员） ==================== */
+
+    @Autowired
+    private com.cyz.wbgateway.WbBrowserLoginService browserLoginService;
+
+    /** 发起浏览器登录：返回登录链接（管理员在本机浏览器打开并扫码） */
+    @PostMapping("gateway/admin/browser-login/start")
+    public Result browserLoginStart(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Map<String, Object> body = body(req);
+        String product = str(body.get("product"));
+        if (product == null || product.isEmpty()) product = "buddy";
+        try {
+            com.cyz.wbgateway.WbBrowserLoginService.Session s = browserLoginService.start(product.trim());
+            Map<String, Object> out = new HashMap<>();
+            out.put("sessionId", s.id);
+            out.put("authUrl", s.authUrl);
+            result.setBody(out);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg(e.getMessage());
+        }
+        return result;
+    }
+
+    /** 轮询登录进度（前端每 2s 一次）；authorized 时账号已注入池 */
+    @PostMapping("gateway/admin/browser-login/poll")
+    public Result browserLoginPoll(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Map<String, Object> body = body(req);
+        try {
+            com.cyz.wbgateway.WbBrowserLoginService.Session s =
+                    browserLoginService.poll(str(body.get("sessionId")));
+            Map<String, Object> out = new HashMap<>();
+            out.put("status", s.status);
+            out.put("message", s.message);
+            result.setBody(out);
+        } catch (IllegalStateException e) {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg(e.getMessage());
+        }
+        return result;
+    }
+
+    /** 取消登录会话 */
+    @PostMapping("gateway/admin/browser-login/cancel")
+    public Result browserLoginCancel(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Map<String, Object> body = body(req);
+        browserLoginService.cancel(str(body.get("sessionId")));
+        return result;
+    }
+
     /* ==================== 辅助 ==================== */
 
     private static Long userId(HttpSession session) {

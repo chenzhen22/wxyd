@@ -22,7 +22,22 @@
 				and `username` like concat('%',#{usernameLike},'%')
 			</if>
 		</where>
-		order by `id` desc limit 200
+		order by `id` desc limit #{offset}, #{limit}
+	</select>
+
+	<select id="count" resultType="int">
+		select count(*) from `login_log`
+		<where>
+			<if test="userId != null">
+				`user_id` = #{userId}
+			</if>
+			<if test="event != null and event != ''">
+				and `event` = #{event}
+			</if>
+			<if test="usernameLike != null and usernameLike != ''">
+				and `username` like concat('%',#{usernameLike},'%')
+			</if>
+		</where>
 	</select>
 
 	<delete id="deleteOlderThanDays">

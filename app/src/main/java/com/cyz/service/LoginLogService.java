@@ -43,10 +43,17 @@ public class LoginLogService {
     }
 
     /**
-     * 查询最新 200 条：userId 非空只查该用户；event 非空只查该事件类型；usernameLike 非空按用户名模糊过滤。
+     * 分页查询：按 id 倒序返回 [offset, offset+limit) 区间。
      */
-    public List<LoginLog> list(Long userId, String event, String usernameLike) {
-        return loginLogMapper.list(userId, event, usernameLike);
+    public List<LoginLog> list(Long userId, String event, String usernameLike, int offset, int limit) {
+        if (limit > 500) limit = 500;
+        if (offset < 0) offset = 0;
+        return loginLogMapper.list(userId, event, usernameLike, offset, limit);
+    }
+
+    /** 统计符合条件的记录数（用于分页总数）。 */
+    public int count(Long userId, String event, String usernameLike) {
+        return loginLogMapper.count(userId, event, usernameLike);
     }
 
     /** 每日 4 点清理超过保留期的登录日志 */

@@ -133,7 +133,14 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
                     try {
                         acc = client.acquireAccount(chain.get(chainIdx));
                     } catch (IllegalStateException ne) {
-                        // 账号池暂时无可用号（全部冷却/判死）属于可重试，交给上层换 provider
+                        // 该模型在所有账号上都冷却/判死（多为模型级 429 冷却）：换候选链上下一个模型，
+                        // 不同模型限流桶不同，往往还能用；链走完才交给上层换 provider
+                        if (chainIdx < chain.size() - 1) {
+                            log.warn("[WBGATEWAY] 模型 {} 无可用账号，切换候选链下一个 {}",
+                                    chain.get(chainIdx), chain.get(chainIdx + 1));
+                            chainIdx++;
+                            continue;
+                        }
                         failure = new WbUpstreamException(WbUpstreamException.KIND_SOFT_RATE, 429, ne.getMessage());
                         break;
                     }
@@ -146,6 +153,8 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
             } catch (WbUpstreamException e) {
                 boolean canChain = chainIdx < chain.size() - 1
                         && (WbWorkBuddyClient.isModelFallbackRetryable(e)
+                        // 模型级 429：账号都换过一轮仍然限流时，换下一个模型继续
+                        || WbUpstreamException.KIND_SOFT_RATE.equals(e.getKind())
                         || (allowModelFallback && WbUpstreamException.KIND_CLIENT.equals(e.getKind())));
                 if (WbUpstreamException.KIND_SESSION_DEAD.equals(e.getKind()) && !refreshedOnce && acc != null) {
                     refreshedOnce = true;

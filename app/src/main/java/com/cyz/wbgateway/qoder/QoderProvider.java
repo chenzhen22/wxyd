@@ -95,7 +95,10 @@ public class QoderProvider implements UpstreamProvider {
         if (creditExhausted()) return;
         java.time.LocalDateTime next = java.time.LocalDate.now().plusDays(1).atStartOfDay().plusMinutes(5);
         creditExhaustedUntilMs = next.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
-        creditExhaustedReason = reason;
+        String r = reason == null ? "" : reason.trim();
+        String prefix = "模型服务 上游失败：";
+        if (r.startsWith(prefix)) r = r.substring(prefix.length());
+        creditExhaustedReason = r;
         log.warn("[QODER] 当日额度用尽，跳过本 provider 至 {}：{}", next, reason);
     }
 
@@ -163,7 +166,7 @@ public class QoderProvider implements UpstreamProvider {
         }
         if (creditExhausted()) {
             throw new WbUpstreamException(WbUpstreamException.KIND_SOFT_RATE, 429,
-                    "模型服务当日额度已用尽，已跳过：" + creditExhaustedReason);
+                    "模型服务当日额度已用尽（" + creditExhaustedReason + "），已跳过本通道");
         }
         List<String> owned = new ArrayList<>();
         for (String id : chain) if (owns(id)) owned.add(id);
@@ -352,24 +355,35 @@ public class QoderProvider implements UpstreamProvider {
         return null;
     }
 
-    /** 从错误帧里抽可读文案：message/msg/details，message 本身是 JSON 时再往里剥一层 */
+    /**
+     * 从错误帧里抽可读文案：message/msg/details，message 本身是 JSON 时再往里剥一层；
+     * 上游有时把真正的错误包在 {headers, body:"{...}", statusCode} 里，要顺着 body 继续剥。
+     */
     private static String readable(String raw) {
+        return readable(raw, 0);
+    }
+
+    private static String readable(String raw, int depth) {
         String t = raw == null ? "" : raw.trim();
-        if (!t.startsWith("{")) return t;
+        if (!t.startsWith("{") || depth > 3) return t;
         try {
             JSONObject o = JSON.parseObject(t);
             if (o != null) {
-                for (String key : new String[]{"message", "msg", "details"}) {
+                for (String key : new String[]{"message", "msg", "details", "error"}) {
                     String v = o.getString(key);
                     if (v == null || v.trim().isEmpty()) continue;
                     v = v.trim();
                     if (v.startsWith("{")) {
-                        JSONObject in = JSON.parseObject(v);
-                        String m = in == null ? null : in.getString("message");
-                        if (m == null || m.trim().isEmpty()) continue;
-                        v = m.trim();
+                        String inner = readable(v, depth + 1);
+                        if (inner != null && !inner.isEmpty() && !inner.startsWith("{")) return inner;
+                        continue;
                     }
                     return v;
+                }
+                String body = o.getString("body");
+                if (body != null && !body.trim().isEmpty()) {
+                    String inner = readable(body, depth + 1);
+                    if (inner != null && !inner.isEmpty()) return inner;
                 }
             }
         } catch (Exception ignore) {

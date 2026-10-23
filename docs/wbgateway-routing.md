@@ -206,6 +206,19 @@ for 每个候选模型:
 **冷却时长**（`WbAccountPool.java:37-42`）：模型级 429 冷却 **60s**；积分耗尽账号级
 **5min**；登录态判死 **30min**（只有重登能解）。
 
+**判死（`credential_dead`）有两条独立触发链**，都收敛到 `onCredentialDead()`：
+
+1. 对话路径：`WbWorkBuddyProvider.open()` 内 session_dead → 刷新一次失败；
+2. **积分查询路径**（无对话也会触发）：管理页轮询 `bridgeStatus()` →
+   `creditsFor()` 查积分 401 → 刷新一次失败 → 判死
+   （`WbWorkBuddyClient.java:219-227`）。日志关键字
+   `积分查询 401 且刷新失败：<具体原因>`。
+
+**排查判死**：看日志 `登录态被上游判死` 行的原因后缀——
+`refresh 无 accessToken（需重新登录）` / `no refresh token` = 真过期，需桌面 App 重登；
+每次冷却到期（30min）后立刻再次判死 = 同样是真过期（刷新永久失败）；
+偶发一次、之后不再出现 = 上游抖动误判，会自愈。
+
 账号来源：扫描桌面 App 的 auth 目录（live 文件 + 历史 `.info` 快照），按计费身份合并
 去重，与本地 `data/wb-pool/accounts.json` 双向合并（刷新出的令牌跨重启存活），
 TTL 5 分钟重扫。
@@ -303,3 +316,6 @@ candidates = candidates(链头) 按「免费>到期早>账号多>积分多」排
    排查实际用了哪个模型要看日志的「静默映射 ... 实际链=」。
 3. `WbGatewayChatService.defaultOrFirst()` 是**死代码**，无调用方，清理时可删。
 4. 对外错误信息一律过 `sanitize()`，禁止把上游厂商名/域名透传给客户端。
+5. **前端拉取管理配置必须 `cache: false`**：`gateway/admin/config`、`gateway/admin/keys`
+   承载开关/override 状态，`$.getJSON` 默认缓存会导致「保存后刷新回旧值」（2026-10-23 修复，
+   `gateway.js` / `h5-modelmanage.js`）；新增管理员读接口时沿用此约定。

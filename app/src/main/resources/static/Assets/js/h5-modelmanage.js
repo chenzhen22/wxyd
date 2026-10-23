@@ -82,7 +82,8 @@
     /* ================= 管理员区（仅管理员，默认全收起） ================= */
 
     function loadAdmin() {
-        $.getJSON('gateway/admin/config').done(function (res) {
+        /* cache:false：管理配置必须实时拉取，避免浏览器缓存导致开关状态回旧值 */
+        $.ajax({ url: 'gateway/admin/config', type: 'GET', dataType: 'json', cache: false }).done(function (res) {
             if (res.errorCode !== '000000') return; /* 非管理员：隐藏整个区块 */
             state.admin = true;
             $('#h5MmStatus').show();
@@ -116,7 +117,8 @@
     }
 
     function loadAdminKeys() {
-        $.getJSON('gateway/admin/keys').done(function (res) {
+        /* cache:false：override 状态必须实时（保存后重拉 + 避免缓存回旧值） */
+        $.ajax({ url: 'gateway/admin/keys', type: 'GET', dataType: 'json', cache: false }).done(function (res) {
             if (res.errorCode !== '000000') return;
             var list = (res.body && res.body.list) || [];
             var $l = $('#h5MmAdminKeys').html('');

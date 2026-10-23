@@ -218,7 +218,8 @@
     /* ================= 管理员区（非管理员不可见） ================= */
 
     function loadAdmin() {
-        $.getJSON('gateway/admin/config').done(function (res) {
+        /* cache:false：管理配置必须实时拉取，浏览器缓存会导致开关状态回旧值 */
+        $.ajax({ url: 'gateway/admin/config', type: 'GET', dataType: 'json', cache: false }).done(function (res) {
             if (res.errorCode !== '000000') return; /* 非管理员：状态/刷新按钮与整个管理区块都保持隐藏 */
             state.admin = true;
             /* 状态徽标与刷新按钮仅管理员可见（gateway/status 接口也仅管理员可调） */
@@ -330,7 +331,8 @@
     /* ================= 管理员：全部用户 Key ================= */
 
     function loadAdminKeys() {
-        $.getJSON('gateway/admin/keys').done(function (res) {
+        /* cache:false：override 状态必须实时（保存后重拉 + 避免缓存回旧值） */
+        $.ajax({ url: 'gateway/admin/keys', type: 'GET', dataType: 'json', cache: false }).done(function (res) {
             if (res.errorCode !== '000000') return;
             var list = (res.body && res.body.list) || [];
             $('#mmKpiKeys').text(list.length);
@@ -728,7 +730,12 @@
         init: function () {
             fillUrls();
             if (initialized) {
+                /* 再次进入（gateway/modelManage 两个菜单共用本模块）：完整重拉，
+                   保证开关等管理配置与其它页面改过的状态同步 */
                 refreshStatus();
+                loadKeys();
+                loadModels().done(loadKeys);
+                if (state.admin) loadAdmin();
                 return;
             }
             initialized = true;

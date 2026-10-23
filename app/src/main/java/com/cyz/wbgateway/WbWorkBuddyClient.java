@@ -222,7 +222,10 @@ public class WbWorkBuddyClient {
                     refreshAccount(accountId);
                     ci.value = queryCredits(accountId);
                 } catch (Exception e2) {
-                    accountPool.onCredentialDead(accountId, "积分查询 401 且刷新失败");
+                    // 带上刷新失败的具体原因（上游 msg / refresh 无 accessToken 等），便于区分
+                    // 「真过期需重新登录」与「上游抖动误判」
+                    log.warn("[WBGATEWAY] 账号 {} 积分查询 401 且刷新失败：{}", accountId, e2.getMessage());
+                    accountPool.onCredentialDead(accountId, "积分查询 401 且刷新失败：" + e2.getMessage());
                     ci.error = "登录态失效且刷新失败，需在桌面 App 重新登录";
                 }
             } else {

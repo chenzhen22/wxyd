@@ -73,6 +73,60 @@ public class QoderAdminController {
         return result;
     }
 
+    /* ==================== device 登录（浏览器授权，仅管理员） ==================== */
+
+    @Autowired
+    private QoderDeviceLoginService deviceLoginService;
+
+    /** 发起 device 登录：返回授权链接（管理员浏览器打开选账号授权） */
+    @PostMapping("device-login/start")
+    public Result deviceLoginStart(HttpSession session) {
+        Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
+        try {
+            QoderDeviceLoginService.Session s = deviceLoginService.start();
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("sessionId", s.id);
+            out.put("authUrl", s.authUrl);
+            result.setBody(out);
+        } catch (IllegalStateException e) {
+            result.setErrorEnum(ErrorEnum.ERROR000015);
+            result.setErrorMsg(e.getMessage());
+        }
+        return result;
+    }
+
+    /** 轮询登录进度（前端每 2s 一次）；authorized 时凭据已落盘并立即生效 */
+    @PostMapping("device-login/poll")
+    public Result deviceLoginPoll(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
+        Map<String, Object> body = (req != null && req.getBody() instanceof Map)
+                ? (Map<String, Object>) req.getBody() : new LinkedHashMap<>();
+        try {
+            QoderDeviceLoginService.Session s = deviceLoginService.poll(String.valueOf(body.get("sessionId")));
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("status", s.status);
+            out.put("message", s.message);
+            result.setBody(out);
+        } catch (IllegalStateException e) {
+            result.setErrorEnum(ErrorEnum.ERROR000015);
+            result.setErrorMsg(e.getMessage());
+        }
+        return result;
+    }
+
+    /** 取消登录会话 */
+    @PostMapping("device-login/cancel")
+    public Result deviceLoginCancel(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (notAdmin(session)) return result.setErrorEnum(ErrorEnum.ERROR000014);
+        Map<String, Object> body = (req != null && req.getBody() instanceof Map)
+                ? (Map<String, Object>) req.getBody() : new LinkedHashMap<>();
+        deviceLoginService.cancel(String.valueOf(body.get("sessionId")));
+        return result;
+    }
+
     private Map<String, Object> checkinBody() {
         Map<String, Object> body = new LinkedHashMap<>();
         Integer enabled = wbGatewayMapper.queryQoderAutoCheckin();

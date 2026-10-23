@@ -491,7 +491,9 @@
             '<div id="h5MmQoderCard" style="background:var(--glass-3);border:1px solid var(--glass-5);border-radius:10px;padding:10px;font-size:12px;line-height:1.9;color:var(--text-2);">加载中…</div>' +
             '<div style="display:flex;gap:8px;margin-top:8px;">' +
             '<span class="h5-btn-primary h5-btn-sm" id="h5MmQoderClaim">🎁 立即领取</span>' +
-            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmQoderRefresh">刷新</span></div>' +
+            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmQoderRefresh">刷新</span>' +
+            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmQoderLoginBtn">🌐 扫码/网页登录</span></div>' +
+            '<div id="h5MmQoderLoginStatus" style="font-size:12px;color:var(--text-2);line-height:1.8;margin-top:6px;display:none;"></div>' +
             '<div id="h5MmQoderHint" style="font-size:11px;color:var(--text-5);margin-top:6px;"></div></div>' +
             '</div></div>' +
             '</div>');
@@ -530,6 +532,64 @@
                 if (tab === 'qoder') loadQoderCheckin();
             });
             $('#h5MmQoderRefresh').off('click').on('click', loadQoderCheckin);
+
+            /* Qoder device 登录：浏览器授权 + 2s 轮询 */
+            var qoderLoginTimer = null;
+            function stopQoderLoginPolling() { if (qoderLoginTimer) { clearInterval(qoderLoginTimer); qoderLoginTimer = null; } }
+            function setQoderLoginStatus(html, show) {
+                var $s = $('#h5MmQoderLoginStatus');
+                if (show === false) { $s.hide().html(''); return; }
+                $s.html(html).show();
+            }
+            $('#h5MmQoderLoginBtn').off('click').on('click', function () {
+                if (qoderLoginTimer) {
+                    postJSON('gateway/admin/qoder/device-login/cancel', { sessionId: $('#h5MmQoderLoginBtn').attr('data-session') || '' });
+                    stopQoderLoginPolling();
+                    setQoderLoginStatus('', false);
+                    $(this).text('🌐 扫码/网页登录');
+                    return;
+                }
+                var $btn = $(this).text('发起中…');
+                postJSON('gateway/admin/qoder/device-login/start', {}).done(function (res) {
+                    $btn.text('取消登录');
+                    if (res.errorCode !== '000000' || !res.body) {
+                        toast(res.errorMsg || '发起登录失败');
+                        $btn.text('🌐 扫码/网页登录');
+                        return;
+                    }
+                    var sessionId = res.body.sessionId;
+                    var authUrl = res.body.authUrl;
+                    $btn.attr('data-session', sessionId);
+                    setQoderLoginStatus('<a href="' + esc(authUrl) + '" target="_blank" rel="noopener" style="color:var(--accent);word-break:break-all;">点此打开授权页</a>选账号授权，完成后本页自动检测。', true);
+                    var deadline = Date.now() + 5 * 60 * 1000;
+                    qoderLoginTimer = setInterval(function () {
+                        if (Date.now() > deadline) {
+                            stopQoderLoginPolling();
+                            setQoderLoginStatus('登录超时，请重新发起。', true);
+                            $('#h5MmQoderLoginBtn').text('🌐 扫码/网页登录');
+                            return;
+                        }
+                        postJSON('gateway/admin/qoder/device-login/poll', { sessionId: sessionId }).done(function (r) {
+                            if (r.errorCode !== '000000' || !r.body) return;
+                            var b = r.body;
+                            if (b.status === 'authorized') {
+                                stopQoderLoginPolling();
+                                setQoderLoginStatus('🟢 ' + esc(b.message || '登录成功'), true);
+                                $('#h5MmQoderLoginBtn').text('🌐 扫码/网页登录');
+                                loadQoderCheckin();
+                            } else if (b.status === 'failed') {
+                                stopQoderLoginPolling();
+                                setQoderLoginStatus('🔴 ' + esc(b.message || '登录失败'), true);
+                                $('#h5MmQoderLoginBtn').text('🌐 扫码/网页登录');
+                            }
+                        }).fail(function () { /* 网络抖动：下个周期重试 */ });
+                    }, 2000);
+                }).fail(function (xhr) {
+                    var r = xhr.responseJSON || {};
+                    toast(r.errorMsg || '发起登录失败');
+                    $btn.text('🌐 扫码/网页登录');
+                });
+            });
             $('#h5MmQoderClaim').off('click').on('click', function () {
                 postJSON('gateway/admin/qoder/checkin/claim', {}).done(function (res) {
                     if (res.errorCode !== '000000') { toast(res.errorMsg || '领取失败'); return; }

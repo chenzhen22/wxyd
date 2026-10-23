@@ -641,6 +641,71 @@
         });
 
         $('#gwQoderRefresh').off('click').on('click', loadQoderCheckin);
+
+        /* Qoder device 登录：浏览器授权链接 + 2s 轮询（凭据落盘后签到/对话立即生效） */
+        var qoderLoginTimer = null;
+        function stopQoderLoginPolling() { if (qoderLoginTimer) { clearInterval(qoderLoginTimer); qoderLoginTimer = null; } }
+        function setQoderLoginStatus(html, show) {
+            var $s = $('#gwQoderLoginStatus');
+            if (show === false) { $s.hide().html(''); return; }
+            $s.html(html).show();
+        }
+        $('#gwQoderLoginBtn').off('click').on('click', function () {
+            var $btn = $(this);
+            if (qoderLoginTimer) { // 进行中 → 取消
+                postJSON('gateway/admin/qoder/device-login/cancel', { sessionId: state.qoderLoginSessionId || '' });
+                stopQoderLoginPolling();
+                setQoderLoginStatus('', false);
+                $btn.text('🌐 扫码/网页登录');
+                return;
+            }
+            $btn.prop('disabled', true).text('发起中…');
+            postJSON('gateway/admin/qoder/device-login/start', {}).done(function (res) {
+                $btn.prop('disabled', false).text('取消登录');
+                if (res.errorCode !== '000000' || !res.body) {
+                    gwAlert(res.errorMsg || '发起登录失败');
+                    $btn.text('🌐 扫码/网页登录');
+                    return;
+                }
+                state.qoderLoginSessionId = res.body.sessionId;
+                var authUrl = res.body.authUrl;
+                setQoderLoginStatus('登录链接已生成，<a href="' + esc(authUrl) + '" target="_blank" rel="noopener">点此打开授权页</a>选账号授权，完成后本页自动检测。' +
+                    ' <a href="#" id="gwQoderLoginCopy" style="color:var(--text-5);font-size:11px;">复制链接</a>', true);
+                $('#gwQoderLoginCopy').on('click', function (e) {
+                    e.preventDefault();
+                    copyText(authUrl, '授权链接已复制');
+                });
+                var deadline = Date.now() + 5 * 60 * 1000;
+                qoderLoginTimer = setInterval(function () {
+                    if (Date.now() > deadline) {
+                        stopQoderLoginPolling();
+                        setQoderLoginStatus('登录超时，请重新发起。', true);
+                        $btn.text('🌐 扫码/网页登录');
+                        return;
+                    }
+                    postJSON('gateway/admin/qoder/device-login/poll', { sessionId: state.qoderLoginSessionId }).done(function (r) {
+                        if (r.errorCode !== '000000' || !r.body) return;
+                        var b = r.body;
+                        if (b.status === 'authorized') {
+                            stopQoderLoginPolling();
+                            setQoderLoginStatus('🟢 ' + esc(b.message || '登录成功'), true);
+                            $btn.text('🌐 扫码/网页登录');
+                            loadQoderCheckin();
+                        } else if (b.status === 'failed') {
+                            stopQoderLoginPolling();
+                            setQoderLoginStatus('🔴 ' + esc(b.message || '登录失败'), true);
+                            $btn.text('🌐 扫码/网页登录');
+                        } else {
+                            setQoderLoginStatus('🟡 等待授权中…（<a href="' + esc(authUrl) + '" target="_blank" rel="noopener">打开授权页</a>）', true);
+                        }
+                    }).fail(function () { /* 网络抖动：下个周期重试 */ });
+                }, 2000);
+            }).fail(function (xhr) {
+                $btn.prop('disabled', false).text('🌐 扫码/网页登录');
+                var r = xhr.responseJSON || {};
+                gwAlert(r.errorMsg || '发起登录失败');
+            });
+        });
         $('#gwQoderClaim').off('click').on('click', function () {
             var $btn = $(this).prop('disabled', true).text('领取中…');
             postJSON('gateway/admin/qoder/checkin/claim', {}).done(function (res) {

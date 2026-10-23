@@ -57,7 +57,8 @@ ProviderRegistry  resolve() / candidates()
 | `pool/WbAtRestKeyService.java` | at-rest 密钥（账号池读取用） |
 | `pool/WbAuthParser.java` | 桌面 App auth 文件解密解析 |
 | `qoder/QoderProvider.java` | Qoder 适配器（单账号 + 双层 SSE + prefetch） |
-| `qoder/QoderClient.java` | Qoder HTTP 客户端、COSY 协议、签到 |
+| `qoder/QoderClient.java` | Qoder HTTP 客户端、COSY 协议、签到；凭据来源 config > device > desktop |
+| `qoder/QoderDeviceLoginService.java` | Qoder device login（PKCE + poll + 凭据持久化 + rotation merge 刷新） |
 | `WbUpstreamException.java` | 上游失败分类（kind）与对外 HTTP 映射 |
 | `WbAnthropicSseWriter` / `WbOpenAiSseWriter` | 双协议流式输出 |
 | `WbUpstreamSseReader.java` | WorkBuddy SSE 解包 |
@@ -411,6 +412,30 @@ TTL 5 分钟、前端每 2s 轮询一次「单次 poll」接口——wxyd 可照
 `QoderClient.credential()` 链路（需加一个「自持凭据」来源，优先级高于桌面文件）。
 
 ### 落地建议（Qoder 部分）
+
+**已实现（2026-10-23）**：`QoderDeviceLoginService` + 端点
+`gateway/admin/qoder/device-login/start|poll|cancel`（仅管理员，挂在
+QoderAdminController）+ PC 自动化页签 Qoder 卡片 / H5 同卡片的
+「🌐 扫码/网页登录」按钮。行为：
+
+1. `start`：本地生成 PKCE（S256，verifier 43..128，66 字符字母表 byte%66 取样）
+   + nonce + machineID，授权链接
+   `{https://qoder.cn}/device/selectAccounts?challenge&challenge_method=S256&nonce&machine_id&client_id&client_metadata`，
+   前端引导管理员浏览器打开选账号授权；
+2. 前端每 2s 调 `poll`：服务端 GET
+   `{https://openapi.qoder.com.cn}/api/v1/deviceToken/poll?nonce&verifier&challenge_method`
+   —— **poll 打在 openApiBase**；404 / 2xx 无 token = pending（健康轮询态）；
+3. 授权成功 → payload（token/refresh_token/expires_at/user_id/user_name/email，
+   字段为拼写 LIST，时间三种形态：epoch ms / epoch s / ISO，1e12 阈值判单位）→
+   原子写 `data/qoder/device-auth.json`（含 machineId）；
+4. `QoderClient.credential()` 读取优先级 **config > device > desktop**；device 凭据
+   临期（<60s）自动走 `/api/v1/deviceToken/refresh`（body 带 refresh_token +
+   machine_id），**rotation 逐字段 merge 而非替换**——响应不带 user_id，丢 uid 会
+   403 Signature invalid；machineId 一并写入 `Cosy-Machineid` 头；
+5. 会话 TTL 5 分钟，内存态；status 取值 pending / authorized / failed；
+   **verifier 是 PKCE 秘密、poll URL 含 verifier，均不落日志**。
+
+### 落地建议（Qoder 原始方案，已被上面实现覆盖）
 
 - 新增 `QoderDeviceLoginService`：start/poll/cancel 三个接口 + 内存 session（TTL 5min）；
 - 授权成功后把 device 凭据持久化（如 `data/qoder/device-auth.json`，含 machineID），

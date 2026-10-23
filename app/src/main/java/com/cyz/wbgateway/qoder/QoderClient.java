@@ -110,7 +110,7 @@ public class QoderClient {
         return enabled;
     }
 
-    /** 当前凭据（缓存 5 分钟；读不到返回 null） */
+    /** 当前凭据（缓存 5 分钟；读不到返回 null）。来源优先级：config > device > desktop */
     public synchronized Credential credential() {
         if (cachedCred != null && System.currentTimeMillis() - credAt < 5 * 60_000L) return cachedCred;
         Credential c = null;
@@ -122,13 +122,47 @@ public class QoderClient {
                 c.name = "config";
                 c.source = "config";
             } else {
-                c = loadDesktopCredential();
+                c = loadDeviceCredential();
+                if (c == null) c = loadDesktopCredential();
             }
         } catch (Exception e) {
             log.warn("[QODER] 读取登录态失败：{}", e.getMessage());
         }
         cachedCred = c;
         credAt = System.currentTimeMillis();
+        return c;
+    }
+
+    /**
+     * 读 device login 凭据（QoderDeviceLoginService 持久化的 device-auth.json）。
+     * 临期（<60s）先尝试 device refresh（rotation merge，保 uid）；refresh 失败
+     * 仍用现有 token（可能还活着），由上游判死逻辑兜底。
+     */
+    private Credential loadDeviceCredential() {
+        JSONObject payload = QoderDeviceLoginService.loadStore();
+        if (payload == null) return null;
+        String token = payload.getString("token");
+        String uid = payload.getString("userId");
+        if (!notBlank(token) || !notBlank(uid)) return null;
+        // 临期刷新：expires_at < now + 60s 时调 deviceToken/refresh
+        long expiresAt = payload.getLongValue("expires_at");
+        String refreshToken = payload.getString("refresh_token");
+        if (expiresAt > 0 && expiresAt < System.currentTimeMillis() + 60_000L
+                && notBlank(refreshToken)) {
+            String machineId = QoderDeviceLoginService.loadMachineId();
+            JSONObject merged = QoderDeviceLoginService.refreshIfNeeded(refreshToken, machineId);
+            if (merged != null) {
+                token = merged.getString("token");
+                log.info("[QODER] device 凭据已自动刷新 uid={}", merged.getString("userId"));
+            }
+        }
+        Credential c = new Credential();
+        c.uid = uid;
+        c.token = token;
+        c.name = payload.getString("userName") == null ? "" : payload.getString("userName");
+        c.machineId = QoderDeviceLoginService.loadMachineId();
+        c.source = "device";
+        c.expiresAtMs = payload.getLongValue("expires_at");
         return c;
     }
 

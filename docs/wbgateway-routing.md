@@ -6,7 +6,8 @@
 > 「文档同步约束」一节。
 >
 > 文档基于 `V3.0` 分支、代码版本截至 2026-10-23（成长计划事件链补分：`WbTaskEventChains` + `events` job；
-> 本次改动：用量表实际模型改记真实上游模型 + 账号池单账号启停开关 + 调用明细加 ID 列）。
+> 本次改动：用量表实际模型改记真实上游模型 + 账号池单账号启停开关 + 调用明细加 ID 列；
+> 开关关=只能用免费模型（两处付费回退泄漏收紧）+ Qoder 免费日额度只屏蔽免费模型）。
 
 ---
 
@@ -123,8 +124,12 @@ chain = [用户要的模型, 免费模型A, 免费模型B, ...]
 
 1. 若请求/选中的模型**本身就是免费** → 直接用它，不映射；
 2. 否则 → **静默映射**：链 = 全部 provider 的免费模型（按 `free_priority` 跨 provider
-   排序），若全为空则退回路由 provider 的默认模型；
-3. **响应回写用户视角的名字**（`publicModel` 仍是用户请求的那个），用户完全无感。
+   排序）；**全网没有免费模型时直接 503 报错**（errorKind=`no_free_model`），
+   绝不静默使用付费模型（2026-10-23 收紧，原先会退回默认付费模型）；
+3. 某个 provider 没有链上免费模型时，用**它自己的免费模型**接住；
+   连自己的免费模型也没有 → 该 provider 不参与兜底（原先会退回其默认付费模型，
+   同步收紧）；
+4. **响应回写用户视角的名字**（`publicModel` 仍是用户请求的那个），用户完全无感。
 
 对应提交 `8a74e20`「静默映射支持失败续切 + 请求免费模型直连」。
 
@@ -248,9 +253,13 @@ TTL 5 分钟重扫。
 - **`prefetch()` 预读首帧**（`QoderProvider.java:196-200`）：把上游「排队失败」信封
   （code=10605）在 open 阶段就转成 `soft_rate`，让网关**还没写响应头**就能换模型/
   换 provider。否则会变成流里的解析错误 → 502；
-- **当日额度用尽 → 整天跳过本通道**（`markCreditExhausted`）：跳至次日 00:05。
-  只有「daily count / billing / credit usage limit」类才算，单个模型欠费不黑掉
-  整个通道。
+- **免费额度日计数用尽 → 只屏蔽免费模型**（`markCreditExhausted`，2026-10-23 调整）：
+  触发后至次日 00:05 期间，`open()` 对**纯免费模型请求**直接抛 `soft_rate` 让网关换
+  provider；**链里含付费模型时照常尝试**（付费模型不消耗免费日计数）。此前行为是
+  整天拉黑整个通道——主账号池停用/冷却时备用通道也接不住，已修正。
+  只有「daily count / billing / credit usage limit」类才触发，单个模型欠费不黑掉通道；
+  `usableAccountCount()` 在拉黑期间仍有付费模型时返回 1，不影响 provider 排序。
+  拉黑状态在内存（重启即清），管理员可重启立即恢复探测。
 
 ---
 
@@ -280,8 +289,9 @@ switchOn = key.model_override ?? 全局 model_switch
   └─ 关（静默映射）:
         请求模型本身免费 → chain = [该模型]，直接跑
         否则 → chain = 全部 provider 免费模型（free_priority 跨 provider 排序）
+        全网无免费模型 → 503 报错（绝不静默用付费模型）
         响应 model 字段回写用户视角名，映射不可见
-        追加所有其它 provider 兜底
+        追加所有其它 provider 兜底（各自用自己的免费模型；无免费模型不参与）
   │
   ▼
 candidates = candidates(链头) 按「免费>到期早>账号多>积分多」排序
@@ -289,7 +299,7 @@ candidates = candidates(链头) 按「免费>到期早>账号多>积分多」排
   ▼
 逐个 provider 尝试（展示链 → 该 provider 原生链）
   ├─ WorkBuddy: 账号池 pick → 失败换号/刷新/冷却 → 换候选模型
-  └─ Qoder:     prefetch 首帧 → 失败换模型；日额度尽则整天跳过
+  └─ Qoder:     prefetch 首帧 → 失败换模型；免费日额度尽只屏蔽免费模型（付费模型照常）
   │
   ├─ 全部失败 ──► 按 kind 映射 HTTP 状态（402/429/401/502）+ sanitize 后返回
   └─ 成功 ──► SSE 流按入站协议输出，同时记录 usage（wb_gateway_usage，保留 7 天；
@@ -520,6 +530,13 @@ QoderAdminController）+ PC 自动化页签 Qoder 卡片 / H5 同卡片的
 `tasks` 全程 `HTTP 401 非 JSON 响应`。`eligibleAccounts` 现按 xdpool `ensureFresh`
 补齐：`expiresAtMs` 临期（<60s）且有 refreshToken 时先 `refreshAccount` 再入列，
 刷新失败仍用旧令牌尝试（可能仍 401，但下次窗口会重试刷新）。
+
+**参与账号＝正常状态账号**：`eligibleAccounts()` 只纳入同时满足四条的账号——
+CN 域名、管理员启用（`enabled`）、未判死（`credentialDeadUntilMs` 已过）、
+无账号级冷却（`cooldownUntilMs` 已过）。非正常状态账号**完全不参与**自动化：
+对冷却/判死号打成长接口只会收获 401/429，既浪费配额又污染失败记录
+（网关侧同理：`pick()` 也只从可用账号里选）。执行明细首行会写
+「⏭ 跳过 N 个非正常状态账号」，避免看起来像凭空少跑了账号。
 
 **进度字段嵌套回退**：上游任务行的进度在嵌套 `progress:{current,target}`（部分任务
 顶层 `current/target` 恒 0），`runTasks`/`runEvents`/`sendExpertChains` 统一经

@@ -149,6 +149,10 @@ public class WbCreditAutomationService {
         long credit = 0, energy = 0;
         List<String> detail = new ArrayList<>();
         String progress = null;
+        int total = listAccounts().size();
+        if (total > accounts.size()) {
+            detail.add("⏭ 跳过 " + (total - accounts.size()) + " 个非正常状态账号（停用/判死/冷却/海外）");
+        }
         for (int i = 0; i < accounts.size(); i++) {
             WbPoolAccount acc = accounts.get(i);
             try {
@@ -229,13 +233,19 @@ public class WbCreditAutomationService {
         return s;
     }
 
-    /** 参与自动化的账号：CN 域名 + 会话未判死（普通冷却不影响签到类任务）+ 临期令牌先刷新 */
+    /**
+     * 参与自动化的账号：**仅限正常状态**——管理员启用、未判死、无冷却（含积分耗尽冷却），
+     * 且 CN 域名（global 无成长体系）。非正常状态账号跳过：对冷却/判死号打成长接口
+     * 只会收获 401/429，浪费配额且污染失败记录。
+     */
     private List<WbPoolAccount> eligibleAccounts() {
         List<WbPoolAccount> out = new ArrayList<>();
         long now = System.currentTimeMillis();
         for (WbPoolAccount a : accountPool.statusRows().isEmpty() ? Collections.<WbPoolAccount>emptyList() : listAccounts()) {
             if (a.getCredential().isGlobal()) continue; // global 无成长体系
-            if (a.getCredentialDeadUntilMs() > now) continue;
+            if (!a.isEnabled()) continue;                       // 管理员停用
+            if (a.getCredentialDeadUntilMs() > now) continue;   // 会话判死
+            if (a.getCooldownUntilMs() > now) continue;         // 积分耗尽冷却
             // xdpool ensureFresh：任务端点不吃网关的 acquireAccount 临期刷新，这里补齐——
             // 否则 token 过期后 tasks 全程 401「HTTP 401 非 JSON 响应」
             WbPoolCredential c = a.getCredential();

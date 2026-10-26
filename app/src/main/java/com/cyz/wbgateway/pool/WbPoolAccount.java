@@ -23,8 +23,11 @@ public class WbPoolAccount {
     private long credentialDeadUntilMs;
     private long lastSuccessAtMs;
     private String lastError;
+    /** 管理员开关：false = 模型调用不再使用该账号（仅影响 pick()，展示/积分查询不受影响） */
+    private boolean enabled = true;
 
     public boolean available(long now, String model) {
+        if (!enabled) return false;
         if (credentialDeadUntilMs > now || cooldownUntilMs > now) return false;
         Long until = modelCooldowns.get(model);
         return until == null || until <= now;

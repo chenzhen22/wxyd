@@ -192,7 +192,8 @@ public class WbWorkBuddyClient {
                 CreditsInfo ci = creditsFor(id);
                 row.put("credits", ci.value);
                 row.put("creditsError", ci.error);
-                boolean alive = row.get("cooldownUntilMs") == null && row.get("credentialDeadUntilMs") == null;
+                boolean alive = !Boolean.FALSE.equals(row.get("enabled"))
+                        && row.get("cooldownUntilMs") == null && row.get("credentialDeadUntilMs") == null;
                 if (alive) healthy++;
             }
             Map<String, Object> m = new LinkedHashMap<>();

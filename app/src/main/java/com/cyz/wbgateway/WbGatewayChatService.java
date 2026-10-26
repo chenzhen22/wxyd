@@ -162,8 +162,12 @@ public class WbGatewayChatService {
                 }
                 chain.addAll(free);
                 if (chain.isEmpty()) {
-                    String dflt = catalog.match(route.provider.defaultModel());
-                    chain.add(dflt == null ? route.provider.defaultModel() : dflt);
+                    // 全网没有免费模型：开关关=只能用免费模型，绝不静默使用付费模型
+                    log.error("[WBGATEWAY] 模型开关关闭但全网无免费模型，拒绝静默使用付费模型 keyId={}", key.getId());
+                    recordUsage(key, protocol, requested, routeBy, wantStream, 0, 0,
+                            System.currentTimeMillis() - started, "error", "no_free_model", clientRequestJson, null);
+                    writeError(res, protocol, 503, "api_error", "当前没有可用的免费模型，请联系管理员");
+                    return;
                 }
                 log.info("[WBGATEWAY] 模型开关关闭：静默映射 userId={} keyId={} 视角模型={} 实际链={}",
                         key.getUserId(), key.getId(), publicModel, chain);
@@ -193,11 +197,11 @@ public class WbGatewayChatService {
                 if (nativeId != null && !nc.contains(nativeId)) nc.add(nativeId);
             }
             if (nc.isEmpty()) {
-                // 该 provider 没有这些模型：静默映射时优先用它自己的免费模型，其次默认模型
+                // 该 provider 没有这些模型：静默映射时用它自己的免费模型接住；
+                // 开关关=只能用免费模型，没有免费模型就不让该 provider 兜底（不退回默认付费模型）
                 List<String> pFree = p.catalog().freeIds();
-                String dflt = pFree.isEmpty() ? p.defaultModel() : pFree.get(0);
-                if (dflt == null || dflt.isEmpty()) continue;
-                nc.add(dflt);
+                if (pFree.isEmpty()) continue;
+                nc.add(pFree.get(0));
             }
             JSONObject req = WbProtocol.toOpenAIRequest(internal, nc.get(0));
             req.put("stream", true);
@@ -263,7 +267,8 @@ public class WbGatewayChatService {
                 } catch (IOException e) {
                     if (!writer.isClosed()) writer.fail("流失败: " + e.getMessage());
                 }
-                recordUsage(key, protocol, requested, publicModel, true,
+                // 实际模型记真实上游模型（stream.usedModel()），静默映射时管理员可在调用明细看到真实路由
+                recordUsage(key, protocol, requested, usedModel, true,
                         agg.usageIn > 0 ? agg.usageIn : estimateIn,
                         agg.usageOut > 0 ? agg.usageOut : writer.outputTokens(), System.currentTimeMillis() - started,
                         streamOk ? "ok" : "error", streamOk ? null : "stream_interrupted",
@@ -281,7 +286,7 @@ public class WbGatewayChatService {
                 } catch (IOException e) {
                     log.warn("[WBGATEWAY] OpenAI 流式输出中断：{}", e.getMessage());
                 }
-                recordUsage(key, protocol, requested, publicModel, true,
+                recordUsage(key, protocol, requested, usedModel, true,
                         agg.usageIn > 0 ? agg.usageIn : estimateIn,
                         agg.usageOut, System.currentTimeMillis() - started,
                         streamOk ? "ok" : "error", streamOk ? null : "stream_interrupted",

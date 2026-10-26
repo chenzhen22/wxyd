@@ -352,7 +352,16 @@ public class WbCreditAutomationService {
             String code = t.getString("task_code");
             long[] prog = progressOf(t);
             long target = prog[1], current = prog[0];
-            if (!EVENT_CHAIN_CODES.contains(code)) continue;
+            // 诊断：所有含「专家」的任务打决策日志（任务码/进度/锁定/jump_url 形态），
+            // 用于排查新定向专家任务为何未发链
+            String title = t.getString("title");
+            if (title != null && title.contains("专家")) {
+                log.info("[WBAUTO] events {} 专家任务 title={} code={} locked={} prog={}/{} jumpUrl={}",
+                        acc.getLabel(), title, code, t.getBooleanValue("locked"), current, target, t.getString("jump_url"));
+            }
+            // 定向专家类：任务码不可枚举（上游按专家随意命名，如电商运营/抖音策略师/海报设计师），
+            // 以 jump_url 的 expertId deeplink 为准走定向链；其余事件链任务仍走码白名单
+            if (!EVENT_CHAIN_CODES.contains(code) && expertIdFromJumpUrl(t) == null) continue;
             if (t.getBooleanValue("locked") || (target > 0 && current >= target)) continue;
             try {
                 int sent = sendChainsFor(acc, c, code, t, detail);
@@ -517,10 +526,14 @@ public class WbCreditAutomationService {
             "WorkBuddy_Valorant", "expert_use_maidehao", "expert_use_douyinyin",
             "expert_use_shangjia_xuanchuan", "expert_use_bowangwang"));
 
-    /** 从任务行 jump_url 提取固定专家 id（deeplink expertId=ex_XXX）；无则 null */
+    /** 从任务行 jump_url 提取固定专家 id（deeplink expertId=ex_XXX）；无则 null。
+     *  jump_url 里的 deeplink 可能整体 URL 编码（expertId%3Dex_XXX），先解码再匹配。 */
     private static String expertIdFromJumpUrl(JSONObject task) {
         String url = task.getString("jump_url");
         if (url == null || url.isEmpty()) return null;
+        try {
+            if (url.contains("%")) url = java.net.URLDecoder.decode(url, "UTF-8");
+        } catch (Exception ignore) { }
         java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("expertId=(ex_[A-Za-z0-9]+)").matcher(url);
         return m.find() ? m.group(1) : null;

@@ -90,7 +90,7 @@
     function renderPool(rows) {
         var $t = $('#gwPoolBody').html('');
         if (!rows || !rows.length) {
-            $t.append('<tr><td colspan="5" style="color:var(--text-5);">池内没有账号：在桌面 App 登录后点「刷新」，或检查桌面 App 路径配置</td></tr>');
+            $t.append('<tr><td colspan="6" style="color:var(--text-5);">池内没有账号：在桌面 App 登录后点「刷新」，或检查桌面 App 路径配置</td></tr>');
             return;
         }
         rows.forEach(function (r) {
@@ -99,14 +99,17 @@
             if (r.credentialDeadUntilMs) warn = ' <span style="color:#f87171;">⚠ 登录态失效</span>';
             else if (r.cooldownUntilMs) warn = ' <span style="color:#e0a800;">⚠ 积分冷却</span>';
             if (r.lastError) warn += ' <span style="font-size:11px;color:var(--text-5);" title="' + esc(r.lastError) + '">ℹ</span>';
+            if (r.enabled === false) warn += ' <span style="color:#e0a800;">已停用</span>';
             var credits = typeof r.credits === 'number' ? r.credits : ('<span style="color:var(--text-5);">' + esc(r.creditsError || '?') + '</span>');
             var opts = (state.models || []).map(function (m) { return '<option>' + esc(m) + '</option>'; }).join('');
             if (!opts) opts = '<option>（目录加载中）</option>';
+            var enabled = r.enabled !== false;
             $tr.append('<td>' + esc(r.label || r.id) + warn + '</td>');
             $tr.append('<td>' + esc(r.source === 'live' || r.source === 'desktop' ? '桌面登录' : '历史快照') + ' <span style="color:var(--text-5);">' + esc(r.domain || '') + '</span></td>');
             $tr.append('<td>' + credits + '</td>');
             $tr.append('<td><select class="gw-pool-model" style="width:100%;padding:3px 6px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;">' + opts + '</select></td>');
             $tr.append('<td>' + fmtMs(r.expiresAtMs) + '</td>');
+            $tr.append('<td><input type="checkbox" class="gw-pool-enabled" data-id="' + esc(r.id) + '"' + (enabled ? ' checked' : '') + ' title="关 = 模型调用不再使用该账号" style="cursor:pointer;"></td>');
             $t.append($tr);
         });
     }
@@ -427,6 +430,7 @@
             var $tb = $('#gwUsageLogBody').html('');
             (b.list || []).forEach(function (x) {
                 var $tr = $('<tr/>');
+                $tr.append('<td style="color:var(--text-5);">' + esc(x.id) + '</td>');
                 $tr.append('<td>' + esc(x.createTime) + '</td>');
                 $tr.append('<td>' + esc(x.ownerName || x.userId) + '</td>');
                 $tr.append('<td>' + esc(x.requestedModel || '(默认)') + '</td>');
@@ -437,7 +441,7 @@
                 $tr.append('<td><button class="btn-main gw-usage-detail" data-id="' + x.id + '" style="padding:2px 8px;font-size:12px;">详情</button></td>');
                 $tb.append($tr);
             });
-            if (!(b.list || []).length) $tb.append('<tr><td colspan="8" style="color:var(--text-5);">暂无调用记录</td></tr>');
+            if (!(b.list || []).length) $tb.append('<tr><td colspan="9" style="color:var(--text-5);">暂无调用记录</td></tr>');
         });
     }
 
@@ -552,6 +556,23 @@
             loadKeys();
             loadModels();
             if (state.admin) loadAdmin();
+        });
+        /* 账号池单账号开关：关 = 模型调用不再使用该账号 */
+        $('#gwPoolBody').on('change', '.gw-pool-enabled', function () {
+            var $cb = $(this);
+            postJSON('gateway/admin/pool/enabled', { id: $cb.data('id'), enabled: $cb.prop('checked') })
+                .done(function (res) {
+                    if (res.errorCode !== '000000') {
+                        gwAlert(res.errorMsg || '操作失败');
+                        $cb.prop('checked', !$cb.prop('checked'));
+                        return;
+                    }
+                    gwAlert($cb.prop('checked') ? '已启用该账号' : '已停用：模型调用不再使用该账号');
+                    refreshStatus();
+                }).fail(function () {
+                    gwAlert('操作失败');
+                    $cb.prop('checked', !$cb.prop('checked'));
+                });
         });
         /* 说明：调用明细的刷新由日期选择框/用户下拉 change 事件触发，无独立按钮 */
 

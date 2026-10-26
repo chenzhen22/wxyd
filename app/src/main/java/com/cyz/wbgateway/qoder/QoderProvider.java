@@ -75,7 +75,13 @@ public class QoderProvider implements UpstreamProvider {
 
     @Override
     public int usableAccountCount() {
-        if (creditExhausted()) return 0;
+        if (creditExhausted()) {
+            // 免费额度用尽只屏蔽免费模型：还有付费模型可用就不算完全不可用
+            return catalog().ids().stream().anyMatch(id -> {
+                QoderCatalog.ModelInfo i = ((QoderCatalog) catalog()).byId(id);
+                return i != null && !i.free;
+            }) ? 1 : 0;
+        }
         return client.credentialUsable() ? 1 : 0;
     }
 
@@ -164,10 +170,6 @@ public class QoderProvider implements UpstreamProvider {
         if (!client.isEnabled()) {
             throw new WbUpstreamException(WbUpstreamException.KIND_SERVER, 503, "Qoder 未启用");
         }
-        if (creditExhausted()) {
-            throw new WbUpstreamException(WbUpstreamException.KIND_SOFT_RATE, 429,
-                    "模型服务当日额度已用尽（" + creditExhaustedReason + "），已跳过本通道");
-        }
         List<String> owned = new ArrayList<>();
         for (String id : chain) if (owns(id)) owned.add(id);
         if (owned.isEmpty()) {
@@ -187,6 +189,15 @@ public class QoderProvider implements UpstreamProvider {
         }
         if (candidates.isEmpty()) {
             throw new WbUpstreamException(WbUpstreamException.KIND_NOT_FOUND, 404, "模型不在 Qoder 目录中：" + owned.get(0));
+        }
+        // 免费日计数用尽只屏蔽免费模型：付费模型不消耗免费额度，仍可继续使用
+        if (creditExhausted()) {
+            boolean onlyFree = candidates.stream().allMatch(c -> c.free);
+            if (onlyFree) {
+                throw new WbUpstreamException(WbUpstreamException.KIND_SOFT_RATE, 429,
+                        "模型服务当日免费额度已用尽（" + creditExhaustedReason + "），已跳过本通道免费模型");
+            }
+            log.info("[QODER] 免费额度已用尽，但请求含付费模型 {}，继续尝试", owned);
         }
         WbUpstreamException last = null;
         for (int i = 0; i < candidates.size(); i++) {

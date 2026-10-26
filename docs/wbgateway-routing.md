@@ -5,8 +5,9 @@
 > **改完后必须同步更新本文件**，保持与实际代码一致。详见仓库根 `CLAUDE.md` 的
 > 「文档同步约束」一节。
 >
-> 文档基于 `V3.0` 分支、代码版本截至 2026-10-23（成长计划事件链补分：`WbTaskEventChains` + `events` job；
-> 本次改动：用量表实际模型改记真实上游模型 + 账号池单账号启停开关 + 调用明细加 ID 列；
+> 文档基于 `V3.0` 分支、代码版本截至 2026-10-26（定向专家任务码改为 jump_url deeplink 通配，
+> events 轮次自动覆盖新上的「体验某专家」任务；
+> 前次改动：用量表实际模型改记真实上游模型 + 账号池单账号启停开关 + 调用明细加 ID 列；
 > 开关关=只能用免费模型（两处付费回退泄漏收紧）+ Qoder 免费日额度只屏蔽免费模型）。
 
 ---
@@ -519,12 +520,19 @@ QoderAdminController）+ PC 自动化页签 Qoder 卡片 / H5 同卡片的
 （`sendChainsFor` switch）→ 发过则睡 `EVENT_SCORE_WAIT_MS=9s` 等评分落地，
 **同轮随后跑的 `tasks` job 领取批次即可当场收奖**。单链失败只记录不中断。
 
-**定向专家类（2026-10-23 实测补充）**：`WorkBuddy_Valorant` / `expert_use_maidehao`
-/ `expert_use_douyinyin` / `expert_use_shangjia_xuanchuan` / `expert_use_bowangwang`
+**jump_url 的 deeplink 可能整体 URL 编码**（2026-10-26 实测坑）：同一任务码
+`expert_use_maidehao`，早前 `jump_url` 是裸 `workbuddy://experts?expertId=ex_XXX`，
+后改为 `https://www.workbuddy.cn/work/launch/?deeplink=workbuddy%3A%2F%2Fexperts%3F
+expertId%3Dex_XXX&buddy_type=workbuddy`——`expertIdFromJumpUrl` 解析前必须先 URL 解码，
+否则正则静默不命中、链一条不发且无报错（当时靠「专家任务」决策日志定位）。
+
+**定向专家类（2026-10-23 实测补充；2026-10-26 改为 deeplink 通配）**：`WorkBuddy_Valorant` / `expert_use_*`
 这类「体验某专家」任务，其专家 id **不在市场列表里**（翻 140 条无果），而是编码在
-任务行 `jump_url` 的 deeplink（`expertId=ex_XXX`）中。`sendChainsFor` 先解析
-`jump_url`，命中则走 `sendFixedExpertChain`（召唤 → 真实 X-Expert-Id 会话 → 使用事件），
-不进市场列表择取。已实测 5 个任务同日全部点亮并领奖（+300c +25e）。
+任务行 `jump_url` 的 deeplink（`expertId=ex_XXX`）中。`runEvents` 不再按任务码枚举
+（上游按专家随意命名，如电商运营/抖音策略师/海报设计师，码不可预知）：**任务码不在
+`EVENT_CHAIN_CODES` 时回退检查 `jump_url` 是否带 `expertId` deeplink，带则走
+`sendFixedExpertChain`（召唤 → 真实 X-Expert-Id 会话 → 使用事件）**，不进市场列表择取。
+新上的定向专家任务无需改码，events 轮次自动覆盖；已实测 5 个任务同日全部点亮并领奖（+300c +25e）。
 
 **令牌临期刷新**：任务端点不走网关 chat 路径的 `acquireAccount` 临期刷新，曾导致
 `tasks` 全程 `HTTP 401 非 JSON 响应`。`eligibleAccounts` 现按 xdpool `ensureFresh`

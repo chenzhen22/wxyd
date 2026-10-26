@@ -186,11 +186,16 @@
                 if (r.credentialDeadUntilMs) warn = ' <span style="color:#f87171;">⚠ 失效</span>';
                 else if (r.cooldownUntilMs) warn = ' <span style="color:#e0a800;">⚠ 冷却</span>';
                 var credits = typeof r.credits === 'number' ? r.credits : esc(r.creditsError || '?');
+                var enabled = r.enabled !== false;
+                if (r.enabled === false) warn += ' <span style="color:#e0a800;">已停用</span>';
                 var $card = $('<div/>').css({ background: 'var(--glass-3)', border: '1px solid var(--glass-5)', borderRadius: '10px', padding: '10px', marginBottom: '8px' });
                 $card.append('<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-1);margin-bottom:4px;">' +
                     '<span>' + esc(r.label || r.id) + warn + '</span>' +
                     '<span style="font-size:11px;color:var(--text-5);">' + esc(r.source === 'live' || r.source === 'desktop' ? '桌面登录' : '快照') + '</span></div>');
                 $card.append('<div style="font-size:12px;color:var(--text-5);margin-bottom:2px;">剩余积分：<b style="color:var(--accent);">' + credits + '</b> · 令牌到期：' + fmtMs(r.expiresAtMs) + '</div>');
+                $card.append('<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">' +
+                    '<label style="font-size:12px;color:var(--text-5);display:flex;align-items:center;gap:6px;cursor:pointer;">' +
+                    '<input type="checkbox" class="h5-pool-enabled" data-id="' + esc(r.id) + '"' + (enabled ? ' checked' : '') + '>启用（模型调用使用该账号）</label></div>');
                 $card.append('<select style="width:100%;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">' + opts + '</select>');
                 $l.append($card);
             });
@@ -218,7 +223,8 @@
             logs.forEach(function (x) {
                 var $row = $('<div/>').css({ padding: '6px 0', borderBottom: '1px solid var(--glass-5)', fontSize: '12px' });
                 $row.append('<div style="display:flex;justify-content:space-between;align-items:center;">' +
-                    '<div><span style="color:var(--text-1);">' + esc(x.ownerName || x.userId) + '</span>' +
+                    '<div><span style="color:var(--text-5);font-size:11px;">#' + esc(x.id) + '</span>' +
+                    ' <span style="color:var(--text-1);">' + esc(x.ownerName || x.userId) + '</span>' +
                     ' <span style="color:var(--accent);">' + esc(x.requestedModel || '(默认)') + '</span>' +
                     (x.requestedModel && x.requestedModel !== x.usedModel ? ' <span style="color:var(--text-5);">→ ' + esc(x.usedModel || '?') + '</span>' : '') +
                     '<div style="color:var(--text-5);font-size:11px;">' + esc(x.createTime) + ' · ' + esc(x.account || '-') + ' · ' + Math.round(x.durationMs / 100) / 10 + 's' +
@@ -523,6 +529,23 @@
             });
             $('#h5MmUsageLogs').on('click', '.h5-mm-detail', function () {
                 openUsageDetail(Number($(this).data('id')));
+            });
+            /* 账号池单账号开关：关 = 模型调用不再使用该账号 */
+            $('#h5MmPool').on('change', '.h5-pool-enabled', function () {
+                var $cb = $(this);
+                postJSON('gateway/admin/pool/enabled', { id: $cb.data('id'), enabled: $cb.prop('checked') })
+                    .done(function (res) {
+                        if (res.errorCode !== '000000') {
+                            toast(res.errorMsg || '操作失败');
+                            $cb.prop('checked', !$cb.prop('checked'));
+                            return;
+                        }
+                        toast($cb.prop('checked') ? '已启用该账号' : '已停用：模型调用不再使用该账号');
+                        loadPool();
+                    }).fail(function () {
+                        toast('操作失败');
+                        $cb.prop('checked', !$cb.prop('checked'));
+                    });
             });
             $('#h5MmUsageDate').on('change', function () { loadUsage(); });
             $('#h5MmAdmin').on('click', '.h5-auto-tab', function () {

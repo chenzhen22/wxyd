@@ -338,6 +338,29 @@ public class WbGatewayManageController {
 
     /* ==================== 令牌消耗统计（仅管理员） ==================== */
 
+    /** 账号池单账号开关（仅管理员）：关 = 模型调用不再使用该账号（pick 跳过），展示/积分查询不受影响 */
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.cyz.wbgateway.pool.WbAccountPool accountPool;
+
+    @PostMapping("gateway/admin/pool/enabled")
+    public Result poolAccountEnabled(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Map<String, Object> body = body(req);
+        String id = str(body.get("id"));
+        Boolean enabled = boolVal(body.get("enabled"));
+        if (id == null || id.isEmpty() || enabled == null) {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg("缺少 id 或 enabled 参数");
+            return result;
+        }
+        if (!accountPool.setEnabled(id, enabled)) {
+            return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        }
+        log.info("[WBGATEWAY] 账号池账号 {} 已{}（by user {}）", id, Boolean.TRUE.equals(enabled) ? "启用" : "停用", userId(session));
+        return result;
+    }
+
     /** 调用明细（请求/应答 JSON）存放目录（与 WbGatewayChatService 同配置项） */
     @Value("${wxyd.wbgateway.usage-detail-dir:/apps/shareFile/gateway}")
     private String usageDetailDir;

@@ -130,6 +130,7 @@ public class WbAccountPool {
                     acc.setCredentialDeadUntilMs(old.getCredentialDeadUntilMs());
                     acc.setLastSuccessAtMs(old.getLastSuccessAtMs());
                     acc.setLastError(old.getLastError());
+                    acc.setEnabled(old.isEnabled());
                 }
                 next.put(en.getKey(), acc);
             }
@@ -269,6 +270,7 @@ public class WbAccountPool {
             acc.setCredential(credential);
             acc.setLabel(label(credential));
             acc.setLastSuccessAtMs(old == null ? 0 : old.getLastSuccessAtMs());
+            acc.setEnabled(old == null || old.isEnabled());  // 重登覆盖凭据时保留管理员开关
             accounts.remove(id);          // 重排：新凭据按 freshness 排到最前
             accounts.put(id, acc);
             lastScanAt = System.currentTimeMillis(); // 防止 TTL 重扫抢先覆盖
@@ -282,6 +284,18 @@ public class WbAccountPool {
         synchronized (lock) {
             WbPoolAccount a = accounts.get(id);
             if (a != null) a.setLastSuccessAtMs(System.currentTimeMillis());
+        }
+    }
+
+    /** 管理员开关：false = 模型调用不再使用该账号（pick 跳过），状态持久化 */
+    public boolean setEnabled(String id, boolean enabled) {
+        synchronized (lock) {
+            WbPoolAccount a = accounts.get(id);
+            if (a == null) return false;
+            a.setEnabled(enabled);
+            saveStore();
+            log.info("[WBPOOL] 账号 {} 已{}", a.getLabel(), enabled ? "启用" : "停用（模型调用不再使用）");
+            return true;
         }
     }
 
@@ -313,6 +327,7 @@ public class WbAccountPool {
                 m.put("rateLimitHits", a.getRateLimitHits());
                 m.put("lastError", a.getLastError());
                 m.put("source", a.getCredential().isLive() ? "live" : "snapshot");
+                m.put("enabled", a.isEnabled());
                 rows.add(m);
             }
             return rows;
@@ -355,6 +370,8 @@ public class WbAccountPool {
                 cred.setUin(c.getString("uin"));
                 cred.setSourcePath(c.getString("sourcePath"));
                 a.setCredential(cred);
+                Boolean en = o.getBoolean("enabled");
+                a.setEnabled(en == null || en);  // 旧 store 无该字段默认启用
                 out.put(a.getId(), a);
             }
         } catch (Exception ignore) {
@@ -372,6 +389,7 @@ public class WbAccountPool {
                 JSONObject o = new JSONObject();
                 o.put("id", a.getId());
                 o.put("label", a.getLabel());
+                o.put("enabled", a.isEnabled());
                 o.put("savedAtMs", System.currentTimeMillis());
                 WbPoolCredential c = a.getCredential();
                 JSONObject cj = new JSONObject();

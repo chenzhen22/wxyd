@@ -28,6 +28,8 @@ import com.cyz.wxyd.WxydApp
 import com.cyz.wxyd.ui.auth.ForgotPasswordScreen
 import com.cyz.wxyd.ui.auth.RegisterScreen
 import com.cyz.wxyd.ui.login.LoginScreen
+import com.cyz.wxyd.ui.welfare.WelfareDetailScreen
+import com.cyz.wxyd.ui.welfare.WelfareScreen
 import com.cyz.wxyd.ui.session.SessionViewModel
 
 /**
@@ -140,6 +142,18 @@ private fun MainNav(app: WxydApp, sessionViewModel: SessionViewModel) {
             val key = entry.arguments?.getString("key").orEmpty()
             ModuleRoute(
                 key = key,
+                app = app,
+                onBack = { navController.popBackStack() },
+                onOpenWelfareDetail = { id -> navController.navigate(Routes.welfareDetail(id)) },
+            )
+        }
+        composable(
+            route = Routes.WELFARE_DETAIL,
+            arguments = listOf(navArgument("id") { type = NavType.LongType }),
+        ) { entry ->
+            WelfareDetailScreen(
+                app = app,
+                id = entry.arguments?.getLong("id") ?: 0L,
                 onBack = { navController.popBackStack() },
             )
         }
@@ -152,6 +166,14 @@ private fun MainNav(app: WxydApp, sessionViewModel: SessionViewModel) {
  * （留言板/群聊/巡检/证据/归档、admin 模块首版不做，落占位）。
  */
 @Composable
-private fun ModuleRoute(key: String, onBack: () -> Unit) {
-    PlaceholderScreen(title = "建设中", subtitle = "$key 即将上线", onBack = onBack)
+private fun ModuleRoute(
+    key: String,
+    app: WxydApp,
+    onBack: () -> Unit,
+    onOpenWelfareDetail: (Long) -> Unit,
+) {
+    when (key) {
+        "welfare" -> WelfareScreen(app = app, onBack = onBack, onOpenDetail = onOpenWelfareDetail)
+        else -> PlaceholderScreen(title = "建设中", subtitle = "$key 即将上线", onBack = onBack)
+    }
 }

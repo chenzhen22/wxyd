@@ -21,8 +21,14 @@ data class ApiResult(
 ) {
     val isSuccess: Boolean get() = errorCode == SUCCESS_CODE
 
+    companion object {
+        /** 后端统一成功码（spec 约束 3）。 */
+        const val SUCCESS_CODE = "000000"
+
+        private val json = Json { ignoreUnknownKeys = true }
+
         /**
-         * 从响应原文解析，且保留 `body` 为**数组**的响应（`menu/list` 等）。
+         * 从响应原文解析，且保留 `body` 为**数组**的响应（`menu/list`、`welfare/list` 等）。
          * [parse] 只认对象型 body，数组会被当成 null；数组型接口用这个。
          *
          * @return 成功时返回 body 数组原文；业务失败时抛 [ApiException]
@@ -39,12 +45,6 @@ data class ApiResult(
             if (errorCode != SUCCESS_CODE) throw ApiException(errorCode, errorMsg ?: "未知错误")
             return obj["body"] as? JsonArray ?: throw ApiException("PARSE_ERROR", "响应 body 不是数组")
         }
-
-    companion object {
-        /** 后端统一成功码（spec 约束 3）。 */
-        const val SUCCESS_CODE = "000000"
-
-        private val json = Json { ignoreUnknownKeys = true }
 
         /** 从响应原文解析 [ApiResult]。 */
         fun parse(raw: String): ApiResult = try {

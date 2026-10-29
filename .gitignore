@@ -6,6 +6,8 @@
 .project
 **/.settings/
 **/wxyd/
+# 例外：Android 工程源码包目录（勿删，否则 Kotlin 源码被上面规则忽略）
+!android/app/src/main/java/com/cyz/wxyd/
 target/
 *.log
 /msg/

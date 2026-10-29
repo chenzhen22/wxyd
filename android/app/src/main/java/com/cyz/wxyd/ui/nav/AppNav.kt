@@ -25,6 +25,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.cyz.wxyd.WxydApp
+import com.cyz.wxyd.ui.auth.ForgotPasswordScreen
+import com.cyz.wxyd.ui.auth.RegisterScreen
 import com.cyz.wxyd.ui.login.LoginScreen
 import com.cyz.wxyd.ui.session.SessionViewModel
 
@@ -61,7 +63,7 @@ fun AppNav(app: WxydApp, sessionViewModel: SessionViewModel) {
                 }
 
                 session == null -> key(false) {
-                    AuthNav(app, sessionViewModel)
+                    AuthNav(app, sessionViewModel, snackbarHostState)
                 }
 
                 else -> key(true) {
@@ -72,9 +74,18 @@ fun AppNav(app: WxydApp, sessionViewModel: SessionViewModel) {
     }
 }
 
-/** 未登录路由图：登录 → 注册 / 找回（Task 6 实装向导）。 */
+/**
+ * 未登录路由图：登录 → 注册 / 找回（Task 6 向导）。
+ *
+ * - 注册完成：`loginSucceeded` 置会话 → 外层 `key(session != null)` 重建为 [MainNav]，无需 navigate；
+ * - 找回完成：弹提示后回 `login`（需用新密码登录）。
+ */
 @Composable
-private fun AuthNav(app: WxydApp, sessionViewModel: SessionViewModel) {
+private fun AuthNav(
+    app: WxydApp,
+    sessionViewModel: SessionViewModel,
+    snackbarHostState: SnackbarHostState,
+) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = Routes.LOGIN) {
         composable(Routes.LOGIN) {
@@ -86,10 +97,21 @@ private fun AuthNav(app: WxydApp, sessionViewModel: SessionViewModel) {
             )
         }
         composable(Routes.REGISTER) {
-            PlaceholderScreen(title = "邮箱注册", onBack = { navController.popBackStack() })
+            RegisterScreen(
+                app = app,
+                onBack = { navController.popBackStack() },
+                onLoggedIn = sessionViewModel::loginSucceeded,
+            )
         }
         composable(Routes.FORGOT) {
-            PlaceholderScreen(title = "找回密码", onBack = { navController.popBackStack() })
+            ForgotPasswordScreen(
+                app = app,
+                onBack = { navController.popBackStack() },
+                onResetDone = {
+                    navController.popBackStack()
+                    snackbarHostState.showSnackbar("密码已重置，请用新密码登录")
+                },
+            )
         }
     }
 }

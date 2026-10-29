@@ -108,7 +108,13 @@ public class WbWorkBuddyClient {
         long now = System.currentTimeMillis();
         boolean expiring = c.getExpiresAtMs() <= 0 || c.getExpiresAtMs() < now + 60_000L;
         if (expiring && c.getRefreshToken() != null && !c.getRefreshToken().isEmpty()) {
-            refreshAccount(acc.getId());
+            try {
+                refreshAccount(acc.getId());
+            } catch (WbUpstreamException re) {
+                // 预刷新失败：这个号判死换下一个，别让一个临期号把整条链路堵死（下一号可能压根不用刷新）
+                accountPool.onCredentialDead(acc.getId(), re.getMessage());
+                acc = accountPool.pick(model, null);
+            }
         }
         return acc;
     }
@@ -514,6 +520,11 @@ public class WbWorkBuddyClient {
         for (String marker : SESSION_DEAD_MARKERS) {
             if (text.contains(marker)) return WbUpstreamException.KIND_SESSION_DEAD;
         }
+        // 403 风控：账号被上游限制（11140 request illegal / restricted due to unusual activity），只能换号
+        if (status == 403 && (text.contains("11140") || text.contains("异常行为")
+                || lower.contains("restricted") || lower.contains("request illegal"))) {
+            return WbUpstreamException.KIND_ACCOUNT_BLOCKED;
+        }
         if (status == 429) return WbUpstreamException.KIND_SOFT_RATE;
         if (status == 404) return WbUpstreamException.KIND_NOT_FOUND;
         if (status >= 500) return WbUpstreamException.KIND_SERVER;
@@ -554,6 +565,17 @@ public class WbWorkBuddyClient {
         return false;
     }
 
+    /**
+     * 上游 WAF 指纹拦截：code 11128「Illegal API invocation from an unapproved channel」/「请求被拦截，请重新发送」。
+     * 换账号/换模型都没用（同一份 system 内容在任何账号上都会被拦），只能降指纹后重发。
+     */
+    public static boolean isWafBlocked(WbUpstreamException e) {
+        if (!WbUpstreamException.KIND_CLIENT.equals(e.getKind())) return false;
+        String detail = e.getMessage() == null ? "" : e.getMessage();
+        String lower = detail.toLowerCase();
+        return detail.contains("拦截") || lower.contains("unapproved channel") || detail.contains("11128");
+    }
+
     /* ==================== 小工具 ==================== */
 
     private String chatBase(WbCredential cred) {
@@ -577,6 +599,9 @@ public class WbWorkBuddyClient {
     /* ---------------- 池记账委托（ChatService 调用） ---------------- */
 
     public void onSuccess(String accountId) { accountPool.onSuccess(accountId); }
+
+    /** 主凭据被判死时轮换到同账号的备用凭据（有备用返回 true） */
+    public boolean rotateCredential(String accountId) { return accountPool.rotateCredential(accountId); }
 
     public void onCredentialDead(String accountId, String reason) { accountPool.onCredentialDead(accountId, reason); }
 

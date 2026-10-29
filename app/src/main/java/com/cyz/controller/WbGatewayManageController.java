@@ -361,6 +361,25 @@ public class WbGatewayManageController {
         return result;
     }
 
+    /** 账号池手动删除（仅管理员）：移出池并记排除表，重扫不再自动加入；同账号重新扫码登录会解除 */
+    @PostMapping("gateway/admin/pool/remove")
+    public Result poolAccountRemove(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Map<String, Object> body = body(req);
+        String id = str(body.get("id"));
+        if (id == null || id.isEmpty()) {
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg("缺少 id 参数");
+            return result;
+        }
+        if (!accountPool.remove(id)) {
+            return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        }
+        log.info("[WBGATEWAY] 账号池账号 {} 已删除（by user {}）", id, userId(session));
+        return result;
+    }
+
     /** 调用明细（请求/应答 JSON）存放目录（与 WbGatewayChatService 同配置项） */
     @Value("${wxyd.wbgateway.usage-detail-dir:/apps/shareFile/gateway}")
     private String usageDetailDir;

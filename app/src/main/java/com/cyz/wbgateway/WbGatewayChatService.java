@@ -218,6 +218,8 @@ public class WbGatewayChatService {
                         || WbUpstreamException.KIND_SERVER.equals(e.getKind())
                         // 某个通道积分/当日额度用尽：其它通道（含免费模型）通常还能接
                         || WbUpstreamException.KIND_HARD_CREDIT.equals(e.getKind())
+                        // 该通道账号被风控限制：换下一个 provider（它有自己的账号池）
+                        || WbUpstreamException.KIND_ACCOUNT_BLOCKED.equals(e.getKind())
                         // 静默映射模式下用户看不到实际模型，被拦截/参数类失败也换下一个候选
                         || (!switchOn && WbUpstreamException.KIND_CLIENT.equals(e.getKind()));
                 log.warn("[WBGATEWAY] provider {} 暂不可用（{}）：{}", p.id(), e.getKind(), e.getMessage());

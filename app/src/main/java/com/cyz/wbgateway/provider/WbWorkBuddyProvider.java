@@ -100,7 +100,12 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
     public List<Map<String, Object>> accountRows() {
         try {
             Object accounts = client.bridgeStatus().get("accounts");
-            if (accounts instanceof List) return (List<Map<String, Object>>) accounts;
+            if (accounts instanceof List) {
+                // 标记「这一行可以手动删除」：前端据此决定是否显示删除按钮，避免对其它通道的行下发删除
+                List<Map<String, Object>> rows = (List<Map<String, Object>>) accounts;
+                for (Map<String, Object> row : rows) row.put("removable", true);
+                return rows;
+            }
         } catch (Exception ignore) {
         }
         return new java.util.ArrayList<>();
@@ -124,6 +129,8 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
         boolean refreshedOnce = false;
         int switched = 0;
         int maxSwitch = 8;
+        int wafRetried = 0;
+        int credRotations = 0;
 
         while (true) {
             openaiReq.put("model", chain.get(chainIdx));
@@ -156,6 +163,14 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
                         // 模型级 429：账号都换过一轮仍然限流时，换下一个模型继续
                         || WbUpstreamException.KIND_SOFT_RATE.equals(e.getKind())
                         || (allowModelFallback && WbUpstreamException.KIND_CLIENT.equals(e.getKind())));
+                // WAF 按「未授权渠道」拦截 system 指纹：换号/换模型都一样被拦，只能降指纹后重发
+                if (wafRetried < 2 && WbWorkBuddyClient.isWafBlocked(e)) {
+                    wafRetried++;
+                    com.cyz.wbgateway.WbProtocol.deFingerprintSystem(openaiReq, wafRetried);
+                    log.warn("[WBGATEWAY] 上游 WAF 拦截，system 降指纹重试 level={} 账号={}",
+                            wafRetried, acc == null ? "-" : acc.getLabel());
+                    continue;
+                }
                 if (WbUpstreamException.KIND_SESSION_DEAD.equals(e.getKind()) && !refreshedOnce && acc != null) {
                     refreshedOnce = true;
                     try {
@@ -164,6 +179,14 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
                         log.warn("[WBGATEWAY] 账号 {} 令牌被上游判死，已刷新重试", acc.getLabel());
                         continue;
                     } catch (Exception re) {
+                        // 同一账号可能有多份凭据（桌面 App + 浏览器登录）：先轮换，全部失效才判死整个号
+                        if (credRotations < maxSwitch && client.rotateCredential(acc.getId())) {
+                            credRotations++;
+                            cred = acc.getCredential().toWbCredential();
+                            refreshedOnce = false;
+                            log.warn("[WBGATEWAY] 账号 {} 登录态失效，已轮换备用凭据重试", acc.getLabel());
+                            continue;
+                        }
                         client.onCredentialDead(acc.getId(), re.getMessage());
                         acc = null;
                         continue;
@@ -171,6 +194,16 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
                 }
                 if (WbUpstreamException.KIND_SOFT_RATE.equals(e.getKind()) && acc != null) {
                     client.onModelRateLimited(acc.getId(), chain.get(chainIdx));
+                    acc = null;
+                    if (switched++ < maxSwitch) continue;
+                    if (canChain) { chainIdx++; continue; }
+                    failure = e;
+                    break;
+                }
+                // 账号被上游风控限制：刷新令牌/换模型都无效，直接把该号判死（冷却）再换下一个号
+                if (WbUpstreamException.KIND_ACCOUNT_BLOCKED.equals(e.getKind()) && acc != null) {
+                    client.onAccountRestricted(acc.getId(), e.getMessage());
+                    log.warn("[WBGATEWAY] 账号 {} 被上游限制，换号重试：{}", acc.getLabel(), e.getMessage());
                     acc = null;
                     if (switched++ < maxSwitch) continue;
                     if (canChain) { chainIdx++; continue; }

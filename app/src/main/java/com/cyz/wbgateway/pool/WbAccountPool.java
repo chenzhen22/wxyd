@@ -40,6 +40,8 @@ public class WbAccountPool {
     private static final long CREDIT_COOLDOWN_MS = 5 * 60_000L;
     /** 登录态被上游判死：只有重登能解，冷却要长 */
     private static final long DEAD_COOLDOWN_MS = 30 * 60_000L;
+    /** 账号被上游风控限制（403 异常行为）：重登/换令牌都无效，只能等申诉解封 */
+    private static final long RESTRICTED_COOLDOWN_MS = 6 * 3600_000L;
 
     private final WbAtRestKeyService keyService;
 
@@ -51,6 +53,8 @@ public class WbAccountPool {
     private final Object lock = new Object();
     private volatile long lastScanAt;
     private final List<String> skippedFiles = new ArrayList<>();
+    /** 管理员手动删除的账号 id：持久化在 store 里，重扫不再捞回（同账号重新扫码登录会解除） */
+    private final java.util.Set<String> excluded = new java.util.LinkedHashSet<>();
 
     public WbAccountPool(WbAtRestKeyService keyService) {
         this.keyService = keyService;
@@ -78,7 +82,8 @@ public class WbAccountPool {
 
     public void scan() {
         synchronized (lock) {
-            Map<String, WbPoolCredential> found = new LinkedHashMap<>();
+            // id -> 该账号发现到的全部凭据（桌面 App 与浏览器登录各一份，按 freshness 降序；同一 token 只留一份）
+            Map<String, List<WbPoolCredential>> found = new LinkedHashMap<>();
             skippedFiles.clear();
             for (String dir : authDirs()) {
                 File d = new File(dir);
@@ -90,9 +95,7 @@ public class WbAccountPool {
                         WbPoolCredential c = WbAuthParser.parse(text, f.getAbsolutePath(),
                                 f.getName().equals(LIVE_FILENAME), keyService.keysSnapshot());
                         if (c == null) continue;
-                        String id = accountId(c);
-                        WbPoolCredential prev = found.get(id);
-                        if (prev == null || fresher(c, prev)) found.put(id, c);
+                        addCredential(found, accountId(c), c);
                     } catch (IllegalStateException e) {
                         skippedFiles.add(f.getName() + "：" + e.getMessage());
                     } catch (Exception e) {
@@ -102,27 +105,41 @@ public class WbAccountPool {
             }
 
             // 合并：文件发现 + 本地 store（store 里刷新过的令牌可能比文件新）
-            Map<String, WbPoolCredential> merged = new LinkedHashMap<>(found);
+            // 同 id 的全部凭据都保留（主用一份、其余作备用），主凭据被判死时可轮换，不会像之前那样把可用令牌丢掉
+            Map<String, List<WbPoolCredential>> merged = new LinkedHashMap<>();
+            for (Map.Entry<String, List<WbPoolCredential>> en : found.entrySet()) {
+                for (WbPoolCredential c : en.getValue()) addCredential(merged, en.getKey(), c);
+            }
             for (WbPoolAccount stored : loadStore().values()) {
-                WbPoolCredential sc = stored.getCredential();
-                WbPoolCredential fc = merged.get(stored.getId());
-                if (fc == null) {
-                    if (!expiredBeyond(sc, 7L * 24 * 3600_000L)) merged.put(stored.getId(), sc);
-                    continue;
+                for (WbPoolCredential sc : stored.allCredentials()) {
+                    // 按凭据重算 id（不信任存储里的旧 key）：老的 uin 口径账号在这里自动迁到 uid 口径，不会残留在池里
+                    String sid = accountId(sc);
+                    if (merged.containsKey(sid) || !expiredBeyond(sc, 7L * 24 * 3600_000L)) {
+                        addCredential(merged, sid, sc);
+                    }
                 }
-                if (fresher(sc, fc)) merged.put(stored.getId(), sc);
+            }
+
+            // 手动删除过的账号不再自动回池（loadStore 已把排除表读进 excluded）
+            if (!excluded.isEmpty()) merged.keySet().removeAll(excluded);
+
+            // 保持已判定的主凭据顺序：否则每 5 分钟重扫会把刚轮换掉的死令牌又排回主位，白付一次 401+刷新
+            for (Map.Entry<String, List<WbPoolCredential>> en : merged.entrySet()) {
+                WbPoolAccount old = accounts.get(en.getKey());
+                if (old != null) stableOrder(en.getValue(), old.allCredentials());
             }
 
             // 重建账号对象（保留池内冷却状态）
             Map<String, WbPoolAccount> next = new LinkedHashMap<>();
-            List<Map.Entry<String, WbPoolCredential>> ordered = new ArrayList<>(merged.entrySet());
-            ordered.sort((a, b) -> freshness(b.getValue()) - freshness(a.getValue()));
-            for (Map.Entry<String, WbPoolCredential> en : ordered) {
+            List<Map.Entry<String, List<WbPoolCredential>>> ordered = new ArrayList<>(merged.entrySet());
+            ordered.sort((a, b) -> freshness(b.getValue().get(0)) - freshness(a.getValue().get(0)));
+            for (Map.Entry<String, List<WbPoolCredential>> en : ordered) {
                 WbPoolAccount old = accounts.get(en.getKey());
                 WbPoolAccount acc = new WbPoolAccount();
                 acc.setId(en.getKey());
-                acc.setCredential(en.getValue());
-                acc.setLabel(label(en.getValue()));
+                acc.setCredential(en.getValue().get(0));
+                acc.setAlternates(new ArrayList<>(en.getValue().subList(1, en.getValue().size())));
+                acc.setLabel(label(en.getValue().get(0)));
                 if (old != null) {
                     acc.setCooldownUntilMs(old.getCooldownUntilMs());
                     acc.setModelCooldowns(old.getModelCooldowns());
@@ -140,6 +157,32 @@ public class WbAccountPool {
             saveStore();
             log.info("[WBPOOL] 扫描完成：{} 个账号，{} 个文件跳过", accounts.size(), skippedFiles.size());
         }
+    }
+
+    /** 已入池凭据按原顺序排前（主凭据/轮换结果不被重扫打乱），新出现的凭据按 freshness 追加在后 */
+    private static void stableOrder(List<WbPoolCredential> list, List<WbPoolCredential> knownOrder) {
+        List<WbPoolCredential> reordered = new ArrayList<>();
+        for (WbPoolCredential k : knownOrder) {
+            for (WbPoolCredential c : list) {
+                if (k.getAccessToken() != null && k.getAccessToken().equals(c.getAccessToken())
+                        && !reordered.contains(c)) {
+                    reordered.add(c);
+                }
+            }
+        }
+        for (WbPoolCredential c : list) if (!reordered.contains(c)) reordered.add(c);
+        list.clear();
+        list.addAll(reordered);
+    }
+
+    /** 按 id 收集凭据（同 token 去重），列表始终按 freshness 降序，index 0 即主用凭据 */
+    private static void addCredential(Map<String, List<WbPoolCredential>> into, String id, WbPoolCredential c) {
+        List<WbPoolCredential> list = into.computeIfAbsent(id, k -> new ArrayList<>());
+        for (WbPoolCredential e : list) {
+            if (c.getAccessToken() != null && c.getAccessToken().equals(e.getAccessToken())) return;
+        }
+        list.add(c);
+        list.sort((a, b) -> freshness(b) - freshness(a));
     }
 
     /** freshness 降序：live > lastRefreshTime > expiresAt */
@@ -160,7 +203,12 @@ public class WbAccountPool {
         return ref > 0 && ref < System.currentTimeMillis() - graceMs;
     }
 
-    /** 稳定账号 id：sha256("workbuddy\0" + uin|uid|nickname) 前 16 hex（计费身份，跨重登不变） */
+    /**
+     * 稳定账号 id：sha256("workbuddy\0" + uin|uid|nickname) 前 16 hex（计费身份，跨重登不变）。
+     * <p>
+     * 故意不做跨来源归并：桌面 App 快照（有 uin）与浏览器扫码登录（只有 uid）各自成号，
+     * 同一个人的两份令牌互为兜底（一份被判死还能换另一份）。不想要的那条在「模型管理 → 账号池」手动删除。
+     */
     public static String accountId(WbPoolCredential c) {
         String stable = firstNonEmpty(c.getUin(), c.getUid(), c.getNickname(), "unknown");
         try {
@@ -240,6 +288,21 @@ public class WbAccountPool {
         }
     }
 
+    /**
+     * 账号被上游风控限制（403「账号存在异常行为，已被限制使用」）：
+     * 与登录态失效不同，重新登录拿到的新令牌一样会被拦，只能去 WorkBuddy 端申诉，因此长冷却。
+     */
+    public void onAccountRestricted(String id, String reason) {
+        synchronized (lock) {
+            WbPoolAccount a = accounts.get(id);
+            if (a == null) return;
+            a.setCredentialDeadUntilMs(System.currentTimeMillis() + RESTRICTED_COOLDOWN_MS);
+            a.setLastError("账号被上游风控限制：" + reason);
+            log.warn("[WBPOOL] 账号 {} 被上游风控限制，冷却 {}h（需在 WorkBuddy 端申诉，重新登录无效）：{}",
+                    a.getLabel(), RESTRICTED_COOLDOWN_MS / 3600_000L, reason);
+        }
+    }
+
     /** 刷新成功：更新凭据 + 清全部冷却 + 持久化 */
     public void onRefreshed(String id, WbPoolCredential refreshed) {
         synchronized (lock) {
@@ -264,6 +327,7 @@ public class WbAccountPool {
     public void inject(WbPoolCredential credential) {
         String id = accountId(credential);
         synchronized (lock) {
+            excluded.remove(id);  // 重新登录 = 明确要用这个号，解除之前的删除标记
             WbPoolAccount old = accounts.get(id);
             WbPoolAccount acc = new WbPoolAccount();
             acc.setId(id);
@@ -271,6 +335,14 @@ public class WbAccountPool {
             acc.setLabel(label(credential));
             acc.setLastSuccessAtMs(old == null ? 0 : old.getLastSuccessAtMs());
             acc.setEnabled(old == null || old.isEnabled());  // 重登覆盖凭据时保留管理员开关
+            if (old != null) {
+                // 旧凭据降为备用：新登录的令牌未必比旧的活得久，留着判死时可轮换
+                List<WbPoolCredential> alts = new ArrayList<>();
+                for (WbPoolCredential c : old.allCredentials()) {
+                    if (c.getAccessToken() != null && !c.getAccessToken().equals(credential.getAccessToken())) alts.add(c);
+                }
+                acc.setAlternates(alts);
+            }
             accounts.remove(id);          // 重排：新凭据按 freshness 排到最前
             accounts.put(id, acc);
             lastScanAt = System.currentTimeMillis(); // 防止 TTL 重扫抢先覆盖
@@ -280,10 +352,49 @@ public class WbAccountPool {
         }
     }
 
+    /**
+     * 主凭据被上游判死（401/刷新失败）：轮换到同账号的下一个凭据并清冷却。
+     * 只有一份凭据时返回 false，由调用方按「账号失效」处理。
+     */
+    public boolean rotateCredential(String id) {
+        synchronized (lock) {
+            WbPoolAccount a = accounts.get(id);
+            if (a == null) return false;
+            List<WbPoolCredential> all = a.allCredentials();
+            if (all.size() < 2) return false;
+            WbPoolCredential first = all.remove(0);
+            all.add(first);
+            a.setCredential(all.get(0));
+            a.setAlternates(new ArrayList<>(all.subList(1, all.size())));
+            a.setCredentialDeadUntilMs(0);
+            a.setCooldownUntilMs(0);
+            a.setModelCooldowns(new LinkedHashMap<>());
+            a.setLastError(null);
+            saveStore();
+            log.info("[WBPOOL] 账号 {} 主凭据失效，轮换到备用凭据（本号共 {} 份）", a.getLabel(), all.size());
+            return true;
+        }
+    }
+
     public void onSuccess(String id) {
         synchronized (lock) {
             WbPoolAccount a = accounts.get(id);
             if (a != null) a.setLastSuccessAtMs(System.currentTimeMillis());
+        }
+    }
+
+    /**
+     * 管理员手动删除账号：移出池并记进排除表（持久化），之后重扫 auth 目录也不会再捞回来；
+     * 同一账号重新扫码登录（inject）会解除排除。
+     */
+    public boolean remove(String id) {
+        synchronized (lock) {
+            WbPoolAccount a = accounts.remove(id);
+            if (a == null) return false;
+            excluded.add(id);
+            saveStore();
+            log.info("[WBPOOL] 账号 {} 已从池中删除（{} 个排除项，重扫不再自动加入）", a.getLabel(), excluded.size());
+            return true;
         }
     }
 
@@ -348,28 +459,34 @@ public class WbAccountPool {
         Map<String, WbPoolAccount> out = new LinkedHashMap<>();
         try {
             JSONObject doc = JSON.parseObject(new String(Files.readAllBytes(storePath()), StandardCharsets.UTF_8));
+            JSONArray ex = doc == null ? null : doc.getJSONArray("excluded");
+            if (ex != null) {
+                excluded.clear();
+                for (int i = 0; i < ex.size(); i++) if (ex.getString(i) != null) excluded.add(ex.getString(i));
+            }
             JSONArray arr = doc == null ? null : doc.getJSONArray("accounts");
             if (arr == null) return out;
             for (int i = 0; i < arr.size(); i++) {
                 JSONObject o = arr.getJSONObject(i);
-                JSONObject c = o.getJSONObject("credential");
-                if (o.getString("id") == null || c == null || c.getString("accessToken") == null) continue;
+                if (o.getString("id") == null) continue;
+                List<WbPoolCredential> creds = new ArrayList<>();
+                JSONArray list = o.getJSONArray("credentials");
+                if (list != null) {
+                    for (int k = 0; k < list.size(); k++) {
+                        WbPoolCredential c = credFromJson(list.getJSONObject(k));
+                        if (c != null && c.getAccessToken() != null) creds.add(c);
+                    }
+                } else {
+                    // 旧格式：单 credential 字段
+                    WbPoolCredential c = credFromJson(o.getJSONObject("credential"));
+                    if (c != null && c.getAccessToken() != null) creds.add(c);
+                }
+                if (creds.isEmpty()) continue;
                 WbPoolAccount a = new WbPoolAccount();
                 a.setId(o.getString("id"));
                 a.setLabel(o.getString("label"));
-                WbPoolCredential cred = new WbPoolCredential();
-                cred.setAccessToken(c.getString("accessToken"));
-                cred.setRefreshToken(c.getString("refreshToken"));
-                cred.setUid(c.getString("uid"));
-                cred.setEnterpriseId(c.getString("enterpriseId"));
-                cred.setDomain(c.getString("domain") == null ? "" : c.getString("domain"));
-                cred.setExpiresAtMs(c.getLongValue("expiresAtMs"));
-                cred.setRefreshExpiresAtMs(c.getLong("refreshExpiresAtMs"));
-                cred.setLastRefreshAtMs(c.getLong("lastRefreshAtMs"));
-                cred.setNickname(c.getString("nickname"));
-                cred.setUin(c.getString("uin"));
-                cred.setSourcePath(c.getString("sourcePath"));
-                a.setCredential(cred);
+                a.setCredential(creds.get(0));
+                a.setAlternates(new ArrayList<>(creds.subList(1, creds.size())));
                 Boolean en = o.getBoolean("enabled");
                 a.setEnabled(en == null || en);  // 旧 store 无该字段默认启用
                 out.put(a.getId(), a);
@@ -378,6 +495,39 @@ public class WbAccountPool {
             // 文件缺失/损坏：从磁盘重发现即可
         }
         return out;
+    }
+
+    private static JSONObject credToJson(WbPoolCredential c) {
+        JSONObject j = new JSONObject();
+        j.put("accessToken", c.getAccessToken());
+        j.put("refreshToken", c.getRefreshToken());
+        j.put("uid", c.getUid());
+        j.put("enterpriseId", c.getEnterpriseId());
+        j.put("domain", c.getDomain());
+        j.put("expiresAtMs", c.getExpiresAtMs());
+        j.put("refreshExpiresAtMs", c.getRefreshExpiresAtMs());
+        j.put("lastRefreshAtMs", c.getLastRefreshAtMs());
+        j.put("nickname", c.getNickname());
+        j.put("uin", c.getUin());
+        j.put("sourcePath", c.getSourcePath());
+        return j;
+    }
+
+    private static WbPoolCredential credFromJson(JSONObject c) {
+        if (c == null) return null;
+        WbPoolCredential cred = new WbPoolCredential();
+        cred.setAccessToken(c.getString("accessToken"));
+        cred.setRefreshToken(c.getString("refreshToken"));
+        cred.setUid(c.getString("uid"));
+        cred.setEnterpriseId(c.getString("enterpriseId"));
+        cred.setDomain(c.getString("domain") == null ? "" : c.getString("domain"));
+        cred.setExpiresAtMs(c.getLongValue("expiresAtMs"));
+        cred.setRefreshExpiresAtMs(c.getLong("refreshExpiresAtMs"));
+        cred.setLastRefreshAtMs(c.getLong("lastRefreshAtMs"));
+        cred.setNickname(c.getString("nickname"));
+        cred.setUin(c.getString("uin"));
+        cred.setSourcePath(c.getString("sourcePath"));
+        return cred;
     }
 
     private void saveStore() {
@@ -391,25 +541,16 @@ public class WbAccountPool {
                 o.put("label", a.getLabel());
                 o.put("enabled", a.isEnabled());
                 o.put("savedAtMs", System.currentTimeMillis());
-                WbPoolCredential c = a.getCredential();
-                JSONObject cj = new JSONObject();
-                cj.put("accessToken", c.getAccessToken());
-                cj.put("refreshToken", c.getRefreshToken());
-                cj.put("uid", c.getUid());
-                cj.put("enterpriseId", c.getEnterpriseId());
-                cj.put("domain", c.getDomain());
-                cj.put("expiresAtMs", c.getExpiresAtMs());
-                cj.put("refreshExpiresAtMs", c.getRefreshExpiresAtMs());
-                cj.put("lastRefreshAtMs", c.getLastRefreshAtMs());
-                cj.put("nickname", c.getNickname());
-                cj.put("uin", c.getUin());
-                cj.put("sourcePath", c.getSourcePath());
-                o.put("credential", cj);
+                JSONArray creds = new JSONArray();
+                for (WbPoolCredential c : a.allCredentials()) creds.add(credToJson(c));
+                o.put("credentials", creds);
+                o.put("credential", creds.get(0));  // 兼容旧读法
                 arr.add(o);
             }
             JSONObject doc = new JSONObject();
             doc.put("version", 1);
             doc.put("accounts", arr);
+            doc.put("excluded", new JSONArray(new ArrayList<>(excluded)));
             Path tmp = p.resolveSibling(p.getFileName() + ".tmp");
             Files.write(tmp, doc.toJSONString().getBytes(StandardCharsets.UTF_8));
             Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);

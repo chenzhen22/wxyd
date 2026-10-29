@@ -90,13 +90,18 @@
     function renderPool(rows) {
         var $t = $('#gwPoolBody').html('');
         if (!rows || !rows.length) {
-            $t.append('<tr><td colspan="6" style="color:var(--text-5);">池内没有账号：在桌面 App 登录后点「刷新」，或检查桌面 App 路径配置</td></tr>');
+            $t.append('<tr><td colspan="7" style="color:var(--text-5);">池内没有账号：在桌面 App 登录后点「刷新」，或检查桌面 App 路径配置</td></tr>');
             return;
         }
         rows.forEach(function (r) {
             var $tr = $('<tr/>');
             var warn = '';
-            if (r.credentialDeadUntilMs) warn = ' <span style="color:#f87171;">⚠ 登录态失效</span>';
+            if (r.credentialDeadUntilMs) {
+                var restricted = (r.lastError || '').indexOf('风控') >= 0;
+                warn = restricted
+                    ? ' <span style="color:#f87171;">⛔ 账号被限制（需申诉）</span>'
+                    : ' <span style="color:#f87171;">⚠ 登录态失效</span>';
+            }
             else if (r.cooldownUntilMs) warn = ' <span style="color:#e0a800;">⚠ 积分冷却</span>';
             if (r.lastError) warn += ' <span style="font-size:11px;color:var(--text-5);" title="' + esc(r.lastError) + '">ℹ</span>';
             if (r.enabled === false) warn += ' <span style="color:#e0a800;">已停用</span>';
@@ -110,6 +115,9 @@
             $tr.append('<td><select class="gw-pool-model" style="width:100%;padding:3px 6px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;">' + opts + '</select></td>');
             $tr.append('<td>' + fmtMs(r.expiresAtMs) + '</td>');
             $tr.append('<td><input type="checkbox" class="gw-pool-enabled" data-id="' + esc(r.id) + '"' + (enabled ? ' checked' : '') + ' title="关 = 模型调用不再使用该账号" style="cursor:pointer;"></td>');
+            $tr.append(r.removable
+                ? '<td><button class="gw-mini gw-pool-del" data-id="' + esc(r.id) + '" data-label="' + esc(r.label || r.id) + '" title="从账号池移除，重扫不再自动加入">删除</button></td>'
+                : '<td></td>');
             $t.append($tr);
         });
     }
@@ -574,6 +582,22 @@
                     $cb.prop('checked', !$cb.prop('checked'));
                 });
         });
+        /* 账号池手动删除：移除后写排除表，重扫不会再自动回池（同账号重新扫码登录可恢复） */
+        $('#gwPoolBody').on('click', '.gw-pool-del', function () {
+            var id = $(this).data('id');
+            var label = $(this).data('label') || id;
+            if (!window.confirm('确定从账号池删除「' + label + '」？删除后重扫不会再自动加入，同账号重新扫码登录可恢复。')) return;
+            postJSON('gateway/admin/pool/remove', { id: id }).done(function (res) {
+                if (res.errorCode !== '000000') {
+                    gwAlert(res.errorMsg || '删除失败');
+                    return;
+                }
+                refreshStatus();
+            }).fail(function () {
+                gwAlert('删除失败');
+            });
+        });
+
         /* 说明：调用明细的刷新由日期选择框/用户下拉 change 事件触发，无独立按钮 */
 
         $('#gwKeyAdd').on('click', function () {
@@ -756,14 +780,19 @@
             }).fail(function () { gwAlert('操作失败'); });
         });
 
-        $('#gwAdminKeyTable').on('change', '.gw-admin-ov', function () {
-            postJSON('gateway/admin/keys/switch', { id: Number($(this).data('id')), override: $(this).val() }).done(function (res) {
+        /* 委托到 tbody（#gwAdminKeyTable 这个 id 页面上根本不存在，之前绑上去等于没绑，改了也不发请求） */
+        $('#gwAdminKeyBody').on('change', '.gw-admin-ov', function () {
+            var $sel = $(this);
+            postJSON('gateway/admin/keys/switch', { id: Number($sel.data('id')), override: $sel.val() }).done(function (res) {
                 if (res.errorCode !== '000000') {
                     gwAlert(res.errorMsg || '设置失败');
                     loadAdminKeys();
                     return;
                 }
                 gwAlert('已设置');
+                loadAdminKeys();
+            }).fail(function (xhr) {
+                gwAlert(xhr && xhr.status === 401 ? '登录已过期，请重新登录' : '设置失败（请求未送达）');
                 loadAdminKeys();
             });
         });

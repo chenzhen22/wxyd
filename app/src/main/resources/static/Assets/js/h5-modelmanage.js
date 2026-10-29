@@ -183,7 +183,11 @@
             if (!opts) opts = '<option>（目录加载中）</option>';
             rows.forEach(function (r) {
                 var warn = '';
-                if (r.credentialDeadUntilMs) warn = ' <span style="color:#f87171;">⚠ 失效</span>';
+                if (r.credentialDeadUntilMs) {
+                    warn = (r.lastError || '').indexOf('风控') >= 0
+                        ? ' <span style="color:#f87171;">⛔ 被限制</span>'
+                        : ' <span style="color:#f87171;">⚠ 登录态失效</span>';
+                }
                 else if (r.cooldownUntilMs) warn = ' <span style="color:#e0a800;">⚠ 冷却</span>';
                 var credits = typeof r.credits === 'number' ? r.credits : esc(r.creditsError || '?');
                 var enabled = r.enabled !== false;
@@ -195,7 +199,9 @@
                 $card.append('<div style="font-size:12px;color:var(--text-5);margin-bottom:2px;">剩余积分：<b style="color:var(--accent);">' + credits + '</b> · 令牌到期：' + fmtMs(r.expiresAtMs) + '</div>');
                 $card.append('<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">' +
                     '<label style="font-size:12px;color:var(--text-5);display:flex;align-items:center;gap:6px;cursor:pointer;">' +
-                    '<input type="checkbox" class="h5-pool-enabled" data-id="' + esc(r.id) + '"' + (enabled ? ' checked' : '') + '>启用（模型调用使用该账号）</label></div>');
+                    '<input type="checkbox" class="h5-pool-enabled" data-id="' + esc(r.id) + '"' + (enabled ? ' checked' : '') + '>启用（模型调用使用该账号）</label>' +
+                    '<span style="flex:1;"></span>' +
+                    (r.removable ? '<button class="h5-btn-ghost h5-btn-sm h5-pool-del" data-id="' + esc(r.id) + '" data-label="' + esc(r.label || r.id) + '">删除</button>' : '') + '</div>');
                 $card.append('<select style="width:100%;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">' + opts + '</select>');
                 $l.append($card);
             });
@@ -546,6 +552,20 @@
                         toast('操作失败');
                         $cb.prop('checked', !$cb.prop('checked'));
                     });
+            });
+            /* 账号池手动删除：移除后写排除表，重扫不再自动回池（同账号重新扫码登录可恢复） */
+            $('#h5MmPool').on('click', '.h5-pool-del', function () {
+                var id = $(this).data('id');
+                var label = $(this).data('label') || id;
+                if (!window.confirm('确定从账号池删除「' + label + '」？删除后重扫不会再自动加入，同账号重新扫码登录可恢复。')) return;
+                postJSON('gateway/admin/pool/remove', { id: id }).done(function (res) {
+                    if (res.errorCode !== '000000') {
+                        toast(res.errorMsg || '删除失败');
+                        return;
+                    }
+                    toast('已从账号池删除');
+                    loadPool();
+                }).fail(function () { toast('删除失败'); });
             });
             $('#h5MmUsageDate').on('change', function () { loadUsage(); });
             $('#h5MmAdmin').on('click', '.h5-auto-tab', function () {

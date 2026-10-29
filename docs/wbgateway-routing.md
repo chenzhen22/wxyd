@@ -5,10 +5,11 @@
 > **改完后必须同步更新本文件**，保持与实际代码一致。详见仓库根 `CLAUDE.md` 的
 > 「文档同步约束」一节。
 >
-> 文档基于 `V3.0` 分支、代码版本截至 2026-10-26（定向专家任务码改为 jump_url deeplink 通配，
-> events 轮次自动覆盖新上的「体验某专家」任务；
+> 文档基于 `V3.0` 分支、代码版本截至 2026-10-29（同步 xdpool 2.4.4 的凭据新鲜度分档与第三条
+> 11128 指纹；账号风控限制与登录态失效分开处理；账号池手动删除 + 多凭据轮换；
+> 开关开且请求模型不在目录时改走免费模型，不再回退默认付费模型）。
 > 前次改动：用量表实际模型改记真实上游模型 + 账号池单账号启停开关 + 调用明细加 ID 列；
-> 开关关=只能用免费模型（两处付费回退泄漏收紧）+ Qoder 免费日额度只屏蔽免费模型）。
+> 开关关=只能用免费模型（两处付费回退泄漏收紧）+ Qoder 免费日额度只屏蔽免费模型。
 
 ---
 
@@ -95,13 +96,17 @@ boolean switchOn = keyOverride != null ? keyOverride == 1
 
 ## 三、模型开关开启时（用户自选模型）
 
-代码：`WbGatewayChatService.java:111-138`
+代码：`WbGatewayChatService.java:113-152`
 
 **候选链构建：**
 
 1. 先在合并目录里找 Key 绑定的模型，其次找请求的模型 → 命中即作为链头，
    `publicModel` = 规范展示名；
-2. 都没命中 → 退回路由 provider 的默认模型；
+2. **都没命中（请求模型不在目录）→ 用免费模型兜底**，不再回退路由 provider 的默认付费模型
+   （2026-10-29 调整；此前会落到 `wxyd.wbgateway.default-model`，典型现象是客户端写
+   `claude-sonnet-5` 却被 `glm-5.3` 应答）。免费链按 `free_priority` 取全部 provider 的免费
+   模型，取不到再退该 provider 自己的免费模型；**全网没有免费模型 → 503**
+   （errorKind=`no_free_model`）。`publicModel` 仍是客户端请求的名字；
 3. **链头免费 → 到此为止**，不追加候选（`chain = [请求模型]`）；
 4. **链头是计量模型 → 追加同 provider 的免费模型作为兜底链**，按 `free_priority` 排序：
 
@@ -181,7 +186,8 @@ if (!switchOn) {                                       // 静默模式：追加�
 
 然后**逐个 provider 尝试**，把展示链翻译成该 provider 的原生链
 （`catalog.nativeIdFor(display, p.id())`，缺失时退回 `p.catalog().match()`）。
-某个 provider 连这些模型都没有 → 静默模式下用它自己的免费模型/默认模型接住。
+某个 provider 连这些模型都没有 → 用它自己的免费模型接住（连免费模型都没有就不参与兜底，
+不再退默认付费模型）。
 
 **失败重试的 kind 判定**（`WbGatewayChatService.java:208-214`）：
 
@@ -210,13 +216,30 @@ for 每个候选模型:
          │ 成功 → onSuccess() → break
          ▼ 失败
     session_dead → refreshAccount() 刷新令牌重试一次（refreshedOnce）
+                    刷新失败 → 先轮换同账号备用凭据，全部失效才 onCredentialDead()
     soft_rate(429) → onModelRateLimited() 模型级冷却 60s → 换号（最多 8 次）
     hard_credit(402) → onHardCredit() 账号级冷却 5min → 换号
+    account_blocked(403 风控) → onAccountRestricted() 冷却 6h → 换号（重登/换令牌无效）
+    client + 拦截 → 降指纹重试两级（见下）→ 仍失败 → 换下一个候选模型
     其它可重试 → 换下一个候选模型
 ```
 
-**冷却时长**（`WbAccountPool.java:37-42`）：模型级 429 冷却 **60s**；积分耗尽账号级
-**5min**；登录态判死 **30min**（只有重登能解）。
+**冷却时长**（`WbAccountPool.java:37-44`）：模型级 429 冷却 **60s**；积分耗尽账号级
+**5min**；登录态判死 **30min**（只有重登能解）；**账号被上游风控限制（403「账号存在异常行为」）6h**
+——重登拿到的新令牌一样会被拦，只能去 WorkBuddy 端申诉，因此冷却语义与「登录态失效」分开
+（`onAccountRestricted` vs `onCredentialDead`），界面也分开展示「⛔ 账号被限制（需申诉）」/
+「⚠ 登录态失效」。
+
+**同一账号可挂多份凭据（2026-10-29）**：桌面快照与浏览器扫码登录各算一份，按来源分档
+`live 文件 > browser-login > 历史快照`（`freshness()`；档内再看 `lastRefreshAtMs`，
+过期时间只作兜底——上游吊销令牌时不改写 expiresAt，死令牌可能显示得更晚过期）。
+主凭据被判死先轮换备用（`rotateCredential`，最多 8 次），全部失效才判死整个号。
+想彻底移除某个号用管理端点 `gateway/admin/pool/remove`：写进 store 的 `excluded` 排除表，
+重扫不再自动加入，同账号重新扫码登录即解除。
+
+**上游 11128 指纹拦截**：请求发出前由 `WbProtocol.sanitizeOpenAiMessages` 按改写表主动清洗
+system 与 assistant 内容（支持 content 数组块）；仍被拦时 provider 内再做两级降指纹重试
+（逐句剔除 → system 换中性）。改写表见 `WbProtocol.FINGERPRINT_REWRITES`。
 
 **单账号启停开关（2026-10-23 新增）**：`WbPoolAccount.enabled`（默认 true），
 关闭后 `pick()` / `available()` 直接跳过该账号——模型调用不再使用它，但**展示、
@@ -283,8 +306,9 @@ TTL 5 分钟重扫。
 switchOn = key.model_override ?? 全局 model_switch
   │
   ├─ 开（用户自选）:
-  │     chain = [请求模型]            （模型免费，不追加）
-  │     chain = [请求模型, +免费兜底链] （模型计量，按 free_priority）
+  │     请求模型在目录 → chain = [请求模型]            （模型免费，不追加）
+  │                      chain = [请求模型, +免费兜底链] （模型计量，按 free_priority）
+  │     请求模型不在目录 → chain = 免费模型链（不再回退默认付费模型；无免费模型则 503）
   │     只在该模型有货的 provider 间接力，不跨 provider 静默换
   │
   └─ 关（静默映射）:
@@ -323,6 +347,8 @@ candidates = candidates(链头) 按「免费>到期早>账号多>积分多」排
 改候选链 / 开关语义：
 
 - [ ] 同时考虑开关开与关两条路径
+- [ ] 开关开、但请求模型不在目录时：只允许免费模型兜底，**不得回退默认付费模型**
+      （否则客户端写个不存在的名字就会被付费模型静默应答）
 - [ ] 静默模式下 `publicModel` 必须回写用户视角名
 - [ ] 检查 `allowModelFallback` 的传参（`!switchOn`）
 - [ ] 同步更新本文第三节/第四节与第九节决策图

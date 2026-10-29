@@ -123,10 +123,25 @@ public class WbGatewayChatService {
                     chain.add(canon);
                     publicModel = canon;
                 } else {
-                    String dflt = catalog.match(route.provider.defaultModel());
-                    if (dflt == null) dflt = requested.isEmpty() ? route.provider.defaultModel() : requested;
-                    chain.add(dflt);
-                    publicModel = requested.isEmpty() ? dflt : requested;
+                    // Key 关掉了静默映射（=开），但请求的模型不在目录：不再回退到默认付费模型，
+                    // 按配置走免费模型兜底（Key 配了模型的话上面那一步就会命中，走不到这里）
+                    List<String> free = com.cyz.wbgateway.provider.FreePriority.order(catalog.freeIds(), freePriority);
+                    if (free.isEmpty()) {
+                        free = com.cyz.wbgateway.provider.FreePriority.order(
+                                catalog.freeIdsOf(route.provider), freePriority);
+                    }
+                    chain.addAll(free);
+                    if (chain.isEmpty()) {
+                        log.error("[WBGATEWAY] 模型开关为开但请求模型 {} 不在目录且无免费模型 keyId={}", requested, key.getId());
+                        recordUsage(key, protocol, requested, routeBy, wantStream, 0, 0,
+                                System.currentTimeMillis() - started, "error", "no_free_model", clientRequestJson, null);
+                        writeError(res, protocol, 503, "api_error",
+                                "请求的模型 " + requested + " 不存在，且当前没有可用的免费模型，请联系管理员");
+                        return;
+                    }
+                    publicModel = requested.isEmpty() ? chain.get(0) : requested;
+                    log.info("[WBGATEWAY] 请求模型 {} 不在目录，按免费模型兜底 keyId={} 实际链={}",
+                            requested, key.getId(), chain);
                 }
             }
             // 请求/选中的模型本身免费时，就按这个模型跑，不再追加其它候选模型

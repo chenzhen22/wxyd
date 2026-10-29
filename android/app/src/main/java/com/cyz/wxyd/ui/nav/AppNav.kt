@@ -118,7 +118,9 @@ private fun AuthNav(
 
 /**
  * 已登录路由图：`main` 双 Tab + 模块页。
- * 模块页在 Task 8–13 逐个实装，未实装前统一落到"建设中"占位。
+ *
+ * 模块页由 [ModuleRoute] 按 menu/list 的 `key` 分发；各模块在 Task 8–13 逐个实装，
+ * 未实装的 key 落到"建设中"占位（保证无死链）。
  */
 @Composable
 private fun MainNav(app: WxydApp, sessionViewModel: SessionViewModel) {
@@ -136,7 +138,20 @@ private fun MainNav(app: WxydApp, sessionViewModel: SessionViewModel) {
             arguments = listOf(navArgument("key") { type = NavType.StringType }),
         ) { entry ->
             val key = entry.arguments?.getString("key").orEmpty()
-            PlaceholderScreen(title = "模块：$key", onBack = { navController.popBackStack() })
+            ModuleRoute(
+                key = key,
+                onBack = { navController.popBackStack() },
+            )
         }
     }
+}
+
+/**
+ * 模块分发（计划 Task 7 Step 4）。`key` 来自 `menu/list?platform=h5`，首批范围：
+ * welfare / dayinfo / gateway / robot / notes / share / shell / javaapi
+ * （留言板/群聊/巡检/证据/归档、admin 模块首版不做，落占位）。
+ */
+@Composable
+private fun ModuleRoute(key: String, onBack: () -> Unit) {
+    PlaceholderScreen(title = "建设中", subtitle = "$key 即将上线", onBack = onBack)
 }

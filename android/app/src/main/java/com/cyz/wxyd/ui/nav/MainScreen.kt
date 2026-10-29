@@ -16,6 +16,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.cyz.wxyd.WxydApp
+import com.cyz.wxyd.ui.home.HomeScreen
+import com.cyz.wxyd.ui.profile.ProfileScreen
 import com.cyz.wxyd.ui.session.SessionViewModel
 
 private data class TabSpec(val route: String, val label: String, val icon: String)
@@ -26,14 +28,14 @@ private val MAIN_TABS = listOf(
     TabSpec(route = "profile", label = "我的", icon = "👤"),
 )
 
-/** Tab 路由（Task 7 的 HomeScreen/ProfileScreen 挂到这里）。 */
+/** Tab 路由：`home` / `profile` 固定可见（spec 决策：底部固定 2 Tab）。 */
 object TabRoutes {
     const val HOME = "home"
     const val PROFILE = "profile"
 }
 
 /**
- * 已登录主界面骨架（计划 Task 4；Task 7 实装两页内容）。
+ * 已登录主界面（计划 Task 7 Step 4）：工作台 + 我的，双 Tab。
  *
  * 双 Tab 用内层 [NavHost]，切换时保存/恢复各 Tab 状态；
  * 模块页由外层 `MainNav` 压栈，打开模块时底部栏不显示（单页面栈，界面范式）。
@@ -76,19 +78,18 @@ fun MainScreen(
             modifier = Modifier.padding(inner),
         ) {
             composable(TabRoutes.HOME) {
-                PlaceholderScreen(
-                    title = "工作台",
-                    subtitle = session?.let { "你好，${it.username} 👋" }.orEmpty(),
-                    onBack = null,
+                HomeScreen(
+                    app = app,
+                    username = session?.username.orEmpty(),
+                    onOpenModule = onOpenModule,
                 )
             }
             composable(TabRoutes.PROFILE) {
-                PlaceholderScreen(
-                    title = "我的",
-                    subtitle = session?.let {
-                        "${it.username}${if (it.isAdmin) "（管理员）" else ""}"
-                    }.orEmpty(),
-                    onBack = null,
+                ProfileScreen(
+                    app = app,
+                    username = session?.username.orEmpty(),
+                    isAdmin = session?.isAdmin == true,
+                    onLogout = { sessionViewModel.logout() },
                 )
             }
         }

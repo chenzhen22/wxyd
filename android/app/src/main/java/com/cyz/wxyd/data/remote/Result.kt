@@ -1,6 +1,7 @@
 package com.cyz.wxyd.data.remote
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -19,6 +20,25 @@ data class ApiResult(
     val body: JsonObject?,
 ) {
     val isSuccess: Boolean get() = errorCode == SUCCESS_CODE
+
+        /**
+         * 从响应原文解析，且保留 `body` 为**数组**的响应（`menu/list` 等）。
+         * [parse] 只认对象型 body，数组会被当成 null；数组型接口用这个。
+         *
+         * @return 成功时返回 body 数组原文；业务失败时抛 [ApiException]
+         */
+        fun parseArray(raw: String): JsonArray {
+            val obj = try {
+                json.parseToJsonElement(raw).jsonObject
+            } catch (e: Exception) {
+                throw ApiException("PARSE_ERROR", "响应格式错误：${e.message}")
+            }
+            val errorCode = obj["errorCode"]?.jsonPrimitive?.contentOrNull
+                ?: throw ApiException("-1", "响应缺少 errorCode 字段")
+            val errorMsg = obj["errorMsg"]?.jsonPrimitive?.contentOrNull
+            if (errorCode != SUCCESS_CODE) throw ApiException(errorCode, errorMsg ?: "未知错误")
+            return obj["body"] as? JsonArray ?: throw ApiException("PARSE_ERROR", "响应 body 不是数组")
+        }
 
     companion object {
         /** 后端统一成功码（spec 约束 3）。 */

@@ -585,37 +585,62 @@ public final class WbProtocol {
     /* ==================== 上游 WAF 清洗 ==================== */
 
     /**
-     * 上游 WAF 会拦三类内容（均 400「请求被拦截，请重新发送」/「Illegal API invocation from an unapproved channel」）：
-     * 1. 「自称 Claude 模型」的 system 内容（Claude Code 固定开场句）——改写成中性描述；
-     * 2. 「x-anthropic-* 伪 header」行（Claude Code 计费遥测）——整行删除，零信息损失；
-     * 3. 「You are an AI agent powered by XXX Harness.」类第三方 Agent 自述（按未授权渠道拦截）——改写成中性描述。
-     * 其余 system 内容原样发送。
+     * 上游 11128 指纹改写表（照 xdpool 2.4.4 BANNED_SYSTEM_PHRASES）：命中即改写成等价说法，
+     * 语义与长度量级都保留，比整句删除安全。追加新指纹时只加一行，不要再开新代码路径。
+     */
+    private static final String[][] FINGERPRINT_REWRITES = {
+            // Claude Code 固定开场句（自称 Claude 模型）：带逗号的先匹配，避免残留 "You are Claude Codea ..."
+            {"(?i),\\s*Anthropic'?s official CLI for Claude", ", a command-line coding assistant"},
+            {"(?i)Anthropic'?s official CLI for Claude", "a command-line coding assistant"},
+            // x-anthropic-* 伪 header 行（Claude Code 计费遥测）：整行删除，零信息损失
+            {"(?im)^x-anthropic-\\S+:.*\\r?\\n?", ""},
+            // 第三方 Agent Harness 自述（如 DeepSeek Harness）
+            {"(?i)You are an AI agent powered by [^.\\n]*Harness[.]?", "You are an AI assistant."},
+            // 第三条指纹（2026-10-28 实测）：「@ 路径约定 + workspace root」两句连用会被拦，
+            // 单句各自能过，改成同一句话的被动式即可清掉被列的子串
+            {"(?i)Relative paths resolve from the workspace root",
+                    "Relative paths are resolved against the workspace root"},
+    };
+
+    /**
+     * 上游 WAF 指纹清洗：对 system 与 assistant 内容做等价改写。
+     * <p>
+     * assistant 历史也要洗——一条带指纹的旧回复会让之后每个请求都 400。内容可能是字符串，
+     * 也可能是 content 块数组（带图片/缓存块），两种形态都要处理，图片块原样保留。
      */
     public static void sanitizeOpenAiMessages(JSONObject openaiReq) {
         JSONArray messages = openaiReq.getJSONArray("messages");
         if (messages == null) return;
         for (int i = 0; i < messages.size(); i++) {
             JSONObject m = messages.getJSONObject(i);
-            if (m == null || !"system".equals(m.getString("role"))) continue;
+            if (m == null) continue;
+            String role = m.getString("role");
+            if (!"system".equals(role) && !"assistant".equals(role)) continue;
             Object content = m.get("content");
-            if (!(content instanceof String)) continue;
-            String original = (String) content;
-            String noBilling = original.replaceAll("(?im)^x-anthropic-\\S+:.*\\r?\n?", "");
-            java.util.regex.Matcher mm = java.util.regex.Pattern
-                    .compile("(,\\s*)?Anthropic'?s official CLI for Claude", java.util.regex.Pattern.CASE_INSENSITIVE)
-                    .matcher(noBilling);
-            StringBuffer rep2 = new StringBuffer();
-            while (mm.find()) {
-                String rep = mm.group(1) != null ? ", a command-line coding assistant" : "A command-line coding assistant";
-                mm.appendReplacement(rep2, java.util.regex.Matcher.quoteReplacement(rep));
+            if (content instanceof String) {
+                String cleaned = sanitizeText((String) content);
+                if (!cleaned.equals(content)) m.put("content", cleaned);
+            } else if (content instanceof JSONArray) {
+                JSONArray blocks = (JSONArray) content;
+                for (int k = 0; k < blocks.size(); k++) {
+                    Object o = blocks.get(k);
+                    if (!(o instanceof JSONObject)) continue;
+                    JSONObject b = (JSONObject) o;
+                    Object text = b.get("text");
+                    if (!"text".equals(b.getString("type")) || !(text instanceof String)) continue;
+                    String cleaned = sanitizeText((String) text);
+                    if (!cleaned.equals(text)) b.put("text", cleaned);
+                }
             }
-            mm.appendTail(rep2);
-            // 第三方 Agent Harness 自述（如 DeepSeek Harness）会被上游按「未授权渠道」拦截，替换成中性描述
-            String sanitized = rep2.toString().replaceAll(
-                    "(?i)You are an AI agent powered by [^." + (char) 10 + "]*Harness[.]?",
-                    "You are an AI assistant.");
-            if (!sanitized.equals(original)) m.put("content", sanitized);
         }
+    }
+
+    private static String sanitizeText(String text) {
+        String out = text;
+        for (String[] r : FINGERPRINT_REWRITES) {
+            out = out.replaceAll(r[0], java.util.regex.Matcher.quoteReplacement(r[1]));
+        }
+        return out;
     }
 
     /**

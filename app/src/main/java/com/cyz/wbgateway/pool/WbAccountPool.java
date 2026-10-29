@@ -132,7 +132,7 @@ public class WbAccountPool {
             // 重建账号对象（保留池内冷却状态）
             Map<String, WbPoolAccount> next = new LinkedHashMap<>();
             List<Map.Entry<String, List<WbPoolCredential>>> ordered = new ArrayList<>(merged.entrySet());
-            ordered.sort((a, b) -> freshness(b.getValue().get(0)) - freshness(a.getValue().get(0)));
+            ordered.sort((a, b) -> Long.compare(freshness(b.getValue().get(0)), freshness(a.getValue().get(0))));
             for (Map.Entry<String, List<WbPoolCredential>> en : ordered) {
                 WbPoolAccount old = accounts.get(en.getKey());
                 WbPoolAccount acc = new WbPoolAccount();
@@ -182,14 +182,23 @@ public class WbAccountPool {
             if (c.getAccessToken() != null && c.getAccessToken().equals(e.getAccessToken())) return;
         }
         list.add(c);
-        list.sort((a, b) -> freshness(b) - freshness(a));
+        list.sort((a, b) -> Long.compare(freshness(b), freshness(a)));
     }
 
-    /** freshness 降序：live > lastRefreshTime > expiresAt */
-    private static int freshness(WbPoolCredential c) {
-        int s = c.isLive() ? 2_000_000_000 : 0;
-        s += (int) Math.min(1_000_000_000L, c.getLastRefreshAtMs() == null ? 0 : c.getLastRefreshAtMs() / 1000);
-        s += (int) Math.min(500_000_000L, c.getExpiresAtMs() / 2000);
+    /**
+     * 凭据新鲜度（照 xdpool 2.4.4 compareFreshness）：先按来源分档，档内再看签发时间/过期时间。
+     * <p>
+     * 1. live 文件：桌面端当前登录的那份，最新最有代表性；
+     * 2. 自家扫码登录（sourcePath=browser-login）：天生没有 lastRefreshAtMs，不能跟快照比时间戳；
+     * 3. 其它历史快照：档内 lastRefreshAtMs 优先，过期时间只作兜底。
+     * <p>
+     * 过期时间不是新鲜度信号：上游吊销令牌时不会改写 expiresAt，死令牌可能显示得比活令牌更晚过期。
+     */
+    private static long freshness(WbPoolCredential c) {
+        long rank = c.isLive() ? 3 : ("browser-login".equals(c.getSourcePath()) ? 2 : 1);
+        long s = rank * 1_000_000_000_000L;
+        s += Math.min(1_000_000_000L, c.getLastRefreshAtMs() == null ? 0 : c.getLastRefreshAtMs() / 1000);
+        s += Math.min(500_000_000L, c.getExpiresAtMs() / 2000);
         return s;
     }
 

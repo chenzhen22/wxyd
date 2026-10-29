@@ -48,6 +48,14 @@ class ApiClient(
     /** 构造时传入的默认 Base URL；[settingsStore] 中有值时优先用后者。 */
     private val fallbackBaseUrl: String = baseUrl.trim().trimEnd('/')
 
+    /**
+     * 401 全局回调（会话过期）。由会话层在创建时挂上，
+     * 使**任何**请求拿到 401 都会清会话并回登录页，而不是依赖各业务层记得 catch
+     * （spec 约束 1、计划 Review Focus #2）。
+     */
+    @Volatile
+    var onUnauthorized: (() -> Unit)? = null
+
     private val client: OkHttpClient = OkHttpClient.Builder()
         .cookieJar(cookieJar)
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -131,7 +139,10 @@ class ApiClient(
     private suspend fun execute(request: Request): String =
         withContext(Dispatchers.IO) {
             client.newCall(request).await().use { response ->
-                if (response.code == HTTP_UNAUTHORIZED) throw SessionExpiredException()
+                if (response.code == HTTP_UNAUTHORIZED) {
+                    onUnauthorized?.invoke()
+                    throw SessionExpiredException()
+                }
                 if (!response.isSuccessful) {
                     throw ApiException(response.code.toString(), "HTTP ${response.code} ${response.message}")
                 }
@@ -145,6 +156,7 @@ class ApiClient(
             val response = client.newCall(request).await()
             if (response.code == HTTP_UNAUTHORIZED) {
                 response.close()
+                onUnauthorized?.invoke()
                 throw SessionExpiredException()
             }
             response

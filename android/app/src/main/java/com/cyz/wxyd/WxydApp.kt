@@ -3,7 +3,15 @@ package com.cyz.wxyd
 import android.app.Application
 
 /**
- * 小泽助手 Application 空壳。
- * 后续任务在此初始化全局组件（如 OkHttp Cookie 持久化）。
+ * 小泽助手 Application：持有进程级依赖容器 [AppContainer]。
  */
-class WxydApp : Application()
+class WxydApp : Application() {
+
+    lateinit var container: AppContainer
+        private set
+
+    override fun onCreate() {
+        super.onCreate()
+        container = AppContainer(this)
+    }
+}

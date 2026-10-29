@@ -5,7 +5,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -30,13 +29,13 @@ class SessionCookieJar(
     private val lock = Any()
 
     init {
-        // 进程启动时从 DataStore 回填缓存。runBlocking 仅初始化一次，
-        // 避免首个请求未等磁盘加载完成就发出去（丢失 Cookie）。
-        runBlocking {
+        // 进程启动后从 DataStore 异步回填缓存（fire-and-forget，不阻塞构造线程，
+        // 可在主线程安全构造）。首请求若在回填前到达，cache 为空则不带 Cookie，
+        // 登录流程会重新建立会话，无副作用。
+        externalScope.launch {
             val saved = settingsStore.jsessionIdFlow.first()
             if (saved != null) {
-                // 旧版本只存了裸值，host 未知时回填到通用槽位
-                cache[STORED_KEY] = saved
+                synchronized(lock) { cache[STORED_KEY] = saved }
             }
         }
     }
@@ -53,11 +52,11 @@ class SessionCookieJar(
         }
     }
 
-    override fun loadForRequest(url: HttpUrl, out: MutableList<Cookie>) {
+    override fun loadForRequest(url: HttpUrl): List<Cookie> {
         val value = synchronized(lock) {
             cache[url.host] ?: cache[STORED_KEY]
-        } ?: return
-        out.add(
+        } ?: return emptyList()
+        return listOf(
             Cookie.Builder()
                 .name(JSESSIONID_NAME)
                 .value(value)

@@ -27,7 +27,11 @@ data class ApiResult(
         private val json = Json { ignoreUnknownKeys = true }
 
         /** 从响应原文解析 [ApiResult]。 */
-        fun parse(raw: String): ApiResult = parse(json.parseToJsonElement(raw).jsonObject)
+        fun parse(raw: String): ApiResult = try {
+            parse(json.parseToJsonElement(raw).jsonObject)
+        } catch (e: Exception) {
+            throw ApiException("PARSE_ERROR", "响应格式错误：${e.message}")
+        }
 
         /** 从已解析的 JSON 对象构造 [ApiResult]。 */
         fun parse(obj: JsonObject): ApiResult {

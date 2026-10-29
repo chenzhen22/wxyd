@@ -183,7 +183,11 @@
             if (!opts) opts = '<option>（目录加载中）</option>';
             rows.forEach(function (r) {
                 var warn = '';
-                if (r.credentialDeadUntilMs) warn = ' <span style="color:#f87171;">⚠ 失效</span>';
+                if (r.credentialDeadUntilMs) {
+                    warn = (r.lastError || '').indexOf('风控') >= 0
+                        ? ' <span style="color:#f87171;">⛔ 被限制</span>'
+                        : ' <span style="color:#f87171;">⚠ 登录态失效</span>';
+                }
                 else if (r.cooldownUntilMs) warn = ' <span style="color:#e0a800;">⚠ 冷却</span>';
                 var credits = typeof r.credits === 'number' ? r.credits : esc(r.creditsError || '?');
                 var enabled = r.enabled !== false;

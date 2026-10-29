@@ -96,7 +96,12 @@
         rows.forEach(function (r) {
             var $tr = $('<tr/>');
             var warn = '';
-            if (r.credentialDeadUntilMs) warn = ' <span style="color:#f87171;">⚠ 登录态失效</span>';
+            if (r.credentialDeadUntilMs) {
+                var restricted = (r.lastError || '').indexOf('风控') >= 0;
+                warn = restricted
+                    ? ' <span style="color:#f87171;">⛔ 账号被限制（需申诉）</span>'
+                    : ' <span style="color:#f87171;">⚠ 登录态失效</span>';
+            }
             else if (r.cooldownUntilMs) warn = ' <span style="color:#e0a800;">⚠ 积分冷却</span>';
             if (r.lastError) warn += ' <span style="font-size:11px;color:var(--text-5);" title="' + esc(r.lastError) + '">ℹ</span>';
             if (r.enabled === false) warn += ' <span style="color:#e0a800;">已停用</span>';

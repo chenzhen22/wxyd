@@ -40,6 +40,8 @@ public class WbAccountPool {
     private static final long CREDIT_COOLDOWN_MS = 5 * 60_000L;
     /** 登录态被上游判死：只有重登能解，冷却要长 */
     private static final long DEAD_COOLDOWN_MS = 30 * 60_000L;
+    /** 账号被上游风控限制（403 异常行为）：重登/换令牌都无效，只能等申诉解封 */
+    private static final long RESTRICTED_COOLDOWN_MS = 6 * 3600_000L;
 
     private final WbAtRestKeyService keyService;
 
@@ -283,6 +285,21 @@ public class WbAccountPool {
             a.setCredentialDeadUntilMs(System.currentTimeMillis() + DEAD_COOLDOWN_MS);
             a.setLastError("登录态失效：" + reason);
             log.warn("[WBPOOL] 账号 {} 登录态被上游判死，冷却 {}min：{}", a.getLabel(), DEAD_COOLDOWN_MS / 60000, reason);
+        }
+    }
+
+    /**
+     * 账号被上游风控限制（403「账号存在异常行为，已被限制使用」）：
+     * 与登录态失效不同，重新登录拿到的新令牌一样会被拦，只能去 WorkBuddy 端申诉，因此长冷却。
+     */
+    public void onAccountRestricted(String id, String reason) {
+        synchronized (lock) {
+            WbPoolAccount a = accounts.get(id);
+            if (a == null) return;
+            a.setCredentialDeadUntilMs(System.currentTimeMillis() + RESTRICTED_COOLDOWN_MS);
+            a.setLastError("账号被上游风控限制：" + reason);
+            log.warn("[WBPOOL] 账号 {} 被上游风控限制，冷却 {}h（需在 WorkBuddy 端申诉，重新登录无效）：{}",
+                    a.getLabel(), RESTRICTED_COOLDOWN_MS / 3600_000L, reason);
         }
     }
 

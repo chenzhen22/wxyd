@@ -605,6 +605,9 @@ public class WbWorkBuddyClient {
 
     public void onCredentialDead(String accountId, String reason) { accountPool.onCredentialDead(accountId, reason); }
 
+    /** 账号被上游风控限制（403 异常行为）：重登无效，长冷却等申诉 */
+    public void onAccountRestricted(String accountId, String reason) { accountPool.onAccountRestricted(accountId, reason); }
+
     public void onModelRateLimited(String accountId, String model) { accountPool.onModelRateLimited(accountId, model); }
 
     public void onHardCredit(String accountId) { accountPool.onHardCredit(accountId); }

@@ -202,7 +202,7 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
                 }
                 // 账号被上游风控限制：刷新令牌/换模型都无效，直接把该号判死（冷却）再换下一个号
                 if (WbUpstreamException.KIND_ACCOUNT_BLOCKED.equals(e.getKind()) && acc != null) {
-                    client.onCredentialDead(acc.getId(), e.getMessage());
+                    client.onAccountRestricted(acc.getId(), e.getMessage());
                     log.warn("[WBGATEWAY] 账号 {} 被上游限制，换号重试：{}", acc.getLabel(), e.getMessage());
                     acc = null;
                     if (switched++ < maxSwitch) continue;

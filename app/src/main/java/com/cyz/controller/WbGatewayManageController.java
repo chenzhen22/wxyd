@@ -374,7 +374,10 @@ public class WbGatewayManageController {
             return result;
         }
         if (!accountPool.remove(id)) {
-            return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+            // 不在池里（已删过 / 该行来自其它通道）：明确告诉调用方，而不是笼统的「无权操作」
+            result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000015);
+            result.setErrorMsg("账号不在池中（可能已删除）");
+            return result;
         }
         log.info("[WBGATEWAY] 账号池账号 {} 已删除（by user {}）", id, userId(session));
         return result;

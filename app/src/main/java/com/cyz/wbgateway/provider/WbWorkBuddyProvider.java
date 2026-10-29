@@ -100,7 +100,12 @@ public class WbWorkBuddyProvider implements UpstreamProvider {
     public List<Map<String, Object>> accountRows() {
         try {
             Object accounts = client.bridgeStatus().get("accounts");
-            if (accounts instanceof List) return (List<Map<String, Object>>) accounts;
+            if (accounts instanceof List) {
+                // 标记「这一行可以手动删除」：前端据此决定是否显示删除按钮，避免对其它通道的行下发删除
+                List<Map<String, Object>> rows = (List<Map<String, Object>>) accounts;
+                for (Map<String, Object> row : rows) row.put("removable", true);
+                return rows;
+            }
         } catch (Exception ignore) {
         }
         return new java.util.ArrayList<>();

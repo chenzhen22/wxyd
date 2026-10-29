@@ -110,7 +110,9 @@
             $tr.append('<td><select class="gw-pool-model" style="width:100%;padding:3px 6px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-size:12px;">' + opts + '</select></td>');
             $tr.append('<td>' + fmtMs(r.expiresAtMs) + '</td>');
             $tr.append('<td><input type="checkbox" class="gw-pool-enabled" data-id="' + esc(r.id) + '"' + (enabled ? ' checked' : '') + ' title="关 = 模型调用不再使用该账号" style="cursor:pointer;"></td>');
-            $tr.append('<td><button class="gw-mini gw-pool-del" data-id="' + esc(r.id) + '" data-label="' + esc(r.label || r.id) + '" title="从账号池移除，重扫不再自动加入">删除</button></td>');
+            $tr.append(r.removable
+                ? '<td><button class="gw-mini gw-pool-del" data-id="' + esc(r.id) + '" data-label="' + esc(r.label || r.id) + '" title="从账号池移除，重扫不再自动加入">删除</button></td>'
+                : '<td></td>');
             $t.append($tr);
         });
     }

@@ -197,7 +197,7 @@
                     '<label style="font-size:12px;color:var(--text-5);display:flex;align-items:center;gap:6px;cursor:pointer;">' +
                     '<input type="checkbox" class="h5-pool-enabled" data-id="' + esc(r.id) + '"' + (enabled ? ' checked' : '') + '>启用（模型调用使用该账号）</label>' +
                     '<span style="flex:1;"></span>' +
-                    '<button class="h5-btn-ghost h5-btn-sm h5-pool-del" data-id="' + esc(r.id) + '" data-label="' + esc(r.label || r.id) + '">删除</button></div>');
+                    (r.removable ? '<button class="h5-btn-ghost h5-btn-sm h5-pool-del" data-id="' + esc(r.id) + '" data-label="' + esc(r.label || r.id) + '">删除</button>' : '') + '</div>');
                 $card.append('<select style="width:100%;padding:8px;border-radius:8px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);">' + opts + '</select>');
                 $l.append($card);
             });

@@ -85,6 +85,19 @@ class ApiClient(
         return parseResultBody(raw)
     }
 
+    /**
+     * POST 双层 `{"body": {...}}`，返回**原始响应串**。
+     *
+     * 少数接口的 `Result.body` 不是对象而是裸字符串（`gateway/keys/reveal` 返回 Key 明文），
+     * [postBody] 的 `parseResultBody` 只保留对象型 body，会把字符串丢掉；这里只校验业务码。
+     */
+    suspend fun postBodyRawString(path: String, bodyFields: JsonObject): String {
+        val raw = execute(buildRequest(path).post(RequestBodyFactory.body(bodyFields)).build())
+        val result = ApiResult.parse(raw)
+        if (!result.isSuccess) throw ApiException(result.errorCode, result.errorMsg ?: "未知错误")
+        return raw
+    }
+
     /** POST 直接字段 JSON（`robot/{add,update,delete}`、`javaapi/.../test`）。 */
     suspend fun postDirect(path: String, fields: JsonObject): JsonObject {
         val raw = execute(buildRequest(path).post(RequestBodyFactory.direct(fields)).build())

@@ -3,6 +3,8 @@ package com.cyz.wxyd.ui.gateway
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cyz.wxyd.AppContainer
+import com.cyz.wxyd.data.remote.ApiClient
+import com.cyz.wxyd.data.remote.ApiResult
 import com.cyz.wxyd.ui.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -178,21 +180,16 @@ class GatewayViewModel(private val container: AppContainer) : ViewModel() {
 
     /**
      * 查看明文：服务端 `result.setBody(raw)`，`body` 是**字符串**而非对象，
-     * 而 [com.cyz.wxyd.data.remote.ApiClient.postBody] 只保留对象型 body → 拿到空对象。
-     * 故走 `getRaw` 不行（它是 GET），改用同一条 POST 由 [RequestBodyFactory] 发、自行解包——
-     * 首版折中：先按对象取 `apiKey`，取不到时提示重新新增（明文在创建时一定可见）。
+     * [com.cyz.wxyd.data.remote.ApiClient.postBody] 只保留对象型 body，故走 [ApiClient.postBodyRawString]
+     * + [ApiResult.bodyStringOrNull] 取裸字符串。
      */
     fun revealKey(id: Long) {
         viewModelScope.launch {
             try {
-                val body = container.apiClient.postBody("/gateway/keys/reveal", buildJsonObject { put("id", id) })
-                val plain = body["apiKey"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                val raw = container.apiClient.postBodyRawString("/gateway/keys/reveal", buildJsonObject { put("id", id) })
+                val plain = ApiResult.bodyStringOrNull(raw).orEmpty()
                 _ui.update {
-                    it.copy(
-                        revealed = plain.ifBlank {
-                            "服务端返回的明文不是对象格式，暂无法在此展示；如需新密钥请删除后重新新增（明文在新增时会显示一次）"
-                        },
-                    )
+                    it.copy(revealed = plain.ifBlank { "（服务端未返回明文，请稍后重试）" })
                 }
             } catch (e: Exception) {
                 showError(e)

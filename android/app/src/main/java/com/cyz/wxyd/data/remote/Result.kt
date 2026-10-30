@@ -3,6 +3,7 @@ package com.cyz.wxyd.data.remote
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -44,6 +45,23 @@ data class ApiResult(
             val errorMsg = obj["errorMsg"]?.jsonPrimitive?.contentOrNull
             if (errorCode != SUCCESS_CODE) throw ApiException(errorCode, errorMsg ?: "未知错误")
             return obj["body"] as? JsonArray ?: throw ApiException("PARSE_ERROR", "响应 body 不是数组")
+        }
+
+        /**
+         * 从响应原文取 `body` 的**裸字符串**（`gateway/keys/reveal` 这类 body 是字符串的接口）。
+         * 业务失败抛 [ApiException]；body 缺失/非字符串返回 null。
+         */
+        fun bodyStringOrNull(raw: String): String? {
+            val obj = try {
+                json.parseToJsonElement(raw).jsonObject
+            } catch (e: Exception) {
+                throw ApiException("PARSE_ERROR", "响应格式错误：${e.message}")
+            }
+            val errorCode = obj["errorCode"]?.jsonPrimitive?.contentOrNull
+                ?: throw ApiException("-1", "响应缺少 errorCode 字段")
+            val errorMsg = obj["errorMsg"]?.jsonPrimitive?.contentOrNull
+            if (errorCode != SUCCESS_CODE) throw ApiException(errorCode, errorMsg ?: "未知错误")
+            return (obj["body"] as? JsonPrimitive)?.contentOrNull
         }
 
         /** 从响应原文解析 [ApiResult]。 */

@@ -109,6 +109,7 @@ public class WbGatewayChatService {
         ProviderRegistry.Route route = providers.resolve(routeBy);
         // 免费模型优先级：管理员手动配置优先，未配置/全部失效则按目录自动顺序
         String freePriority = wbGatewayMapper.queryFreePriority();
+        String fallbackCsv = wbGatewayMapper.queryFallbackModels();
 
         List<String> chain = new ArrayList<>();
         String publicModel;
@@ -131,6 +132,8 @@ public class WbGatewayChatService {
                                 catalog.freeIdsOf(route.provider), freePriority);
                     }
                     chain.addAll(free);
+                    // 免费模型都不可用时的最后手段：管理员配置的兜底模型（付费，按顺序）
+                    appendFallbackModels(chain, catalog, fallbackCsv);
                     if (chain.isEmpty()) {
                         log.error("[WBGATEWAY] 模型开关为开但请求模型 {} 不在目录且无免费模型 keyId={}", requested, key.getId());
                         recordUsage(key, protocol, requested, routeBy, wantStream, 0, 0,
@@ -154,6 +157,8 @@ public class WbGatewayChatService {
                 List<String> free = com.cyz.wbgateway.provider.FreePriority.order(
                         catalog.freeIdsOf(route.provider), freePriority);
                 for (String id : free) if (!chain.contains(id)) chain.add(id);
+                // 免费模型都不可用时的最后手段：管理员配置的兜底模型（付费，按顺序）
+                appendFallbackModels(chain, catalog, fallbackCsv);
             }
         } else {
             // 开关关闭时的处理：
@@ -426,6 +431,17 @@ public class WbGatewayChatService {
         if (canon != null) return canon;
         List<String> ids = catalog.ids();
         return ids.isEmpty() ? dflt : ids.get(0);
+    }
+
+    /**
+     * 兜底模型：管理员在「模型管理」里配置（逗号分隔模型 id，按顺序），是免费模型都不可用时的最后手段。
+     * 只追加目录里真实存在的模型，已在链上的不重复追加。
+     */
+    private void appendFallbackModels(List<String> chain, com.cyz.wbgateway.provider.CompositeCatalog catalog, String csv) {
+        for (String id : com.cyz.wbgateway.provider.FreePriority.parse(csv)) {
+            String canon = catalog.match(id);
+            if (canon != null && !chain.contains(canon)) chain.add(canon);
+        }
     }
 
     /** 按协议输出错误形状 */

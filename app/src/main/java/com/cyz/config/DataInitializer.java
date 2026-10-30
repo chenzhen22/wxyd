@@ -594,6 +594,8 @@ public class DataInitializer implements ApplicationRunner {
                     "`id` BIGINT NOT NULL COMMENT '固定单行 id=1'," +
                     "`model_switch` TINYINT NOT NULL DEFAULT 1 COMMENT '1=开：用户自选模型生效 0=关：静默映射到免费模型（对用户不可见）'," +
                     "`free_priority` VARCHAR(1000) NOT NULL DEFAULT '' COMMENT '免费模型手动优先级（逗号分隔 id，空=自动）'," +
+
+                    "`fallback_models` VARCHAR(1000) NOT NULL DEFAULT '' COMMENT '兜底模型（逗号分隔 id，免费模型都不可用时的最后手段，按顺序）'," +
                     "`qoder_auto_checkin` TINYINT NOT NULL DEFAULT 1 COMMENT '1=每天自动领取签到积分 0=关闭'," +
                     "`update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
                     "PRIMARY KEY (`id`)" +
@@ -602,6 +604,8 @@ public class DataInitializer implements ApplicationRunner {
             ensureWbGatewayKeyOverrideColumn();
             ensureWbGatewayKeyActiveDateColumn();
             ensureWbGatewayFreePriorityColumn();
+
+            ensureWbGatewayFallbackModelsColumn();
             ensureQoderAutoCheckinColumn();
             ensureWbGatewayUsageTable();
             ensureWbGatewayUsagePayloadColumns();
@@ -686,6 +690,24 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[INIT] 已自动执行 V25 迁移：wb_gateway_config 补 free_priority 列（免费模型优先级）");
         } catch (Exception e) {
             log.error("[INIT] 自动执行 V25 迁移失败（请手动执行 sql/V25__wb_gateway_free_priority.sql）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * V28 升级兜底：wb_gateway_config 补 fallback_models 列（免费模型都不可用时的兜底模型，付费）。
+     */
+    private void ensureWbGatewayFallbackModelsColumn() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='wb_gateway_config' AND COLUMN_NAME='fallback_models'",
+                    Integer.class);
+            if (cnt != null && cnt > 0) return;
+            jdbcTemplate.execute("ALTER TABLE `wb_gateway_config` ADD COLUMN `fallback_models` VARCHAR(1000) NOT NULL DEFAULT '' " +
+                    "COMMENT '兜底模型（逗号分隔 id，免费模型都不可用时的最后手段，按顺序）' AFTER `free_priority`");
+            log.info("[INIT] 已自动执行 V28 迁移：wb_gateway_config 补 fallback_models 列（兜底模型）");
+        } catch (Exception e) {
+            log.error("[INIT] 自动执行 V28 迁移失败（请手动执行 sql/V28__wb_gateway_fallback_models.sql）：{}", e.getMessage());
         }
     }
 

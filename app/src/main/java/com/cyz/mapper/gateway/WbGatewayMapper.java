@@ -41,6 +41,11 @@ public interface WbGatewayMapper {
 
     int updateFreePriority(@Param("freePriority") String freePriority);
 
+    /** 兜底模型（逗号分隔的模型 id，免费模型都不可用时的最后手段，按顺序） */
+    String queryFallbackModels();
+
+    int updateFallbackModels(@Param("fallbackModels") String fallbackModels);
+
     /** Qoder 每日自动签到开关（1=开 0=关） */
     Integer queryQoderAutoCheckin();
 

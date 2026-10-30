@@ -80,6 +80,14 @@
 		update `wb_gateway_config` set `free_priority`=#{freePriority} where `id`=1
 	</update>
 
+	<select id="queryFallbackModels" resultType="String">
+		select `fallback_models` from `wb_gateway_config` where `id`=1
+	</select>
+
+	<update id="updateFallbackModels">
+		update `wb_gateway_config` set `fallback_models`=#{fallbackModels} where `id`=1
+	</update>
+
 	<select id="queryQoderAutoCheckin" resultType="Integer">
 		select `qoder_auto_checkin` from `wb_gateway_config` where `id`=1
 	</select>

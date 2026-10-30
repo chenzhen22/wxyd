@@ -244,6 +244,7 @@
             loadUsage(1);
             loadAutomation();
             loadFreePriority();
+            loadFallbackModels();
             loadQoderCheckin();
             $.getJSON('gateway/admin/models').done(function (r2) {
                 if (r2.errorCode !== '000000') return;
@@ -329,6 +330,25 @@
             html += '<br><span style="color:#f87171;">已失效（将被忽略）：' + esc(invalid.join('、')) + '</span>';
         }
         $('#gwFreeHint').html(html);
+    }
+
+    /* ================= 管理员：兜底模型 ================= */
+
+    function renderFallbackModels(b) {
+        b = b || {};
+        $('#gwFallbackModels').val((b.manual || []).join('\n'));
+        var eff = b.effective || [], bad = b.invalid || [];
+        var html = '生效顺序：' + (eff.length ? esc(eff.join(' → ')) : '（未配置，不启用兜底）');
+        if (bad.length) html += '<br><span style="color:#f87171;">已失效（将被忽略）：' + esc(bad.join('、')) + '</span>';
+        $('#gwFallbackHint').html(html);
+    }
+
+    function loadFallbackModels() {
+        $.ajax({ url: 'gateway/admin/fallback-models', type: 'GET', dataType: 'json', cache: false })
+            .done(function (res) {
+                if (res.errorCode !== '000000') return;
+                renderFallbackModels(res.body);
+            });
     }
 
     function loadFreePriority() {
@@ -760,6 +780,24 @@
                 $btn.prop('disabled', false).text('🎁 立即领取');
                 gwAlert('领取失败');
             });
+        });
+
+        $('#gwFallbackSave').off('click').on('click', function () {
+            var lines = ($('#gwFallbackModels').val() || '').split(/\r?\n/)
+                .map(function (s) { return $.trim(s); }).filter(function (s) { return !!s; });
+            postJSON('gateway/admin/fallback-models', { list: lines }).done(function (res) {
+                if (res.errorCode !== '000000') { gwAlert(res.errorMsg || '保存失败'); return; }
+                renderFallbackModels(res.body);
+                gwAlert('兜底模型已保存');
+            }).fail(function () { gwAlert('保存失败'); });
+        });
+
+        $('#gwFallbackClear').off('click').on('click', function () {
+            postJSON('gateway/admin/fallback-models', { list: [] }).done(function (res) {
+                if (res.errorCode !== '000000') { gwAlert(res.errorMsg || '操作失败'); return; }
+                renderFallbackModels(res.body);
+                gwAlert('已清空兜底模型');
+            }).fail(function () { gwAlert('操作失败'); });
         });
 
         $('#gwFreeSave').off('click').on('click', function () {

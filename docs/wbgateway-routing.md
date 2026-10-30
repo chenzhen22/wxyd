@@ -80,6 +80,7 @@ ProviderRegistry  resolve() / candidates()
 |------|------|
 | `model_switch` 模型开关 | **开** = 用户自选模型；**关** = 静默映射到免费模型 |
 | `free_priority` 免费优先级 | 逗号分隔的手动模型顺序，管理员可控 |
+| `fallback_models` 兜底模型 | 逗号分隔的付费模型顺序；请求模型与免费模型都失败后的最后手段，空=不启用（2026-10-30） |
 
 **Key 级覆盖优先**（`WbGatewayChatService.java:82-85`）：
 
@@ -107,8 +108,11 @@ boolean switchOn = keyOverride != null ? keyOverride == 1
    `claude-sonnet-5` 却被 `glm-5.3` 应答）。免费链按 `free_priority` 取全部 provider 的免费
    模型，取不到再退该 provider 自己的免费模型；**全网没有免费模型 → 503**
    （errorKind=`no_free_model`）。`publicModel` 仍是客户端请求的名字；
+   **其后还会追加管理员配置的「兜底模型」**（`fallback_models`，2026-10-30 新增）：只在请求模型与
+   免费模型都失败时才轮到，按配置顺序尝试，默认空=不启用。
 3. **链头免费 → 到此为止**，不追加候选（`chain = [请求模型]`）；
-4. **链头是计量模型 → 追加同 provider 的免费模型作为兜底链**，按 `free_priority` 排序：
+4. **链头是计量模型 → 追加同 provider 的免费模型作为兜底链**，按 `free_priority` 排序，
+   末尾再追加「兜底模型」（`fallback_models`）：
 
 ```
 chain = [用户要的模型, 免费模型A, 免费模型B, ...]
@@ -309,6 +313,7 @@ switchOn = key.model_override ?? 全局 model_switch
   │     请求模型在目录 → chain = [请求模型]            （模型免费，不追加）
   │                      chain = [请求模型, +免费兜底链] （模型计量，按 free_priority）
   │     请求模型不在目录 → chain = 免费模型链（不再回退默认付费模型；无免费模型则 503）
+  │     免费模型都失败 → 末尾追加兜底模型 chain（fallback_models，付费，按配置顺序）
   │     只在该模型有货的 provider 间接力，不跨 provider 静默换
   │
   └─ 关（静默映射）:

@@ -31,6 +31,7 @@ import com.cyz.wxyd.ui.login.LoginScreen
 import com.cyz.wxyd.ui.welfare.WelfareDetailScreen
 import com.cyz.wxyd.ui.welfare.WelfareScreen
 import com.cyz.wxyd.ui.dayinfo.DayInfoScreen
+import com.cyz.wxyd.ui.gateway.GatewayScreen
 import com.cyz.wxyd.ui.session.SessionViewModel
 
 /**
@@ -176,6 +177,7 @@ private fun ModuleRoute(
     when (key) {
         "welfare" -> WelfareScreen(app = app, onBack = onBack, onOpenDetail = onOpenWelfareDetail)
         "dayinfo" -> DayInfoScreen(app = app, onBack = onBack)
+        "gateway" -> GatewayScreen(app = app, onBack = onBack)
         else -> PlaceholderScreen(title = "建设中", subtitle = "$key 即将上线", onBack = onBack)
     }
 }

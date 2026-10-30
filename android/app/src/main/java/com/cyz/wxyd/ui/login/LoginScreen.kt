@@ -183,8 +183,16 @@ fun LoginScreen(
     }
 }
 
-/** 设备是否具备指纹/生物识别能力（Class 3，BiometricPrompt 加密通道要求）。 */
-fun hasBiometricCapability(activity: ComponentActivity): Boolean =
-    BiometricManager.from(activity)
-        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
-        BiometricManager.BIOMETRIC_SUCCESS
+/**
+ * 设备当前是否可用指纹登录：已录入且可验证（Class 3 强或 Class 2 弱均可——
+ * 很多手机指纹是 Class 2，只查 BIOMETRIC_STRONG 会误报"不支持"）。
+ * 凭据密钥用 30 秒时限窗口模式（见 [com.cyz.wxyd.data.local.BiometricCrypto]），
+ * 不依赖 CryptoObject，Class 2 也可走通。
+ */
+fun hasBiometricCapability(activity: ComponentActivity): Boolean {
+    val bm = BiometricManager.from(activity)
+    return listOf(
+        BiometricManager.Authenticators.BIOMETRIC_STRONG,
+        BiometricManager.Authenticators.BIOMETRIC_WEAK,
+    ).any { tier -> bm.canAuthenticate(tier) == BiometricManager.BIOMETRIC_SUCCESS }
+}

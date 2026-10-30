@@ -26,35 +26,25 @@ private const val TRANSFORMATION = "AES/GCM/NoPadding"
 /**
  * 指纹登录凭据的加密/解密（AndroidKeyStore AES-GCM）。
  *
- * 密钥开启 `setUserAuthenticationRequired`：每次加解密都必须在
- * BiometricPrompt 的 [androidx.biometric.BiometricPrompt.CryptoObject] 里完成，
- * 凭据密文只在本机可解（无私钥即不可还原），密钥不出安全硬件。
+ * 密钥开启 `setUserAuthenticationRequired` + 30 秒有效窗口
+ * （`setUserAuthenticationValidityDurationSeconds`）：解密操作必须在最近一次
+ * 指纹/锁屏验证后的 30 秒内完成。这样同时兼容 Class 3（强）与 Class 2（弱）
+ * 指纹传感器——后者不支持 per-operation CryptoObject，但支持时限窗口模式；
+ * 凭据密文仍只在本机可解（无私钥即不可还原），密钥不出安全硬件。
  */
 object BiometricCrypto {
 
-    /** 生成/复用 Keystore 密钥，返回处于 ENCRYPT_MODE 的 Cipher（IV 随 Cipher 携带）。 */
-    fun encryptCipher(): Cipher {
-        val key = obtainKey()
-        return Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key) }
-    }
-
-    /** 返回处于 DECRYPT_MODE 的 Cipher（用持久化时保存的 IV，供 CryptoObject 使用）。 */
-    fun decryptCipher(iv: ByteArray): Cipher {
-        val key = obtainKey()
-        return Cipher.getInstance(TRANSFORMATION).apply {
-            init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
+    /** 加密为 `Base64(iv ++ ciphertext)` 单串，便于整体存 DataStore（须在验证窗口内）。 */
+    fun encrypt(plain: String): String {
+        val cipher = Cipher.getInstance(TRANSFORMATION).apply {
+            init(Cipher.ENCRYPT_MODE, obtainKey())
         }
-    }
-
-    /** 加密为 `Base64(iv ++ ciphertext)` 单串，便于整体存 DataStore。 */
-    fun encrypt(cipher: Cipher, plain: String): String {
         val ct = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
-        val payload = cipher.iv + ct
-        return Base64.encodeToString(payload, Base64.NO_WRAP)
+        return Base64.encodeToString(cipher.iv + ct, Base64.NO_WRAP)
     }
 
-    /** 解密 [payload]（[encrypt] 的产物）；指纹校验通过后调用。 */
-    fun decrypt(cipher: Cipher, payload: String): String {
+    /** 解密 [payload]（[encrypt] 的产物）；指纹校验通过后的窗口内调用。 */
+    fun decrypt(payload: String): String {
         val bytes = Base64.decode(payload, Base64.NO_WRAP)
         val iv = bytes.copyOfRange(0, 12)
         val ct = bytes.copyOfRange(12, bytes.size)
@@ -74,6 +64,7 @@ object BiometricCrypto {
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setUserAuthenticationRequired(true)
+            .setUserAuthenticationValidityDurationSeconds(30)
             .apply {
                 // 指纹录入增删导致密钥失效的体验很差（用户得重新设密码），
                 // 与"指纹仅作为解锁凭据的钥匙"的定位一致：指纹集变化不吊销密钥。
@@ -96,7 +87,7 @@ object BiometricCrypto {
  * - 启动引导是否已展示过（guideSeen，跳过后不再每次登录都弹）
  *
  * 约定：凭据里 username 与 password 以 `\n` 分隔（用户名不含换行）。
- * [restoreCredential] 必须在 BiometricPrompt 成功回调（CryptoObject）内调用。
+ * 加密/解密须在 BiometricPrompt 成功后的 30 秒时限窗口内完成。
  */
 class BiometricStore(private val context: Context) {
 
@@ -114,9 +105,9 @@ class BiometricStore(private val context: Context) {
     val guideSeenFlow: Flow<Boolean> =
         context.biometricDataStore.data.map { it[Keys.GUIDE_SEEN] == "1" }
 
-    /** 启用指纹登录：在 BiometricPrompt（CryptoObject = encryptCipher）成功回调里调用。 */
-    suspend fun enable(cipher: Cipher, username: String, password: String) {
-        val payload = BiometricCrypto.encrypt(cipher, "$username\n$password")
+    /** 启用指纹登录：加密保存凭据（须在指纹验证后的 30 秒窗口内调用）。 */
+    suspend fun enable(username: String, password: String) {
+        val payload = BiometricCrypto.encrypt("$username\n$password")
         context.biometricDataStore.edit {
             it[Keys.ENABLED] = "1"
             it[Keys.CREDENTIAL] = payload
@@ -145,12 +136,11 @@ class BiometricStore(private val context: Context) {
         context.biometricDataStore.data.first()[Keys.CREDENTIAL]
 
     /**
-     * 指纹校验成功后还原凭据。密文缺失/已关闭 → null；
+     * 指纹校验成功后（30 秒窗口内）还原凭据。[payload] 为 [credentialPayload] 的密文；
      * 密钥被系统吊销（如锁屏凭据被清）会抛出异常，由上层按"需重新启用"提示。
      */
-    suspend fun restoreCredential(cipher: Cipher): Pair<String, String>? {
-        val payload = credentialPayload() ?: return null
-        val plain = BiometricCrypto.decrypt(cipher, payload)
+    suspend fun restoreCredential(payload: String): Pair<String, String>? {
+        val plain = BiometricCrypto.decrypt(payload)
         val sep = plain.indexOf('\n')
         if (sep <= 0) return null
         return plain.substring(0, sep) to plain.substring(sep + 1)

@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.cyz.wxyd.WxydApp
-import com.cyz.wxyd.data.local.BiometricCrypto
 import com.cyz.wxyd.ui.login.hasBiometricCapability
 import com.cyz.wxyd.ui.theme.ALL_THEMES
 import kotlinx.coroutines.launch
@@ -87,8 +86,6 @@ fun ProfileScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("你好，$username 👋", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("账号", style = MaterialTheme.typography.titleMedium)
@@ -149,12 +146,6 @@ fun ProfileScreen(
             Text("退出登录", color = MaterialTheme.colorScheme.error)
         }
 
-        Text(
-            "小泽助手 Android v1.0 · 支持内网 HTTP 明文与自签证书",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp),
-        )
     }
 
     if (themeDialog) {
@@ -185,7 +176,7 @@ fun ProfileScreen(
         )
     }
 
-    // 指纹登录开启流程：先说明，确认后弹 BiometricPrompt（CryptoObject = 加密 Cipher）
+    // 指纹登录开启流程：确认后弹 BiometricPrompt，验证通过即在 30 秒窗口内加密落盘
     if (biometricTip == "enable") {
         biometricTip = null
         val activity = context as? FragmentActivity
@@ -205,16 +196,14 @@ fun ProfileScreen(
                     }
 
                     override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                        val cipher = result.cryptoObject?.cipher
                         val credential = app.container.pendingLoginCredential
-                        if (cipher == null || credential == null) {
+                        if (credential == null) {
                             // 会话是恢复的（非本次密码登录）：无凭据可存，请退出重登后再开启
                             biometricTip = "no-credential"
                             return
                         }
                         scope.launch {
                             app.container.biometricStore.enable(
-                                cipher,
                                 credential.first,
                                 credential.second,
                             )
@@ -227,7 +216,7 @@ fun ProfileScreen(
                 .setSubtitle("验证指纹后，下次登录可指纹快捷进入")
                 .setNegativeButtonText("取消")
                 .build()
-            prompt.authenticate(info, BiometricPrompt.CryptoObject(BiometricCrypto.encryptCipher()))
+            prompt.authenticate(info)
         }
     }
 

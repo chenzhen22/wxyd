@@ -25,7 +25,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.cyz.wxyd.WxydApp
-import com.cyz.wxyd.data.local.BiometricCrypto
 import com.cyz.wxyd.ui.home.HomeScreen
 import com.cyz.wxyd.ui.login.hasBiometricCapability
 import com.cyz.wxyd.ui.profile.ProfileScreen
@@ -161,10 +160,8 @@ private fun BiometricGuide(app: WxydApp) {
                             override fun onAuthenticationSucceeded(
                                 result: BiometricPrompt.AuthenticationResult,
                             ) {
-                                val cipher = result.cryptoObject?.cipher ?: return
                                 scope.launch {
                                     app.container.biometricStore.enable(
-                                        cipher,
                                         credential.first,
                                         credential.second,
                                     )
@@ -177,10 +174,7 @@ private fun BiometricGuide(app: WxydApp) {
                         .setSubtitle("验证指纹后，下次登录可指纹快捷进入")
                         .setNegativeButtonText("取消")
                         .build()
-                    prompt.authenticate(
-                        info,
-                        BiometricPrompt.CryptoObject(BiometricCrypto.encryptCipher()),
-                    )
+                    prompt.authenticate(info)
                 }) { Text("现在设置") }
             },
             dismissButton = {

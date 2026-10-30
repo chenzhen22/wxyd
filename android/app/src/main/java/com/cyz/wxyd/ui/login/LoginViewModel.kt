@@ -5,7 +5,6 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cyz.wxyd.AppContainer
-import com.cyz.wxyd.data.local.BiometricCrypto
 import com.cyz.wxyd.data.remote.ApiException
 import com.cyz.wxyd.ui.common.userMessage
 import com.cyz.wxyd.ui.session.UserSession
@@ -65,8 +64,9 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /**
-     * 弹出系统指纹对话框（CryptoObject 携带解密 Cipher）。
-     * 成功 → 还原凭据 → 走 [doLogin] 契约；失败/取消 → 文案留在表单错误位。
+     * 弹出系统指纹对话框（凭据密钥为 30 秒时限窗口模式，无需 CryptoObject，
+     * 兼容 Class 2/Class 3 指纹）。成功 → 解密还原凭据 → 走 [doLogin] 契约；
+     * 失败/取消 → 文案留在表单错误位。
      */
     fun loginWithBiometric(activity: FragmentActivity, onSuccess: (UserSession) -> Unit) {
         val prompt = BiometricPrompt(
@@ -83,12 +83,14 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
                 }
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    // 指纹通过 → 30 秒窗口内解密凭据并登录
                     viewModelScope.launch {
                         try {
-                            val cipher = result.cryptoObject?.cipher
-                                ?: throw IllegalStateException("缺少解密上下文")
-                            val credential = container.biometricStore.restoreCredential(cipher)
+                            val payload = container.biometricStore.credentialPayload()
                                 ?: throw IllegalStateException("指纹凭据不存在")
+                            val credential =
+                                container.biometricStore.restoreCredential(payload)
+                                    ?: throw IllegalStateException("指纹凭据不存在")
                             val (username, password) = credential
                             doLogin(username, password, onSuccess)
                         } catch (e: Exception) {
@@ -111,27 +113,7 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
             .setNegativeButtonText("用密码登录")
             .build()
         _ui.update { it.copy(loading = true, error = null) }
-        // 先读出启用时保存的 IV，组装解密 Cipher 交给系统指纹流程
-        viewModelScope.launch {
-            val payload = container.biometricStore.credentialPayload()
-            if (payload == null) {
-                _ui.update { it.copy(loading = false, biometricEnabled = false) }
-                return@launch
-            }
-            val iv = runCatching {
-                android.util.Base64.decode(payload, android.util.Base64.NO_WRAP).copyOfRange(0, 12)
-            }.getOrNull()
-            if (iv == null) {
-                _ui.update {
-                    it.copy(loading = false, error = "指纹凭据已损坏，请用密码登录后重新启用", biometricEnabled = false)
-                }
-                return@launch
-            }
-            prompt.authenticate(
-                info,
-                BiometricPrompt.CryptoObject(BiometricCrypto.decryptCipher(iv)),
-            )
-        }
+        prompt.authenticate(info)
     }
 
     /**

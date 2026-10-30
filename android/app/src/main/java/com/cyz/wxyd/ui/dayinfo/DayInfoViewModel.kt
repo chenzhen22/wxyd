@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -217,7 +218,10 @@ class DayInfoViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             try {
                 val res = container.apiClient.postBody(path, payload)
-                val msg = if (useBodyAsMessage) (res["body"]?.jsonPrimitive?.contentOrNull ?: successMessage) else successMessage
+                // body 非字符串（对象/缺失）时 jsonPrimitive 会抛异常，用 as? 安全取
+                val msg = if (useBodyAsMessage) {
+                    (res["body"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: successMessage
+                } else successMessage
                 _ui.update { it.copy(subError = null, subMessage = msg) }
                 if (reload) loadSubs()
             } catch (e: Exception) {

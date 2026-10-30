@@ -17,14 +17,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -86,9 +84,7 @@ fun DayInfoScreen(
             TopAppBar(
                 title = { Text("金融日报") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
+                    IconButton(onClick = onBack) { Text("←", style = MaterialTheme.typography.titleLarge) }
                 },
                 actions = {
                     TextButton(onClick = vm::openSubSheet) { Text("🔔 订阅") }
@@ -234,6 +230,9 @@ private fun SubSheetContent(
     onTest: (Long) -> Unit,
     onDelete: (Long) -> Unit,
 ) {
+    // 删除二次确认（H5 `confirm('确定删除该订阅？')`）
+    var pendingDelete by remember { mutableStateOf<DayInfoSub?>(null) }
+
     Column(
         Modifier
             .fillMaxWidth()
@@ -266,13 +265,30 @@ private fun SubSheetContent(
                 sub = sub,
                 onToggle = { onToggle(sub.id, !sub.enabled) },
                 onTest = { onTest(sub.id) },
-                onDelete = { onDelete(sub.id) },
+                onDelete = { pendingDelete = sub },
             )
         }
 
         AddSubForm(
             robots = ui.robots,
             onAdd = onAdd,
+        )
+    }
+
+    pendingDelete?.let { sub ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("删除订阅") },
+            text = { Text("确定删除该订阅？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDelete = null
+                    onDelete(sub.id)
+                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("取消") }
+            },
         )
     }
 }

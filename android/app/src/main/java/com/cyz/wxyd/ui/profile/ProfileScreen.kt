@@ -1,5 +1,7 @@
 package com.cyz.wxyd.ui.profile
 
+import androidx.activity.ComponentActivity
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,9 +18,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,9 +32,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import com.cyz.wxyd.WxydApp
+import com.cyz.wxyd.data.local.BiometricCrypto
+import com.cyz.wxyd.ui.login.hasBiometricCapability
 import com.cyz.wxyd.ui.theme.ALL_THEMES
 import kotlinx.coroutines.launch
 
@@ -52,9 +59,10 @@ private val THEME_LABELS = linkedMapOf(
  *
  * - 账号信息：用户名 / 是否管理员；
  * - 主题选择（7 值单选），写 [ThemeController]：本地立即生效 + fire-and-forget 同步 `user/updateTheme`；
- * - 服务器地址编辑：写 DataStore（空地址时登录页会要求先填，这里可随时改）；
+ * - 指纹登录开关：开启时弹 BiometricPrompt 验证 + 加密保存当前凭据（需本次会话内密码可还原，
+ *   故由登录成功后的引导为主要入口；这里关闭即清除本机保存的凭据）；
  * - 退出登录：走 `SessionViewModel.logout()`，会话清空后导航图自动切回登录页；
- * - 关于：版本与首版范围（spec）。
+ * - 关于：版本与首版范围（spec）。服务器地址固定云端部署，不再展示。
  */
 @Composable
 fun ProfileScreen(
@@ -64,12 +72,13 @@ fun ProfileScreen(
     onLogout: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val theme by app.container.themeController.themeFlow.collectAsState(initial = "dark")
-    val baseUrl by app.container.settingsStore.baseUrlFlow.collectAsState(initial = "")
+    val biometricEnabled by app.container.biometricStore.enabledFlow.collectAsState(initial = false)
 
     var themeDialog by remember { mutableStateOf(false) }
-    var baseUrlDialog by remember { mutableStateOf(false) }
     var confirmLogout by remember { mutableStateOf(false) }
+    var biometricTip by remember { mutableStateOf<String?>(null) }
 
     Column(
         Modifier
@@ -91,24 +100,44 @@ fun ProfileScreen(
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("安全", style = MaterialTheme.typography.titleMedium)
+                SectionRule()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("指纹登录", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "开启后登录页可用指纹快捷登录（凭据加密存本机）",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = biometricEnabled,
+                        onCheckedChange = { checked ->
+                            val activity = context as? FragmentActivity
+                            when {
+                                checked -> biometricTip = "enable"
+                                else -> scope.launch {
+                                    app.container.biometricStore.disable()
+                                }
+                            }
+                        },
+                    )
+                }
+            }
+        }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("外观", style = MaterialTheme.typography.titleMedium)
                 SectionRule()
                 SettingRow(
                     label = "主题",
                     value = THEME_LABELS[theme] ?: "暗色",
                     onClick = { themeDialog = true },
-                )
-            }
-        }
-
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("服务器", style = MaterialTheme.typography.titleMedium)
-                SectionRule()
-                SettingRow(
-                    label = "服务器地址",
-                    value = baseUrl.ifBlank { "未配置" },
-                    onClick = { baseUrlDialog = true },
                 )
             }
         }
@@ -156,36 +185,68 @@ fun ProfileScreen(
         )
     }
 
-    if (baseUrlDialog) {
-        var draft by remember(baseUrl) { mutableStateOf(baseUrl) }
+    // 指纹登录开启流程：先说明，确认后弹 BiometricPrompt（CryptoObject = 加密 Cipher）
+    if (biometricTip == "enable") {
+        biometricTip = null
+        val activity = context as? FragmentActivity
+        if (activity == null || !hasBiometricCapability(activity)) {
+            biometricTip = "no-capability"
+        } else {
+            val prompt = BiometricPrompt(
+                activity,
+                ContextCompat.getMainExecutor(activity),
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationError(code: Int, errString: CharSequence) {
+                        if (code != BiometricPrompt.ERROR_USER_CANCELED &&
+                            code != BiometricPrompt.ERROR_NEGATIVE_BUTTON
+                        ) {
+                            biometricTip = "verify-failed"
+                        }
+                    }
+
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        val cipher = result.cryptoObject?.cipher
+                        val credential = app.container.pendingLoginCredential
+                        if (cipher == null || credential == null) {
+                            // 会话是恢复的（非本次密码登录）：无凭据可存，请退出重登后再开启
+                            biometricTip = "no-credential"
+                            return
+                        }
+                        scope.launch {
+                            app.container.biometricStore.enable(
+                                cipher,
+                                credential.first,
+                                credential.second,
+                            )
+                        }
+                    }
+                },
+            )
+            val info = BiometricPrompt.PromptInfo.Builder()
+                .setTitle("开启指纹登录")
+                .setSubtitle("验证指纹后，下次登录可指纹快捷进入")
+                .setNegativeButtonText("取消")
+                .build()
+            prompt.authenticate(info, BiometricPrompt.CryptoObject(BiometricCrypto.encryptCipher()))
+        }
+    }
+
+    biometricTip?.let { tip ->
         AlertDialog(
-            onDismissRequest = { baseUrlDialog = false },
-            title = { Text("服务器地址") },
+            onDismissRequest = { biometricTip = null },
+            title = { Text("指纹登录") },
             text = {
-                Column {
-                    OutlinedTextField(
-                        value = draft,
-                        onValueChange = { draft = it },
-                        singleLine = true,
-                        label = { Text("http://host:8090/api 或 http://host:8090") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "改完请退出登录后重新登录（会话 Cookie 绑定旧地址）。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    when (tip) {
+                        "no-capability" -> "本机未录入指纹或不支持生物识别（需指纹硬件与已录入指纹）。"
+                        "verify-failed" -> "指纹验证未完成，请重试。"
+                        "no-credential" -> "本次会话没有可加密保存的登录凭据，请退出后重新登录再开启。"
+                        else -> tip
+                    }
+                )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    baseUrlDialog = false
-                    scope.launch { app.container.settingsStore.setBaseUrl(draft) }
-                }) { Text("保存") }
-            },
-            dismissButton = {
-                TextButton(onClick = { baseUrlDialog = false }) { Text("取消") }
+                TextButton(onClick = { biometricTip = null }) { Text("知道了") }
             },
         )
     }

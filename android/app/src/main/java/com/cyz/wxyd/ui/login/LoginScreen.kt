@@ -1,5 +1,8 @@
 package com.cyz.wxyd.ui.login
 
+import androidx.activity.ComponentActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,10 +18,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,25 +31,35 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyz.wxyd.WxydApp
 import com.cyz.wxyd.ui.common.appFactory
 import com.cyz.wxyd.ui.session.UserSession
+import kotlinx.coroutines.launch
 
 /**
  * 登录页（计划 Task 4 Step 2）。
  *
  * 与 H5 `#h5LoginMask` 对齐：账号 + 密码 + 登录 + 表单内错误文案；
  * 另加两条文字链接：「没有账号？去注册」「忘记密码？」（Task 6 接路由，先占位回调）。
- * 服务器地址为空时同一表单内要求先填写（spec 第 7 节。
+ * 服务器地址固定为云端部署（不展示、不可改）。
+ *
+ * 指纹登录：本机启用过时显示"指纹登录"按钮（[LoginViewModel.loginWithBiometric]）；
+ * 登录成功后若未启用且设备支持，弹一次引导（跳过记入 guideSeen，不再重复弹）。
  */
 @Composable
 fun LoginScreen(
@@ -55,8 +70,14 @@ fun LoginScreen(
 ) {
     val vm: LoginViewModel = viewModel(factory = appFactory(app) { LoginViewModel(it.container) })
     val ui by vm.ui.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val submit = { vm.login(onLoggedIn) }
+    val biometricLogin = {
+        (context as? FragmentActivity)?.let { vm.loginWithBiometric(it, onLoggedIn) }
+            ?: vm.consumeError()
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -76,19 +97,6 @@ fun LoginScreen(
                 Spacer(Modifier.height(24.dp))
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp)) {
-                        OutlinedTextField(
-                            value = ui.baseUrl,
-                            onValueChange = vm::onBaseUrlChange,
-                            label = { Text("服务器地址") },
-                            placeholder = { Text("http://10.0.0.1:8080/api") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Uri,
-                                imeAction = ImeAction.Next,
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(12.dp))
                         OutlinedTextField(
                             value = ui.username,
                             onValueChange = vm::onUsernameChange,
@@ -138,6 +146,17 @@ fun LoginScreen(
                             }
                         }
 
+                        if (ui.biometricEnabled) {
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = biometricLogin,
+                                enabled = !ui.loading,
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                            ) {
+                                Text("🔑 指纹登录")
+                            }
+                        }
+
                         Spacer(Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -163,3 +182,9 @@ fun LoginScreen(
         }
     }
 }
+
+/** 设备是否具备指纹/生物识别能力（Class 3，BiometricPrompt 加密通道要求）。 */
+fun hasBiometricCapability(activity: ComponentActivity): Boolean =
+    BiometricManager.from(activity)
+        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
+        BiometricManager.BIOMETRIC_SUCCESS

@@ -1,9 +1,7 @@
 package com.cyz.wxyd.data.remote
 
 import com.cyz.wxyd.data.local.SessionCookieJar
-import com.cyz.wxyd.data.local.SettingsStore
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
@@ -28,8 +26,8 @@ import kotlin.coroutines.resumeWithException
  * 职责集中处理：
  * 1. 所有请求加 `X-Requested-With: XMLHttpRequest` 头（spec 约束 2，
  *    否则后端 AuthInterceptor 对未登录返回 302 而非 401）；
- * 2. Base URL 运行时可变：每次请求动态从 [settingsStore] 读取拼接
- *    （用户在"我的"里改地址后无需重建客户端；SettingsStore 未设值时回退构造参数）；
+ * 2. Base URL 固定为云端部署地址（构造时传入，[SettingsStore.DEFAULT_BASE_URL]）；
+ *    不再支持运行时自选服务器
  * 3. 响应 401 → 抛 [SessionExpiredException]（清会话由上层处理，spec 约束 1）；
  * 4. JSON 请求体统一 `application/json; charset=utf-8`（[RequestBodyFactory]）；
  * 5. 统一解析 `Result { errorCode, errorMsg, body }`，成功码 `"000000"`
@@ -44,10 +42,9 @@ import kotlin.coroutines.resumeWithException
 class ApiClient(
     baseUrl: String,
     private val cookieJar: SessionCookieJar,
-    private val settingsStore: SettingsStore? = null,
 ) {
 
-    /** 构造时传入的默认 Base URL；[settingsStore] 中有值时优先用后者。 */
+    /** 固定 Base URL（云端部署地址，见 [SettingsStore.DEFAULT_BASE_URL]）。 */
     private val fallbackBaseUrl: String = baseUrl.trim().trimEnd('/')
 
     /**
@@ -170,9 +167,8 @@ class ApiClient(
     private fun Request.postWith(body: RequestBody): Request =
         newBuilder().post(body).build()
 
-    /** Base URL 动态读取：SettingsStore 有值优先，否则用构造时默认值。 */
-    private suspend fun resolveBaseUrl(): String =
-        settingsStore?.baseUrlFlow?.first().orEmpty().ifEmpty { fallbackBaseUrl }
+    /** Base URL 固定值（云端部署，不随 DataStore 变化）。 */
+    private suspend fun resolveBaseUrl(): String = fallbackBaseUrl
 
     /** 执行请求并把响应体读成字符串（Result 解包前）。401 / 非 2xx 在此集中处理。 */
     private suspend fun execute(request: Request): String =

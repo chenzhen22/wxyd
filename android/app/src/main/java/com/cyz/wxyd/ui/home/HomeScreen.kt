@@ -24,36 +24,27 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyz.wxyd.WxydApp
 import com.cyz.wxyd.ui.common.appFactory
-import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * 工作台（计划 Task 7 Step 2；与 H5 `renderHome` 对齐）。
  *
- * 欢迎区"你好，{username} 👋" + 实时时钟 + 数据驱动卡片网格：
- * 每张卡片 = emoji 图标 + 名称，`adminOnly == 1` 时右上角"管理员"角标；点击 → [onOpenModule]。
+ * 数据驱动卡片网格：每张卡片 = emoji 图标 + 名称，
+ * `adminOnly == 1` 时右上角"管理员"角标；点击 → [onOpenModule]。
+ * （首版无欢迎区/时钟——未上线的模块由服务端 menu_config 控制显隐，不出卡片。）
  */
 @Composable
 fun HomeScreen(
     app: WxydApp,
-    username: String,
     onOpenModule: (String) -> Unit,
 ) {
     val vm: HomeViewModel = viewModel(factory = appFactory(app) { HomeViewModel(it.container) })
@@ -66,9 +57,6 @@ fun HomeScreen(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Header(username)
-        }
         when {
             ui.loading && !ui.loaded -> item(span = { GridItemSpan(maxLineSpan) }) {
                 Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -100,43 +88,6 @@ fun HomeScreen(
             }
         }
     }
-}
-
-@Composable
-private fun Header(username: String) {
-    Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-        Text(
-            text = "你好，$username 👋",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.height(4.dp))
-        LiveClock()
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "点击下方模块卡片进入对应功能",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/** 实时时钟：每 1 秒刷新（H5 首页时钟同款）。 */
-@Composable
-private fun LiveClock() {
-    var now by remember { mutableStateOf(Date()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = Date()
-            delay(1_000)
-        }
-    }
-    val fmt = remember { SimpleDateFormat("yyyy-MM-dd EEEE HH:mm:ss", Locale.CHINA) }
-    Text(
-        text = fmt.format(now),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.primary,
-    )
 }
 
 @Composable

@@ -1,6 +1,7 @@
 package com.cyz.wxyd
 
 import android.content.Context
+import com.cyz.wxyd.data.local.BiometricStore
 import com.cyz.wxyd.data.local.SessionCookieJar
 import com.cyz.wxyd.data.local.SettingsStore
 import com.cyz.wxyd.data.remote.ApiClient
@@ -23,15 +24,23 @@ class AppContainer(context: Context) {
     val cookieJar: SessionCookieJar = SessionCookieJar(settingsStore)
 
     /**
-     * Base URL 默认留空：用户首次启动在登录页/"我的"里填写部署地址
-     * （spec 第 7 节「服务器地址」）。真实地址由 [SettingsStore.baseUrlFlow]
-     * 在每次请求时动态读取。
+     * Base URL 固定为云端部署地址（[SettingsStore.DEFAULT_BASE_URL]），
+     * 不再支持登录页/"我的"自选；保留 DataStore 动态读取通道以兼容 CookieJar。
      */
     val apiClient: ApiClient = ApiClient(
         baseUrl = SettingsStore.DEFAULT_BASE_URL,
         cookieJar = cookieJar,
-        settingsStore = settingsStore,
     )
+
+    /** 指纹登录（凭据 Keystore 加密存本机，见 [BiometricStore]）。 */
+    val biometricStore: BiometricStore = BiometricStore(context)
+
+    /**
+     * 本次进程内最近一次密码登录成功的凭据（仅内存，供"开启指纹登录"时加密落盘；
+     * 会话恢复而非密码登录时为 null，需重新登录后才能开启）。
+     */
+    @Volatile
+    var pendingLoginCredential: Pair<String, String>? = null
 
     val themeController: ThemeController = ThemeController(settingsStore, apiClient)
 

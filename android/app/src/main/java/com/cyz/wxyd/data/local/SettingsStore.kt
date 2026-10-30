@@ -12,25 +12,18 @@ private val Context.dataStore by preferencesDataStore(name = "wxyd_settings")
 /**
  * 本地设置存储（Preferences DataStore）。
  *
- * 首版仅持久化三项（spec 第 7 节「离线缓存」决策）：
- * - 服务器地址 Base URL（运行时可变，用户在"我的"里改；可填 `http://` 明文内网地址）
+ * 首版仅持久化两项（spec 第 7 节「离线缓存」决策）：
  * - 主题（服务端 `user/updateTheme` 只认的 7 值之一，存本机兜底）
  * - 会话 Cookie（JSESSIONID，由 [SessionCookieJar] 读写，登录态跨进程保留）
+ *
+ * 服务器地址不再可配置：固定 [DEFAULT_BASE_URL]（云端部署），
+ * 指纹登录凭据另存 [BiometricStore]（独立 DataStore 语义，加密存储）。
  */
 class SettingsStore(private val context: Context) {
 
     private object Keys {
-        val BASE_URL = stringPreferencesKey("base_url")
         val THEME = stringPreferencesKey("theme")
         val JSESSIONID = stringPreferencesKey("jsessionid")
-    }
-
-    /** 默认 Base URL：留空引导用户在"我的"里填写部署地址（spec 第 7 节）。 */
-    val baseUrlFlow: Flow<String> =
-        context.dataStore.data.map { it[Keys.BASE_URL] ?: DEFAULT_BASE_URL }
-
-    suspend fun setBaseUrl(v: String) {
-        context.dataStore.edit { it[Keys.BASE_URL] = v.trim().trimEnd('/') }
     }
 
     /** 主题 7 值：dark/light/eyecare/techblue/orange/pink/system（spec 界面范式节）。 */
@@ -62,7 +55,8 @@ class SettingsStore(private val context: Context) {
     }
 
     companion object {
-        const val DEFAULT_BASE_URL = ""
+        /** 固定部署地址（云端部署；登录页与"我的"不再展示/编辑）。 */
+        const val DEFAULT_BASE_URL = "https://wxyd.us.ci/api"
         const val DEFAULT_THEME = "dark"
         val VALID_THEMES = setOf(
             "dark", "light", "eyecare", "techblue", "orange", "pink", "system",

@@ -269,6 +269,49 @@ public class WbGatewayManageController {
         return result;
     }
 
+    /** 兜底模型（仅管理员）：免费模型都不可用时的最后手段，按配置顺序尝试，付费 */
+    @GetMapping("gateway/admin/fallback-models")
+    public Result fallbackModels(HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        String csv = wbGatewayMapper.queryFallbackModels();
+        List<String> manual = com.cyz.wbgateway.provider.FreePriority.parse(csv);
+        List<String> effective = new ArrayList<>();
+        List<String> invalid = new ArrayList<>();
+        com.cyz.wbgateway.provider.CompositeCatalog catalog = providers.publicCatalog();
+        for (String id : manual) {
+            String canon = catalog.match(id);
+            if (canon == null) invalid.add(id); else if (!effective.contains(canon)) effective.add(canon);
+        }
+        Map<String, Object> body = new HashMap<>();
+        body.put("manual", manual);
+        body.put("effective", effective);
+        body.put("invalid", invalid);
+        result.setBody(body);
+        return result;
+    }
+
+    /** 保存兜底模型（逗号分隔或数组；留空=不启用兜底） */
+    @PostMapping("gateway/admin/fallback-models")
+    public Result saveFallbackModels(@RequestBody(required = false) Result req, HttpSession session) {
+        Result result = Result.getInstance();
+        if (!isAdmin(session)) return result.setErrorEnum(com.cyz.constant.ErrorEnum.ERROR000014);
+        Object raw = body(req).get("list");
+        List<String> items = new ArrayList<>();
+        if (raw instanceof List) {
+            for (Object o : (List<?>) raw) if (o != null) items.add(String.valueOf(o).trim());
+        } else if (raw != null) {
+            items = com.cyz.wbgateway.provider.FreePriority.parse(String.valueOf(raw));
+        }
+        List<String> clean = new ArrayList<>();
+        for (String s : items) if (!s.isEmpty() && !clean.contains(s)) clean.add(s);
+        String csv = String.join(",", clean);
+        wbGatewayMapper.updateFallbackModels(csv);
+        log.info("[WBGATEWAY] 兜底模型已更新：{}（by user {}）", csv, userId(session));
+        result.setBody(fallbackModels(session).getBody());
+        return result;
+    }
+
     /** 目录全量视图（含免费标记，仅管理员——用于核对开关映射目标） */
     @GetMapping("gateway/admin/models")
     public Result adminModels(HttpSession session) {

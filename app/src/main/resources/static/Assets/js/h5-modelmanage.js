@@ -97,6 +97,7 @@
             loadUsage();
             loadAutomation();
             loadFreePriority();
+            loadFallbackModels();
             loadQoderCheckin();
             $.getJSON('gateway/admin/models').done(function (r2) {
                 if (r2.errorCode !== '000000') return;
@@ -162,6 +163,20 @@
         h += '<br>生效：' + (eff.length ? esc(eff.join(' → ')) : '（没有免费模型）');
         if (bad.length) h += '<br><span style="color:#f87171;">已失效（忽略）：' + esc(bad.join('、')) + '</span>';
         $('#h5MmFreeHint').html(h);
+    }
+
+    function renderFallbackModels(b) {
+        b = b || {};
+        $('#h5MmFallback').val((b.manual || []).join('\n'));
+        var eff = b.effective || [], bad = b.invalid || [];
+        var h = '生效顺序：' + (eff.length ? esc(eff.join(' → ')) : '（未配置）');
+        if (bad.length) h += '<br><span style="color:#f87171;">已失效（忽略）：' + esc(bad.join('、')) + '</span>';
+        $('#h5MmFallbackHint').html(h);
+    }
+
+    function loadFallbackModels() {
+        $.ajax({ url: 'gateway/admin/fallback-models', type: 'GET', dataType: 'json', cache: false })
+            .done(function (res) { if (res.errorCode === '000000') renderFallbackModels(res.body); });
     }
 
     function loadFreePriority() {
@@ -466,7 +481,13 @@
             '<div id="h5MmFreeCandidates" style="display:flex;flex-wrap:wrap;margin:6px 0 4px;"></div>' +
             '<div id="h5MmFreeHint" style="font-size:11px;color:var(--text-5);line-height:1.8;margin:6px 0;"></div>' +
             '<div style="display:flex;gap:8px;"><span class="h5-btn-primary h5-btn-sm" id="h5MmFreeSave">保存优先级</span>' +
-            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmFreeReset">恢复自动</span></div></div></div>' +
+            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmFreeReset">恢复自动</span></div></div>' +
+            '<div class="h5-mm-card"><div class="h5-mm-card-tit">兜底模型</div>' +
+            '<div style="font-size:11px;color:var(--text-5);line-height:1.7;margin-bottom:6px;">免费模型都用不了时的最后手段（付费），每行一个模型 id，按顺序尝试。</div>' +
+            '<textarea id="h5MmFallback" spellcheck="false" style="width:100%;box-sizing:border-box;min-height:80px;padding:10px;border-radius:10px;background:var(--glass-3);color:var(--text-1);border:1px solid var(--glass-5);font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.7;"></textarea>' +
+            '<div id="h5MmFallbackHint" style="font-size:11px;color:var(--text-5);line-height:1.8;margin:6px 0;"></div>' +
+            '<div style="display:flex;gap:8px;"><span class="h5-btn-primary h5-btn-sm" id="h5MmFallbackSave">保存兜底</span>' +
+            '<span class="h5-btn-ghost h5-btn-sm" id="h5MmFallbackClear">清空</span></div></div></div>' +
 
             '<div class="h5-mm-panel" data-panel="keys">' +
             '<div class="h5-mm-card"><div class="h5-mm-card-tit">全部用户 Key</div>' +
@@ -657,6 +678,23 @@
                     if (res.errorCode !== '000000') { toast(res.errorMsg || '操作失败'); return; }
                     renderFreePriority(res.body);
                     toast('已恢复自动顺序');
+                }).fail(function () { toast('操作失败'); });
+            });
+
+            $('#h5MmFallbackSave').off('click').on('click', function () {
+                var lines = ($('#h5MmFallback').val() || '').split(/\r?\n/)
+                    .map(function (s) { return $.trim(s); }).filter(function (s) { return !!s; });
+                postJSON('gateway/admin/fallback-models', { list: lines }).done(function (res) {
+                    if (res.errorCode !== '000000') { toast(res.errorMsg || '保存失败'); return; }
+                    renderFallbackModels(res.body);
+                    toast('兜底模型已保存');
+                }).fail(function () { toast('保存失败'); });
+            });
+            $('#h5MmFallbackClear').off('click').on('click', function () {
+                postJSON('gateway/admin/fallback-models', { list: [] }).done(function (res) {
+                    if (res.errorCode !== '000000') { toast(res.errorMsg || '操作失败'); return; }
+                    renderFallbackModels(res.body);
+                    toast('已清空兜底模型');
                 }).fail(function () { toast('操作失败'); });
             });
 

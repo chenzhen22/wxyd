@@ -121,8 +121,9 @@ chain = [用户要的模型, 免费模型A, 免费模型B, ...]
 含义：用户明确要付费模型时尊重选择；真失败了（欠费/限流）再降级到免费模型顶上，
 保证可用性。
 
-**注意**：开关开启时 `allowModelFallback = !switchOn = false`，即**不允许跨 provider
-静默换模型**——只在该模型确实有货的 provider 间接力（见第五节）。
+**注意**：开关开启时 `allowModelFallback = !switchOn = false`（不允许 provider 内部自己换模型），
+但**候选 provider 覆盖整条链**：链上任意模型有货的通道都会进入候选，按「谁手里有更靠前的链上模型」排序
+（2026-10-30 修）。只按链头找 provider 的话，链尾的免费兜底 / 兜底模型落在别的通道时永远接不到。
 
 ---
 
@@ -314,7 +315,7 @@ switchOn = key.model_override ?? 全局 model_switch
   │                      chain = [请求模型, +免费兜底链] （模型计量，按 free_priority）
   │     请求模型不在目录 → chain = 免费模型链（不再回退默认付费模型；无免费模型则 503）
   │     免费模型都失败 → 末尾追加兜底模型 chain（fallback_models，付费，按配置顺序）
-  │     只在该模型有货的 provider 间接力，不跨 provider 静默换
+  │     候选 provider = 链上任意模型有货的通道（按链上位置排序），链尾兜底才接得到
   │
   └─ 关（静默映射）:
         请求模型本身免费 → chain = [该模型]，直接跑

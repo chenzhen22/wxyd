@@ -196,15 +196,22 @@ public class WbGatewayChatService {
 
         // 展示 id -> provider 原生链；按可用性依次尝试（WorkBuddy 账号池冷却时可自动落到 Qoder）
         // 开关关闭时用户看不到实际模型，可跨 provider 兜底；开关开启时只在有该模型的 provider 间兜底
-        List<UpstreamProvider> candidates = new ArrayList<>(providers.candidates(chain.get(0)));
+        // 候选 provider = 链上任意一个模型有货的通道。只按链头找 provider 的话，
+        // 链尾的免费兜底/兜底模型落在别的通道时永远接不到（2026-10-30 修）
+        List<UpstreamProvider> candidates = new ArrayList<>();
+        for (String m : chain) {
+            for (UpstreamProvider p : providers.candidates(m)) {
+                if (!candidates.contains(p)) candidates.add(p);
+            }
+        }
         if (!switchOn) {
             // 静默模式再追加其它 provider 兜底（它们会用各自的免费模型接住）
             for (UpstreamProvider p : providers.candidates(null)) {
                 if (!candidates.contains(p)) candidates.add(p);
             }
-            // 按免费优先级：手里有更靠前模型的 provider 先上（同等条件下保留原可用性排序）
-            candidates.sort(Comparator.comparingInt(p -> firstChainIndex(p, chain, catalog)));
         }
+        // 手里有更靠前模型的 provider 先上（同等条件下保留原可用性排序）
+        candidates.sort(Comparator.comparingInt(p -> firstChainIndex(p, chain, catalog)));
         UpstreamProvider provider = null;
         List<String> nativeChain = null;
         UpstreamProvider.ProviderStream stream = null;

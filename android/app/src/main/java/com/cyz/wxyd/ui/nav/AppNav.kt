@@ -32,7 +32,11 @@ import com.cyz.wxyd.ui.welfare.WelfareDetailScreen
 import com.cyz.wxyd.ui.welfare.WelfareScreen
 import com.cyz.wxyd.ui.dayinfo.DayInfoScreen
 import com.cyz.wxyd.ui.gateway.GatewayScreen
+import com.cyz.wxyd.ui.notes.NotesScreen
+import com.cyz.wxyd.ui.javaapi.JavaApiScreen
+import com.cyz.wxyd.ui.shell.ShellScreen
 import com.cyz.wxyd.ui.robot.RobotScreen
+import com.cyz.wxyd.ui.share.ShareScreen
 import com.cyz.wxyd.ui.session.SessionViewModel
 
 /**
@@ -146,6 +150,7 @@ private fun MainNav(app: WxydApp, sessionViewModel: SessionViewModel) {
             ModuleRoute(
                 key = key,
                 app = app,
+                session = sessionViewModel,
                 onBack = { navController.popBackStack() },
                 onOpenWelfareDetail = { id -> navController.navigate(Routes.welfareDetail(id)) },
             )
@@ -172,6 +177,7 @@ private fun MainNav(app: WxydApp, sessionViewModel: SessionViewModel) {
 private fun ModuleRoute(
     key: String,
     app: WxydApp,
+    session: SessionViewModel,
     onBack: () -> Unit,
     onOpenWelfareDetail: (Long) -> Unit,
 ) {
@@ -180,6 +186,10 @@ private fun ModuleRoute(
         "dayinfo" -> DayInfoScreen(app = app, onBack = onBack)
         "gateway" -> GatewayScreen(app = app, onBack = onBack)
         "robot" -> RobotScreen(app = app, onBack = onBack)
+        "notes" -> NotesScreen(app = app, session = session, onBack = onBack)
+        "share" -> ShareScreen(app = app, session = session, onBack = onBack)
+        "shell" -> ShellScreen(app = app, onBack = onBack)
+        "javaapi" -> JavaApiScreen(app = app, onBack = onBack)
         else -> PlaceholderScreen(title = "建设中", subtitle = "$key 即将上线", onBack = onBack)
     }
 }

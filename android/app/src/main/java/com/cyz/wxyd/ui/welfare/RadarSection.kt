@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,6 +56,7 @@ fun RadarSection(
 ) {
     var showAdd by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<RadarSub?>(null) }
 
     LaunchedEffect(radar.message) { radar.message?.let { showMessage(it); onConsumeMessage() } }
     LaunchedEffect(radar.error) { radar.error?.let { showMessage(it); onConsumeError() } }
@@ -85,7 +87,7 @@ fun RadarSection(
                         sub = sub,
                         onToggle = { onToggle(sub.id, !sub.enabled) },
                         onTest = { onTest(sub.id) },
-                        onDelete = { onDelete(sub.id) },
+                        onDelete = { pendingDelete = sub },
                     )
                 }
                 FilledTonalButton(onClick = { showAdd = true }, modifier = Modifier.fillMaxWidth()) {
@@ -93,6 +95,22 @@ fun RadarSection(
                 }
             }
         }
+    }
+
+    // 删除订阅需二次确认（与笔记/共享文件/日报订阅一致）
+    pendingDelete?.let { sub ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("删除订阅") },
+            text = { Text("确定删除关键词「${sub.keyword}」的雷达订阅？删除后不再推送。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDelete = null
+                    onDelete(sub.id)
+                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("取消") } },
+        )
     }
 
     if (showAdd) {

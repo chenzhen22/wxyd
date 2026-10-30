@@ -126,6 +126,26 @@ class ApiClient(
     suspend fun getRaw(path: String, query: Map<String, String> = emptyMap()): Response =
         executeRaw(buildRequest(path, query))
 
+    /**
+     * POST 直接字段 JSON，返回**裸响应串**（不按 `Result` 解包）。
+     *
+     * `javaapi/classes/{name}/test` 直接返回 `CodeResult`（非 `Result` 包裹），
+     * 但 400（代码为空）时回 `ResponseEntity<CodeResult>(BAD_REQUEST)` —— 这里不因非 2xx 抛错，
+     * 只拦 401（会话过期），状态码与正文交给调用方判断。
+     */
+    suspend fun postDirectRaw(path: String, fields: JsonObject): Pair<Int, String> =
+        withContext(Dispatchers.IO) {
+            client.newCall(
+                buildRequest(path).post(RequestBodyFactory.direct(fields)).build(),
+            ).await().use { response ->
+                if (response.code == HTTP_UNAUTHORIZED) {
+                    onUnauthorized?.invoke()
+                    throw SessionExpiredException()
+                }
+                response.code to (response.body?.string() ?: "")
+            }
+        }
+
     // ------------------------------------------------------------------
     // 内部
     // ------------------------------------------------------------------

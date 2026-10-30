@@ -4,6 +4,7 @@ import android.content.Context
 import com.cyz.wxyd.data.local.SessionCookieJar
 import com.cyz.wxyd.data.local.SettingsStore
 import com.cyz.wxyd.data.remote.ApiClient
+import com.cyz.wxyd.data.remote.FileDownloader
 import com.cyz.wxyd.ui.theme.ThemeController
 
 /**
@@ -33,4 +34,7 @@ class AppContainer(context: Context) {
     )
 
     val themeController: ThemeController = ThemeController(settingsStore, apiClient)
+
+    /** 文件下载（notes 导出 / share 下载），404 → 可读异常（Review Focus #5）。 */
+    val fileDownloader: FileDownloader = FileDownloader(apiClient, context.applicationContext)
 }

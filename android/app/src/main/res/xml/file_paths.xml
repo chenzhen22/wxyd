@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 暴露目录：下载保存到 Downloads/xiaozhe 与缓存临时文件（Task 12 下载器） -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path name="downloads" path="Download/xiaozhe/" />
+    <external-path name="public_downloads" path="Download/xiaozhe/" />
+    <cache-path name="cache" path="." />
+</paths>

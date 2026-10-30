@@ -17,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
@@ -38,6 +39,7 @@ import com.cyz.wxyd.ui.shell.ShellScreen
 import com.cyz.wxyd.ui.robot.RobotScreen
 import com.cyz.wxyd.ui.share.ShareScreen
 import com.cyz.wxyd.ui.session.SessionViewModel
+import kotlinx.coroutines.launch
 
 /**
  * 应用导航骨架（计划 Task 4 Step 3；界面范式：底部 2 Tab + 单页面栈）。
@@ -55,6 +57,7 @@ fun AppNav(app: WxydApp, sessionViewModel: SessionViewModel) {
     val session by sessionViewModel.session.collectAsState()
     val restored by sessionViewModel.restored.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         sessionViewModel.expiredEvents.collect { snackbarHostState.showSnackbar(it) }
@@ -95,6 +98,7 @@ private fun AuthNav(
     sessionViewModel: SessionViewModel,
     snackbarHostState: SnackbarHostState,
 ) {
+    val scope = rememberCoroutineScope()
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = Routes.LOGIN) {
         composable(Routes.LOGIN) {
@@ -118,7 +122,7 @@ private fun AuthNav(
                 onBack = { navController.popBackStack() },
                 onResetDone = {
                     navController.popBackStack()
-                    snackbarHostState.showSnackbar("密码已重置，请用新密码登录")
+                    scope.launch { snackbarHostState.showSnackbar("密码已重置，请用新密码登录") }
                 },
             )
         }

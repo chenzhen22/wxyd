@@ -23,8 +23,8 @@ import kotlinx.serialization.json.buildJsonObject
  * @param client   网络层，用于同步主题到服务端
  */
 class ThemeController(
-    settings: SettingsStore,
-    client: ApiClient,
+    private val settings: SettingsStore,
+    private val client: ApiClient,
 ) {
     /** 当前主题（7 值之一，来自 DataStore；非法值已被 SettingsStore coerce 到 dark）。 */
     val themeFlow: Flow<String> = settings.themeFlow

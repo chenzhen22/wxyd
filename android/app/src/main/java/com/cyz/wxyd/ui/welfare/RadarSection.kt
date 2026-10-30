@@ -38,7 +38,7 @@ import com.cyz.wxyd.ui.robot.RobotItem
 /**
  * 羊毛雷达区块（计划 Task 8 Step 3；spec 决策 D12：**welfare 页内子区块，不是独立首页卡片**）。
  *
- * 订阅列表 + 新增（[ModalBottomSheet]）+ 启停 / 测试 / 删除；全部走 `/radar/*`（postBody 双层）。
+ * 订阅列表 + 新增（[ModalBottomSheet]）+ 启停 / 测试 / 删除；全部走 `/radar/…`（postBody 双层）。
  * 入口是一个"📡 羊毛雷达"按钮，但仍在福利页里，不占用工作台卡片位。
  */
 @OptIn(ExperimentalMaterial3Api::class)

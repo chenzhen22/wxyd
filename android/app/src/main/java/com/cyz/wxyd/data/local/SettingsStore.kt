@@ -37,7 +37,7 @@ class SettingsStore(private val context: Context) {
     val themeFlow: Flow<String> =
         context.dataStore.data.map { prefs ->
             val stored = prefs[Keys.THEME]
-            if (stored in VALID_THEMES) stored else DEFAULT_THEME
+            if (stored != null && stored in VALID_THEMES) stored else DEFAULT_THEME
         }
 
     suspend fun setTheme(v: String) {

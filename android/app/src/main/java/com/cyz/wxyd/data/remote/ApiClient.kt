@@ -13,6 +13,8 @@ import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.File
 import java.io.IOException
@@ -81,7 +83,7 @@ class ApiClient(
 
     /** POST `{"body": {...}}` 双层格式（多数业务接口，见 RequestBodyFactory 表）。 */
     suspend fun postBody(path: String, bodyFields: JsonObject): JsonObject {
-        val raw = execute(buildRequest(path).post(RequestBodyFactory.body(bodyFields)).build())
+        val raw = execute(buildRequest(path).postWith(RequestBodyFactory.body(bodyFields)))
         return parseResultBody(raw)
     }
 
@@ -92,7 +94,7 @@ class ApiClient(
      * [postBody] 的 `parseResultBody` 只保留对象型 body，会把字符串丢掉；这里只校验业务码。
      */
     suspend fun postBodyRawString(path: String, bodyFields: JsonObject): String {
-        val raw = execute(buildRequest(path).post(RequestBodyFactory.body(bodyFields)).build())
+        val raw = execute(buildRequest(path).postWith(RequestBodyFactory.body(bodyFields)))
         val result = ApiResult.parse(raw)
         if (!result.isSuccess) throw ApiException(result.errorCode, result.errorMsg ?: "未知错误")
         return raw
@@ -100,7 +102,7 @@ class ApiClient(
 
     /** POST 直接字段 JSON（`robot/{add,update,delete}`、`javaapi/.../test`）。 */
     suspend fun postDirect(path: String, fields: JsonObject): JsonObject {
-        val raw = execute(buildRequest(path).post(RequestBodyFactory.direct(fields)).build())
+        val raw = execute(buildRequest(path).postWith(RequestBodyFactory.direct(fields)))
         return parseResultBody(raw)
     }
 
@@ -111,7 +113,7 @@ class ApiClient(
         files: Map<String, File>,
     ): JsonObject {
         val raw = execute(
-            buildRequest(path).post(RequestBodyFactory.multipart(fields, files)).build(),
+            buildRequest(path).postWith(RequestBodyFactory.multipart(fields, files)),
         )
         return parseResultBody(raw)
     }
@@ -136,7 +138,7 @@ class ApiClient(
     suspend fun postDirectRaw(path: String, fields: JsonObject): Pair<Int, String> =
         withContext(Dispatchers.IO) {
             client.newCall(
-                buildRequest(path).post(RequestBodyFactory.direct(fields)).build(),
+                buildRequest(path).postWith(RequestBodyFactory.direct(fields)),
             ).await().use { response ->
                 if (response.code == HTTP_UNAUTHORIZED) {
                     onUnauthorized?.invoke()
@@ -163,6 +165,10 @@ class ApiClient(
             .build()
         return Request.Builder().url(url).build()
     }
+
+    /** 在 [buildRequest] 基础上追加 POST body。 */
+    private fun Request.postWith(body: RequestBody): Request =
+        newBuilder().post(body).build()
 
     /** Base URL 动态读取：SettingsStore 有值优先，否则用构造时默认值。 */
     private suspend fun resolveBaseUrl(): String =

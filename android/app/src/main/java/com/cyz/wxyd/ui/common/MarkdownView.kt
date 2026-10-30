@@ -5,7 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.jeziellago.compose.markdowntext.MarkdownText
+import dev.jeziellago.compose.markdowntext.MarkdownText
 
 /**
  * Markdown 渲染的统一入口（依赖 `com.github.jeziellago:compose-markdown`）。

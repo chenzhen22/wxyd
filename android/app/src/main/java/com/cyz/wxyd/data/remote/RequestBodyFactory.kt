@@ -29,8 +29,8 @@ import java.io.File
  * | `POST /api/password/reset/verify` | 双层 `{body:{email,code}}` | postBody |
  * | `POST /api/password/reset/complete` | 双层 `{body:{resetToken,password}}` | postBody |
  * | `POST /api/captcha/verify` | 双层 `{body:{captchaId,x}}` | postBody |
- * | welfare 雷达 `POST /api/radar/*` | 双层 `{body:{...}}` | postBody |
- * | dayinfo 订阅 `POST /api/dayinfo/subscribe/*` | 双层 `{body:{}}` | postBody |
+ * | welfare 雷达 `POST /api/radar/…` | 双层 `{body:{...}}` | postBody |
+ * | dayinfo 订阅 `POST /api/dayinfo/subscribe/…` | 双层 `{body:{}}` | postBody |
  * | gateway 密钥 `POST /api/gateway/keys/{add,toggle,delete,reveal,model}` | 双层 `{body:{}}` | postBody |
  * | 笔记 `POST /api/note/{save,delete,saveFromSource,tags/rename}` | 双层 `{body:{...}}` | postBody |
  * | 分享删除 `POST /api/share/delete` | 双层 `{body:{...}}` | postBody |
@@ -41,7 +41,7 @@ import java.io.File
  *
  * ### 不经本工厂的接口
  * - `GET` 接口（无请求体）：`GET /api/welfare/list`、`/welfare/detail`、`/dayinfo/list|latest|detail`、
- *   `/gateway/keys`、`/gateway/models`、`/robot/list`、`/note/*`（GET 组）、`/share/list`、
+ *   `/gateway/keys`、`/gateway/models`、`/robot/list`、`/note/…`（GET 组）、`/share/list`、
  *   `/menu/list?platform=h5`、`/user/info`、`captcha/slider`（GET 滑块图）。
  * - 文件下载流（非 JSON）：`share/download`、`note/export`、`note/exportAll` → `ApiClient.getRaw`。
  * - 裸对象/数组响应（不包 Result）：`shellscript/topics*`、`javaapi/classes*` → `ApiClient.getRaw`。

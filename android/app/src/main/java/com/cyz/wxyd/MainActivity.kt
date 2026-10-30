@@ -10,6 +10,7 @@ import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModel
@@ -72,4 +73,4 @@ class MainActivity : ComponentActivity() {
 
 /** 深底判断：背景亮度低于 0.5 即用浅色系统栏图标。 */
 private fun androidx.compose.material3.ColorScheme.isDarkBackground(): Boolean =
-    androidx.compose.ui.graphics.luminance(this.background) < 0.5f
+    this.background.luminance() < 0.5f

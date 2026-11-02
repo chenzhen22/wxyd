@@ -10,11 +10,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -25,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyz.wxyd.WxydApp
+import com.cyz.wxyd.ui.common.CompactTopBar
 import com.cyz.wxyd.ui.common.MarkdownView
 import com.cyz.wxyd.ui.common.appFactory
 
@@ -49,14 +48,7 @@ fun WelfareDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(ui.detail?.title ?: "福利详情", maxLines = 1) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Text("←", style = MaterialTheme.typography.titleLarge)
-                    }
-                },
-            )
+            CompactTopBar(title = ui.detail?.title ?: "福利详情", onBack = onBack)
         },
     ) { inner ->
         Box(Modifier.fillMaxSize().padding(inner)) {

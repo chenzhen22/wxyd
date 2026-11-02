@@ -22,7 +22,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -32,7 +31,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyz.wxyd.WxydApp
+import com.cyz.wxyd.ui.common.CompactTopBar
 import com.cyz.wxyd.ui.common.MarkdownView
 import com.cyz.wxyd.ui.common.appFactory
 import com.cyz.wxyd.ui.robot.RobotItem
@@ -80,14 +79,10 @@ fun DayInfoScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("金融日报") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Text("←", style = MaterialTheme.typography.titleLarge) }
-                },
-                actions = {
-                    TextButton(onClick = vm::openSubSheet) { Text("🔔 订阅") }
-                },
+            CompactTopBar(
+                title = "金融日报",
+                onBack = onBack,
+                actions = { TextButton(onClick = vm::openSubSheet) { Text("🔔 订阅") } },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },

@@ -20,7 +20,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -28,7 +27,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyz.wxyd.WxydApp
+import com.cyz.wxyd.ui.common.CompactTopBar
 import com.cyz.wxyd.ui.common.appFactory
 
 /**
@@ -57,13 +56,9 @@ fun ShellScreen(app: WxydApp, onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(ui.detail?.name ?: "Shell 脚本学习") },
-                navigationIcon = {
-                    IconButton(onClick = { if (ui.detail != null) vm.closeDetail() else onBack() }) {
-                        Text("←", style = MaterialTheme.typography.titleLarge)
-                    }
-                },
+            CompactTopBar(
+                title = ui.detail?.name ?: "Shell 脚本学习",
+                onBack = { if (ui.detail != null) vm.closeDetail() else onBack() },
                 actions = {
                     val d = ui.detail
                     if (d != null) {

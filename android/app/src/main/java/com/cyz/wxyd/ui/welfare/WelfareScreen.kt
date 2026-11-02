@@ -26,7 +26,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyz.wxyd.WxydApp
+import com.cyz.wxyd.ui.common.CompactTopBar
 import com.cyz.wxyd.ui.common.appFactory
 
 /**
@@ -91,14 +91,7 @@ internal fun WelfareContent(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("福利专区") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Text("←", style = MaterialTheme.typography.titleLarge)
-                    }
-                },
-            )
+            CompactTopBar(title = "福利专区", onBack = onBack)
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { inner ->

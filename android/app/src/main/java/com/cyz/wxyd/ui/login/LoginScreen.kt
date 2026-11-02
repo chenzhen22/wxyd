@@ -79,8 +79,23 @@ fun LoginScreen(
             ?: vm.consumeError()
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    Surface(modifier = Modifier.fillMaxSize()) {
+        // 与 H5 登录页对齐：login_bg.jpg 铺满 + 深色压暗层（rgba(10,8,24,.55→.68)），保证卡片与文字可读
+        Box(
+            Modifier
+                .fillMaxSize()
+                // 照片先画（下层），压暗层后画（上层）——与 H5 的 linear-gradient(bg) + url(bg-image) 层序一致
+                .paint(
+                    painter = painterResource(R.drawable.login_bg),
+                    contentScale = ContentScale.Crop,
+                )
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFF0A0818).copy(alpha = 0.55f), Color(0xFF0A0818).copy(alpha = 0.68f)),
+                    ),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
             Column(
                 modifier = Modifier
                     .widthIn(max = 420.dp)
@@ -171,13 +186,6 @@ fun LoginScreen(
                         }
                     }
                 }
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    text = "支持内网 HTTP 明文与自签证书部署",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
             }
         }
     }

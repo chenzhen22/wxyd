@@ -11,13 +11,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.cyz.wxyd.ui.common.CompactTopBar
 import com.cyz.wxyd.ui.common.MarkdownView
 
 /**
@@ -43,11 +42,9 @@ fun NoteEditScreen(vm: NotesViewModel, onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(if (ui.readOnly) "查看笔记" else if (ui.originalName.isBlank()) "新建笔记" else "编辑笔记") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Text("←", style = MaterialTheme.typography.titleLarge) }
-                },
+            CompactTopBar(
+                title = if (ui.readOnly) "查看笔记" else if (ui.originalName.isBlank()) "新建笔记" else "编辑笔记",
+                onBack = onBack,
                 actions = {
                     val canDelete = !ui.readOnly && ui.originalName.isNotBlank()
                     if (canDelete) {

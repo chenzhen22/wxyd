@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cyz.bohe.mapper.BoheMapper">
+
+    <resultMap id="billMap" type="com.cyz.bohe.model.BoheBill">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="cloudId" column="cloud_id"/>
+        <result property="amount" column="amount"/>
+        <result property="category" column="category"/>
+        <result property="note" column="note"/>
+        <result property="billDate" column="bill_date"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <resultMap id="friendMap" type="com.cyz.bohe.model.BoheFriend">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="friendId" column="friend_id"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="monthFilter">
+        <if test="month != null and month != ''">AND DATE_FORMAT(bill_date, '%Y-%m') = #{month}</if>
+    </sql>
+
+    <select id="listBills" resultMap="billMap">
+        SELECT * FROM bohe_bill
+        WHERE user_id = #{userId}
+        <include refid="monthFilter"/>
+        ORDER BY bill_date DESC, id DESC
+    </select>
+
+    <select id="findByCloudId" resultMap="billMap">
+        SELECT * FROM bohe_bill WHERE cloud_id = #{cloudId}
+    </select>
+
+    <insert id="insertBill" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO bohe_bill (user_id, cloud_id, amount, category, note, bill_date, create_time)
+        VALUES (#{userId}, #{cloudId}, #{amount}, #{category}, #{note}, #{billDate}, #{createTime})
+    </insert>
+
+    <update id="updateBillByCloudId">
+        UPDATE bohe_bill
+        SET amount = #{amount}, category = #{category}, note = #{note}, bill_date = #{billDate}, create_time = #{createTime}
+        WHERE cloud_id = #{cloudId}
+    </update>
+
+    <!-- 手工删除账单（仅本人）：物理删除 -->
+    <delete id="deleteBill">
+        DELETE FROM bohe_bill WHERE id = #{id} AND user_id = #{userId}
+    </delete>
+
+    <!-- 删除导入账单时清掉 cloud_id 由物理删除天然满足；保留方法用于软删场景，当前未用 -->
+    <update id="clearCloudId">
+        UPDATE bohe_bill SET cloud_id = NULL WHERE id = #{id} AND user_id = #{userId}
+    </update>
+
+    <select id="sumByCategory" resultType="java.util.HashMap">
+        SELECT category AS `category`, SUM(amount) AS `total`
+        FROM bohe_bill
+        WHERE user_id = #{userId}
+        <include refid="monthFilter"/>
+        GROUP BY category
+        ORDER BY total DESC
+    </select>
+
+    <select id="sumMonth" resultType="java.lang.Long">
+        SELECT SUM(amount) FROM bohe_bill
+        WHERE user_id = #{userId}
+        <include refid="monthFilter"/>
+    </select>
+
+    <select id="findFriend" resultMap="friendMap">
+        SELECT * FROM bohe_friend
+        WHERE (user_id = #{a} AND friend_id = #{b}) OR (user_id = #{b} AND friend_id = #{a})
+        LIMIT 1
+    </select>
+
+    <select id="listFriendsByUser" resultMap="friendMap">
+        SELECT * FROM bohe_friend
+        WHERE user_id = #{userId} OR friend_id = #{userId}
+        <if test="status != null">AND status = #{status}</if>
+        ORDER BY update_time DESC
+    </select>
+
+    <insert id="insertFriend" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO bohe_friend (user_id, friend_id, status)
+        VALUES (#{userId}, #{friendId}, #{status})
+    </insert>
+
+    <update id="updateFriendStatus">
+        UPDATE bohe_friend SET status = #{status}
+        WHERE user_id = #{userId} AND friend_id = #{friendId}
+    </update>
+
+    <select id="searchUsers" resultType="java.util.HashMap">
+        SELECT id, username, display_name
+        FROM users
+        WHERE status = 0
+          AND (username LIKE CONCAT('%', #{keyword}, '%') OR display_name LIKE CONCAT('%', #{keyword}, '%'))
+        LIMIT 20
+    </select>
+
+    <select id="findIdByUsername" resultType="java.lang.Long">
+        SELECT id FROM users WHERE username = #{username} LIMIT 1
+    </select>
+
+</mapper>

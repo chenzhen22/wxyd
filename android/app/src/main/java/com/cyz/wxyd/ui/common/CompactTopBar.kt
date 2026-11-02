@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
  * 紧凑二级页顶栏：默认 TopAppBar（64dp）偏高，统一压到 48dp（另加状态栏 inset），
  * 自带返回箭头（[onBack] 为 null 时不显示）；actions 透传给右侧操作区。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CompactTopBar(
     title: String,

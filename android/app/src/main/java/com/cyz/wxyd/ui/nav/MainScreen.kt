@@ -25,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.cyz.wxyd.WxydApp
+import com.cyz.wxyd.ui.bohe.BoheScreen
 import com.cyz.wxyd.ui.home.HomeScreen
 import com.cyz.wxyd.ui.login.hasBiometricCapability
 import com.cyz.wxyd.ui.profile.ProfileScreen
@@ -34,15 +35,17 @@ import kotlinx.coroutines.launch
 
 private data class TabSpec(val route: String, val label: String, val icon: String)
 
-/** 底部 Tab：固定 2 个（留言板/群聊已砍，仅剩工作台/我的，spec 第 3 节）。 */
+/** 底部 Tab：工作台 / 薄荷账（中间）/ 我的（bohe spec：薄荷账 Tab 所有登录用户固定可见）。 */
 private val MAIN_TABS = listOf(
     TabSpec(route = "home", label = "工作台", icon = "🏠"),
+    TabSpec(route = "bohe", label = "薄荷账", icon = "🍃"),
     TabSpec(route = "profile", label = "我的", icon = "👤"),
 )
 
-/** Tab 路由：`home` / `profile` 固定可见（spec 决策：底部固定 2 Tab）。 */
+/** Tab 路由：`home` / `bohe` / `profile` 固定可见。 */
 object TabRoutes {
     const val HOME = "home"
+    const val BOHE = "bohe"
     const val PROFILE = "profile"
 }
 
@@ -94,6 +97,9 @@ fun MainScreen(
                     app = app,
                     onOpenModule = onOpenModule,
                 )
+            }
+            composable(TabRoutes.BOHE) {
+                BoheScreen(app = app, sessionViewModel = sessionViewModel)
             }
             composable(TabRoutes.PROFILE) {
                 ProfileScreen(

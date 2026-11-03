@@ -15,7 +15,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import javax.sql.DataSource;
 
 @Configuration
-@MapperScan(basePackages = {"com.cyz.mapper"}, sqlSessionFactoryRef = "sqlSessionFactory")
+@MapperScan(basePackages = {"com.cyz.mapper", "com.cyz.bohe.mapper"}, sqlSessionFactoryRef = "sqlSessionFactory")
 public class mybatisMysqlConfig {
 
 	@Value("${mybatis.mapperLocations}")

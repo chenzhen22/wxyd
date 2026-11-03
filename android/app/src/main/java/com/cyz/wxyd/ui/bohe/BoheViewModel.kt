@@ -132,7 +132,7 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
                 val billBody = container.apiClient.getResult("/bohe/bill/list", query)
                 val statsBody = container.apiClient.getResult("/bohe/stats", query)
                 val bills = parseBills(billBody)
-                val total = statsBody["body"]?.jsonObject?.get("total")?.jsonPrimitive?.longOrNull ?: 0L
+                val total = statsBody["total"]?.jsonPrimitive?.longOrNull ?: 0L
                 val byCategory = parseCategorySums(statsBody)
                 val friends = if (friendId == null) loadFriends() else _ui.value.friends
                 _ui.update {
@@ -150,7 +150,7 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
 
     private suspend fun loadFriends(): List<BoheFriendItem> {
         val body = container.apiClient.getResult("/bohe/friend/list")
-        val arr = body["body"]?.jsonObject?.get("friends")?.jsonArray ?: return emptyList()
+        val arr = body["friends"]?.jsonArray ?: return emptyList()
         return arr.map { el ->
             val o = el.jsonObject
             BoheFriendItem(
@@ -164,7 +164,7 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     private fun parseBills(body: JsonObject): List<BoheBillItem> {
-        val arr = body["body"]?.jsonObject?.get("bills")?.jsonArray ?: return emptyList()
+        val arr = body["bills"]?.jsonArray ?: return emptyList()
         return arr.mapNotNull { el ->
             val o = el.jsonObject
             val id = o["id"]?.jsonPrimitive?.longOrNull ?: return@mapNotNull null
@@ -180,7 +180,7 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     private fun parseCategorySums(body: JsonObject): List<CategorySum> {
-        val arr = body["body"]?.jsonObject?.get("byCategory")?.jsonArray ?: return emptyList()
+        val arr = body["byCategory"]?.jsonArray ?: return emptyList()
         return arr.mapNotNull { el ->
             val o = el.jsonObject
             val c = o["category"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null

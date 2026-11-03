@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -119,7 +120,13 @@ fun LoginScreen(
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.height(24.dp))
-                Card(Modifier.fillMaxWidth()) {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    // 半透明卡片：让 login_bg 背景图透出来（纯色 Card 会把图完全遮住）
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF0A0818).copy(alpha = 0.55f),
+                    ),
+                ) {
                     Column(Modifier.padding(20.dp)) {
                         OutlinedTextField(
                             value = ui.username,

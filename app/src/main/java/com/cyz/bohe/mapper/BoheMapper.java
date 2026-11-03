@@ -12,11 +12,14 @@ import java.util.Map;
  */
 public interface BoheMapper {
 
-    List<BoheBill> listBills(@Param("userId") long userId, @Param("month") String month);
+    List<BoheBill> listBills(@Param("userId") long userId, @Param("month") String month, @Param("period") String period);
 
     BoheBill findByCloudId(@Param("cloudId") String cloudId);
 
     int insertBill(BoheBill bill);
+
+    /** 编辑账单（仅属主）：更新金额/分类/备注/日期。 */
+    int updateBillById(BoheBill bill);
 
     int updateBillByCloudId(BoheBill bill);
 
@@ -24,9 +27,9 @@ public interface BoheMapper {
 
     int clearCloudId(@Param("id") long id, @Param("userId") long userId);
 
-    List<Map<String, Object>> sumByCategory(@Param("userId") long userId, @Param("month") String month);
+    List<Map<String, Object>> sumByCategory(@Param("userId") long userId, @Param("month") String month, @Param("period") String period);
 
-    Long sumMonth(@Param("userId") long userId, @Param("month") String month);
+    Long sumMonth(@Param("userId") long userId, @Param("month") String month, @Param("period") String period);
 
     BoheFriend findFriend(@Param("a") long a, @Param("b") long b);
 
@@ -39,4 +42,9 @@ public interface BoheMapper {
     List<Map<String, Object>> searchUsers(@Param("keyword") String keyword);
 
     Long findIdByUsername(@Param("username") String username);
+
+    /** 查 users.bohe_hidden（0=可见 1=隐藏）；列来自 V30 迁移。 */
+    Integer boheHidden(@Param("userId") long userId);
+
+    int setBoheHidden(@Param("userId") long userId, @Param("hidden") int hidden);
 }

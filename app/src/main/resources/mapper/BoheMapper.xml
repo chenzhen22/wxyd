@@ -23,7 +23,18 @@
     </resultMap>
 
     <sql id="monthFilter">
-        <if test="month != null and month != ''">AND DATE_FORMAT(bill_date, '%Y-%m') = #{month}</if>
+        <choose>
+            <!-- period 粒度：day=精确一天 / year=整年 / 缺省=月（兼容旧调用） -->
+            <when test="period != null and period == 'day'">
+                AND bill_date = #{month}
+            </when>
+            <when test="period != null and period == 'year'">
+                AND DATE_FORMAT(bill_date, '%Y') = #{month}
+            </when>
+            <otherwise>
+                <if test="month != null and month != ''">AND DATE_FORMAT(bill_date, '%Y-%m') = #{month}</if>
+            </otherwise>
+        </choose>
     </sql>
 
     <select id="listBills" resultMap="billMap">
@@ -41,6 +52,13 @@
         INSERT INTO bohe_bill (user_id, cloud_id, amount, category, note, bill_date, create_time)
         VALUES (#{userId}, #{cloudId}, #{amount}, #{category}, #{note}, #{billDate}, #{createTime})
     </insert>
+
+    <!-- 编辑账单（仅属主）；create_time 保持原值 -->
+    <update id="updateBillById">
+        UPDATE bohe_bill
+        SET amount = #{amount}, category = #{category}, note = #{note}, bill_date = #{billDate}
+        WHERE id = #{id} AND user_id = #{userId}
+    </update>
 
     <update id="updateBillByCloudId">
         UPDATE bohe_bill
@@ -107,5 +125,14 @@
     <select id="findIdByUsername" resultType="java.lang.Long">
         SELECT id FROM users WHERE username = #{username} LIMIT 1
     </select>
+
+    <!-- 好友可见开关（V30 users.bohe_hidden）：无行/无列场景兜底 0=可见 -->
+    <select id="boheHidden" resultType="java.lang.Integer">
+        SELECT bohe_hidden FROM users WHERE id = #{userId} LIMIT 1
+    </select>
+
+    <update id="setBoheHidden">
+        UPDATE users SET bohe_hidden = #{hidden} WHERE id = #{userId}
+    </update>
 
 </mapper>

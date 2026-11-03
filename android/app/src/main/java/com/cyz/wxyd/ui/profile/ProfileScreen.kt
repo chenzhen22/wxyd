@@ -24,6 +24,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,7 @@ import com.cyz.wxyd.WxydApp
 import com.cyz.wxyd.ui.login.hasBiometricCapability
 import com.cyz.wxyd.ui.theme.ALL_THEMES
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.longOrNull
 
 /** 主题 7 值的展示名（值本身是接口/DataStore 中的英文标识）。 */
 private val THEME_LABELS = linkedMapOf(
@@ -119,6 +121,54 @@ fun ProfileScreen(
                                 checked -> biometricTip = "enable"
                                 else -> scope.launch {
                                     app.container.biometricStore.disable()
+                                }
+                            }
+                        },
+                    )
+                }
+            }
+        }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("隐私", style = MaterialTheme.typography.titleMedium)
+                SectionRule()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("不让好友看我的薄荷账", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "开启后好友无法查看你的账单与统计",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    var boheHidden by remember { mutableStateOf(false) }
+                    var boheHiddenLoaded by remember { mutableStateOf(false) }
+                    LaunchedEffect(Unit) {
+                        runCatching {
+                            val body = app.container.apiClient.getResult("/bohe/visibility")
+                            boheHidden = body["hidden"]?.let {
+                                (it as? kotlinx.serialization.json.JsonPrimitive)?.longOrNull == 1L
+                            } ?: false
+                            boheHiddenLoaded = true
+                        }
+                    }
+                    Switch(
+                        checked = boheHidden,
+                        enabled = boheHiddenLoaded,
+                        onCheckedChange = { checked ->
+                            boheHidden = checked
+                            scope.launch {
+                                runCatching {
+                                    app.container.apiClient.postBody(
+                                        "/bohe/visibility",
+                                        kotlinx.serialization.json.buildJsonObject {
+                                            put("hidden", kotlinx.serialization.json.JsonPrimitive(checked))
+                                        },
+                                    )
                                 }
                             }
                         },

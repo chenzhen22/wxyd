@@ -28,6 +28,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -127,13 +128,24 @@ fun LoginScreen(
                         containerColor = Color(0xFF0A0818).copy(alpha = 0.55f),
                     ),
                 ) {
+                    // 深色半透明卡片上的浅色输入框：默认主题是黑字，压在暗卡上看不见
                     Column(Modifier.padding(20.dp)) {
+                        val fieldColors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = Color.White,
+                            focusedLabelColor = Color.White.copy(alpha = 0.9f),
+                            unfocusedLabelColor = Color.White.copy(alpha = 0.7f),
+                            focusedBorderColor = Color(0xFF3EB489),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.45f),
+                        )
                         OutlinedTextField(
                             value = ui.username,
                             onValueChange = vm::onUsernameChange,
                             label = { Text("用户名 / 邮箱") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                            colors = fieldColors,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(Modifier.height(12.dp))
@@ -148,6 +160,7 @@ fun LoginScreen(
                                 imeAction = ImeAction.Done,
                             ),
                             keyboardActions = KeyboardActions(onDone = { submit() }),
+                            colors = fieldColors,
                             modifier = Modifier.fillMaxWidth(),
                         )
 

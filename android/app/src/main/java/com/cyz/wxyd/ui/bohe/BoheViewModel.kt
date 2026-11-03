@@ -3,6 +3,7 @@ package com.cyz.wxyd.ui.bohe
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cyz.wxyd.AppContainer
+import com.cyz.wxyd.data.repo.BoheRepository
 import com.cyz.wxyd.ui.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,17 +17,20 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
-/** 账单行（服务端 BoheBill，金额为分）。 */
+/** 账单行（本地 Room 或服务端，金额为分；id 负数 = 本机离线新建未同步）。 */
 data class BoheBillItem(
     val id: Long,
     val amount: Long,
     val category: String,
     val note: String?,
     val billDate: String,
-    val cloudId: String?,
-)
+    val cloudId: String? = null,
+) {
+    val isLocalOnly: Boolean get() = id < 0
+}
 
 /** 分类合计行。 */
 data class CategorySum(val category: String, val total: Long)
@@ -38,6 +42,15 @@ data class BoheFriendItem(
     val displayName: String?,
     val status: Int,
     val outgoing: Boolean,
+) {
+    val label: String get() = displayName?.takeIf { it.isNotBlank() } ?: username ?: "$userId"
+}
+
+/** 搜索到的用户（好友 Tab 顶部搜索）。 */
+data class BoheSearchUser(
+    val userId: Long,
+    val username: String?,
+    val displayName: String?,
 ) {
     val label: String get() = displayName?.takeIf { it.isNotBlank() } ?: username ?: "$userId"
 }
@@ -61,13 +74,28 @@ object BoheCategories {
     fun label(key: String?): String = MAP[key] ?: "其他"
 }
 
+/** 统计粒度（需求 2：按年/月/日统计）。 */
+enum class StatsGranularity(val key: String, val label: String) {
+    DAY("day", "日"),
+    MONTH("month", "月"),
+    YEAR("year", "年");
+
+    /** 当前选中期的服务端参数值：day=yyyy-MM-dd / month=yyyy-MM / year=yyyy。 */
+    fun periodValue(month: String): String = when (this) {
+        DAY -> month.take(10)
+        MONTH -> month.take(7)
+        YEAR -> month.take(4)
+    }
+}
+
 data class BoheUiState(
     val loading: Boolean = true,
     val error: String? = null,
     val message: String? = null,
 
-    /** 当前查看的月份 yyyy-MM */
-    val month: String = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")),
+    /** 当前选中期（yyyy-MM-dd 锚点，按粒度截取展示）。 */
+    val month: String = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")) + "-01",
+    val granularity: StatsGranularity = StatsGranularity.MONTH,
 
     /** 好友查看模式：null=我；非 null=对方 userId */
     val viewingFriendId: Long? = null,
@@ -78,29 +106,47 @@ data class BoheUiState(
     val byCategory: List<CategorySum> = emptyList(),
 
     val friends: List<BoheFriendItem> = emptyList(),
-    val friendKeyword: String = "",
+    /** 好友 Tab 搜索。 */
+    val searchKeyword: String = "",
+    val searchResults: List<BoheSearchUser> = emptyList(),
+    val searching: Boolean = false,
 
-    val showAddDialog: Boolean = false,
+    /** 新增/编辑弹层。editBill 非 null = 编辑模式。 */
+    val showAddSheet: Boolean = false,
+    val editBill: BoheBillItem? = null,
     val saving: Boolean = false,
 )
 
 /**
- * 薄荷账（spec docs/superpowers/specs/2026-11-02-bohe-android-integration-design.md）。
- *
- * 接口：bohe/bill/list、bohe/bill/save、bohe/bill/delete、bohe/stats、
- * bohe/friend/list、bohe/friend/request、bohe/friend/handle、bohe/friend/remove、bohe/user/search。
- * 金额传输全部为整数分；展示层才转元。
+ * 薄荷账（离线优先，需求 6）：读写走 [BoheRepository]（本地 Room），
+ * 联网时刷新同步。好友/搜索仍走服务端。
  */
 class BoheViewModel(private val container: AppContainer) : ViewModel() {
+
+    private val repo: BoheRepository = container.boheRepository
+    private val api get() = container.apiClient
 
     private val _ui = MutableStateFlow(BoheUiState())
     val ui: StateFlow<BoheUiState> = _ui.asStateFlow()
 
     fun consumeMessage() = _ui.update { it.copy(message = null) }
 
-    /** 导入卡片回调：展示结果文本（含 inserted/updated/skipped 时由调用方拼好）。 */
     fun importDone(msg: String) {
         _ui.update { it.copy(message = msg) }
+    }
+
+    // ---------- 期切换 ----------
+
+    private fun fmt(p: StatsGranularity): DateTimeFormatter = when (p) {
+        StatsGranularity.DAY -> DateTimeFormatter.ofPattern("yyyy-MM-dd")
+        StatsGranularity.MONTH -> DateTimeFormatter.ofPattern("yyyy-MM")
+        StatsGranularity.YEAR -> DateTimeFormatter.ofPattern("yyyy")
+    }
+
+    fun setGranularity(g: StatsGranularity) {
+        val anchor = LocalDate.parse(_ui.value.month.take(10))
+        _ui.update { it.copy(granularity = g, month = anchor.format(fmt(g))) }
+        load()
     }
 
     fun setMonth(m: String) {
@@ -108,50 +154,65 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
         load()
     }
 
-    fun prevMonth() {
-        val d = LocalDate.parse(_ui.value.month + "-01").minusMonths(1)
-        setMonth(d.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+    fun prevPeriod() = shift(-1)
+    fun nextPeriod() = shift(1)
+
+    private fun shift(delta: Long) {
+        val s = _ui.value
+        val anchor = LocalDate.parse(s.month.take(10))
+        val moved = when (s.granularity) {
+            StatsGranularity.DAY -> anchor.plusDays(delta)
+            StatsGranularity.MONTH -> anchor.plusMonths(delta)
+            StatsGranularity.YEAR -> anchor.plusYears(delta)
+        }
+        setMonth(moved.format(fmt(s.granularity)))
     }
 
-    fun nextMonth() {
-        val d = LocalDate.parse(_ui.value.month + "-01").plusMonths(1)
-        setMonth(d.format(DateTimeFormatter.ofPattern("yyyy-MM")))
-    }
+    // ---------- 数据加载 ----------
 
-    /** 拉账单 + 统计 + 好友列表（并发三个请求，全部完成后落状态）。 */
+    /** 联网刷新 + 重放同步；本地 Room 为单一 UI 数据源。 */
     fun load() {
         val s = _ui.value
-        val friendId = s.viewingFriendId
-        _ui.update { it.copy(loading = true, error = null) }
+        _ui.update { it.copy(loading = it.bills.isEmpty()) }
         viewModelScope.launch {
             try {
-                val query = buildMap {
-                    put("month", s.month)
-                    if (friendId != null) put("friendId", friendId.toString())
+                // 服务器数据拉取与同步（离线静默）
+                launch { repo.refreshAndSync(s.granularity.periodValue(s.month)) }
+                // 好友列表（联网才拉得到；失败静默保持旧值）
+                if (s.viewingFriendId == null) {
+                    launch { runCatching { loadFriends() } }
                 }
-                val billBody = container.apiClient.getResult("/bohe/bill/list", query)
-                val statsBody = container.apiClient.getResult("/bohe/stats", query)
-                val bills = parseBills(billBody)
-                val total = statsBody["total"]?.jsonPrimitive?.longOrNull ?: 0L
-                val byCategory = parseCategorySums(statsBody)
-                val friends = if (friendId == null) loadFriends() else _ui.value.friends
-                _ui.update {
-                    it.copy(
-                        loading = false, bills = bills, monthTotal = total, byCategory = byCategory,
-                        friends = friends, error = null,
-                    )
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                _ui.update { it.copy(loading = false, error = e.userMessage()) }
+            } finally {
+                _ui.update { it.copy(loading = false) }
             }
+        }
+        // 好友模式：直接走服务端（好友账单不进本地库）
+        if (s.viewingFriendId != null) {
+            viewModelScope.launch { loadFriendBills(s.viewingFriendId, s.granularity, s.month) }
         }
     }
 
-    private suspend fun loadFriends(): List<BoheFriendItem> {
-        val body = container.apiClient.getResult("/bohe/friend/list")
-        val arr = body["friends"]?.jsonArray ?: return emptyList()
-        return arr.map { el ->
+    private suspend fun loadFriendBills(friendId: Long, g: StatsGranularity, month: String) {
+        try {
+            val query = mapOf("month" to g.periodValue(month), "period" to g.key, "friendId" to friendId.toString())
+            val billBody = api.getResult("/bohe/bill/list", query)
+            val statsBody = api.getResult("/bohe/stats", query)
+            val bills = parseBills(billBody)
+            val total = statsBody["total"]?.jsonPrimitive?.longOrNull ?: 0L
+            val byCategory = parseCategorySums(statsBody)
+            _ui.update {
+                it.copy(loading = false, bills = bills, monthTotal = total, byCategory = byCategory, error = null)
+            }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            _ui.update { it.copy(loading = false, error = e.userMessage()) }
+        }
+    }
+
+    private suspend fun loadFriends() {
+        val body = api.getResult("/bohe/friend/list")
+        val arr = body["friends"]?.jsonArray ?: return
+        val friends = arr.map { el ->
             val o = el.jsonObject
             BoheFriendItem(
                 userId = o["userId"]?.jsonPrimitive?.longOrNull ?: 0L,
@@ -161,6 +222,7 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
                 outgoing = o["outgoing"]?.jsonPrimitive?.contentOrNull == "true",
             )
         }
+        _ui.update { it.copy(friends = friends) }
     }
 
     private fun parseBills(body: JsonObject): List<BoheBillItem> {
@@ -188,12 +250,16 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun showAddDialog() = _ui.update { it.copy(showAddDialog = true) }
+    // ---------- 写（离线可用） ----------
 
-    fun dismissAddDialog() = _ui.update { it.copy(showAddDialog = false, saving = false) }
+    fun showAddSheet() = _ui.update { it.copy(showAddSheet = true, editBill = null) }
 
-    /** 记一笔：成功后刷新并收起弹窗（回到账单卡片）。 */
-    fun addBill(amountYuan: String, category: String, note: String, date: LocalDate) {
+    fun showEditSheet(bill: BoheBillItem) = _ui.update { it.copy(showAddSheet = true, editBill = bill) }
+
+    fun dismissAddSheet() = _ui.update { it.copy(showAddSheet = false, editBill = null, saving = false) }
+
+    /** 记一笔/编辑（本地立即生效，联网自动同步）。 */
+    fun saveBill(amountYuan: String, category: String, note: String, date: LocalDate) {
         val cents = amountYuan.toBigDecimalOrNull()
             ?.multiply(java.math.BigDecimal(100))
             ?.setScale(0, java.math.RoundingMode.HALF_UP)
@@ -209,19 +275,13 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
         _ui.update { it.copy(saving = true) }
         viewModelScope.launch {
             try {
-                container.apiClient.postBody(
-                    "/bohe/bill/save",
-                    kotlinx.serialization.json.buildJsonObject {
-                        put("amount", kotlinx.serialization.json.JsonPrimitive(cents))
-                        put("category", kotlinx.serialization.json.JsonPrimitive(category))
-                        put("note", kotlinx.serialization.json.JsonPrimitive(note))
-                        put("date", kotlinx.serialization.json.JsonPrimitive(date.toString()))
-                    },
-                )
-                _ui.update {
-                    it.copy(saving = false, showAddDialog = false, message = "记账成功")
+                val editing = _ui.value.editBill
+                if (editing != null) {
+                    repo.editBill(editing.id, cents, category, note.takeIf { it.isNotBlank() }, date.toString())
+                } else {
+                    repo.addBill(cents, category, note.takeIf { it.isNotBlank() }, date.toString())
                 }
-                load()
+                _ui.update { it.copy(saving = false, showAddSheet = false, editBill = null, message = "已保存") }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _ui.update { it.copy(saving = false, message = e.userMessage()) }
@@ -232,14 +292,8 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
     fun deleteBill(id: Long) {
         viewModelScope.launch {
             try {
-                container.apiClient.postBody(
-                    "/bohe/bill/delete",
-                    kotlinx.serialization.json.buildJsonObject {
-                        put("id", kotlinx.serialization.json.JsonPrimitive(id))
-                    },
-                )
+                repo.deleteBill(id)
                 _ui.update { it.copy(message = "已删除") }
-                load()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _ui.update { it.copy(message = e.userMessage()) }
@@ -247,24 +301,52 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun onFriendKeywordChange(v: String) = _ui.update { it.copy(friendKeyword = v) }
+    // ---------- 好友 Tab ----------
 
-    fun requestFriend() {
-        val username = _ui.value.friendKeyword.trim()
-        if (username.isBlank()) {
-            _ui.update { it.copy(message = "请输入用户名") }
-            return
-        }
+    fun onSearchChange(v: String) {
+        _ui.update { it.copy(searchKeyword = v) }
+        if (v.isBlank()) _ui.update { it.copy(searchResults = emptyList()) }
+    }
+
+    /** 模糊搜索用户（需求 3：上方搜索框加好友）。 */
+    fun search() {
+        val kw = _ui.value.searchKeyword.trim()
+        if (kw.isEmpty()) return
+        _ui.update { it.copy(searching = true) }
         viewModelScope.launch {
             try {
-                container.apiClient.postBody(
+                val body = api.getResult("/bohe/user/search", mapOf("keyword" to kw))
+                val arr = body["users"]?.jsonArray ?: emptyList()
+                val users = arr.mapNotNull { el ->
+                    val o = el.jsonObject
+                    val id = o["id"]?.jsonPrimitive?.longOrNull ?: return@mapNotNull null
+                    BoheSearchUser(
+                        userId = id,
+                        username = o["username"]?.jsonPrimitive?.contentOrNull,
+                        displayName = o["displayName"]?.jsonPrimitive?.contentOrNull,
+                    )
+                }
+                _ui.update { it.copy(searching = false, searchResults = users) }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                _ui.update { it.copy(searching = false, message = e.userMessage()) }
+            }
+        }
+    }
+
+    /** 对搜索结果发好友申请（通过=互相关注）。 */
+    fun addFriend(userId: Long) {
+        viewModelScope.launch {
+            try {
+                val user = _ui.value.searchResults.firstOrNull { it.userId == userId }
+                api.postBody(
                     "/bohe/friend/request",
                     kotlinx.serialization.json.buildJsonObject {
-                        put("username", kotlinx.serialization.json.JsonPrimitive(username))
+                        put("username", kotlinx.serialization.json.JsonPrimitive(user?.username ?: ""))
                     },
                 )
-                _ui.update { it.copy(friendKeyword = "", message = "申请已发送") }
-                load()
+                _ui.update { it.copy(message = "申请已发送") }
+                runCatching { loadFriends() }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _ui.update { it.copy(message = e.userMessage()) }
@@ -275,14 +357,15 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
     fun handleFriend(userId: Long, accept: Boolean) {
         viewModelScope.launch {
             try {
-                container.apiClient.postBody(
+                api.postBody(
                     "/bohe/friend/handle",
                     kotlinx.serialization.json.buildJsonObject {
                         put("userId", kotlinx.serialization.json.JsonPrimitive(userId))
                         put("accept", kotlinx.serialization.json.JsonPrimitive(accept))
                     },
                 )
-                load()
+                _ui.update { it.copy(message = if (accept) "已添加好友" else "已拒绝") }
+                runCatching { loadFriends() }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _ui.update { it.copy(message = e.userMessage()) }
@@ -293,7 +376,7 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
     fun removeFriend(userId: Long) {
         viewModelScope.launch {
             try {
-                container.apiClient.postBody(
+                api.postBody(
                     "/bohe/friend/remove",
                     kotlinx.serialization.json.buildJsonObject {
                         put("userId", kotlinx.serialization.json.JsonPrimitive(userId))
@@ -308,7 +391,7 @@ class BoheViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** 进入好友只读视图。 */
+    /** 进入好友只读视图（好友 Tab 点好友 → 薄荷账）。 */
     fun openFriend(f: BoheFriendItem) {
         if (f.status != 1) return
         _ui.update { it.copy(viewingFriendId = f.userId, viewingFriendName = f.label) }

@@ -16,6 +16,7 @@ import javax.servlet.http.HttpSession;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,7 @@ public class BoheController implements CommController {
     @ResponseBody
     @GetMapping("bohe/bill/list")
     public Result billList(@RequestParam(required = false) String month,
+                           @RequestParam(required = false) String period,
                            @RequestParam(required = false) Long friendId,
                            HttpSession session) {
         Result r = Result.getInstance();
@@ -55,7 +57,7 @@ public class BoheController implements CommController {
                 return err("无权查看该用户账单");
             }
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("bills", boheService.listBills(target, month));
+            body.put("bills", boheService.listBills(target, month, period));
             body.put("self", target == me);
             r.setBody(body);
         } catch (IllegalArgumentException e) {
@@ -72,6 +74,7 @@ public class BoheController implements CommController {
         Result r = Result.getInstance();
         try {
             long me = me(session);
+            Long id = body.get("id") != null ? Long.parseLong(String.valueOf(body.get("id"))) : null;
             Long amount = body.get("amount") != null ? Long.parseLong(String.valueOf(body.get("amount"))) : null;
             String category = (String) body.get("category");
             String note = (String) body.get("note");
@@ -79,7 +82,8 @@ public class BoheController implements CommController {
             LocalDate billDate = date != null && !date.isEmpty()
                     ? LocalDate.parse(date.substring(0, 10), DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                     : null;
-            boheService.saveBill(me, amount, category, note, billDate);
+            Long savedId = boheService.saveBill(me, id, amount, category, note, billDate);
+            r.setBody(Collections.singletonMap("id", savedId));
         } catch (IllegalArgumentException e) {
             return err(e.getMessage());
         } catch (Exception e) {
@@ -107,6 +111,7 @@ public class BoheController implements CommController {
     @ResponseBody
     @GetMapping("bohe/stats")
     public Result stats(@RequestParam(required = false) String month,
+                        @RequestParam(required = false) String period,
                         @RequestParam(required = false) Long friendId,
                         HttpSession session) {
         Result r = Result.getInstance();
@@ -116,7 +121,7 @@ public class BoheController implements CommController {
             if (!boheService.canView(me, target)) {
                 return err("无权查看该用户统计");
             }
-            r.setBody(boheService.stats(target, month));
+            r.setBody(boheService.stats(target, month, period));
         } catch (IllegalArgumentException e) {
             return err(e.getMessage());
         } catch (Exception e) {
@@ -234,6 +239,35 @@ public class BoheController implements CommController {
             return err(e.getMessage());
         } catch (Exception e) {
             return err("搜索失败: " + e.getMessage());
+        }
+        return r;
+    }
+
+    /** 薄荷账对好友的可见开关（需求 4）：GET 查询 / POST 设置。 */
+    @ResponseBody
+    @GetMapping("bohe/visibility")
+    public Result visibility(HttpSession session) {
+        Result r = Result.getInstance();
+        try {
+            long me = me(session);
+            r.setBody(Collections.singletonMap("hidden", boheService.boheHidden(me)));
+        } catch (Exception e) {
+            return err("查询失败: " + e.getMessage());
+        }
+        return r;
+    }
+
+    @ResponseBody
+    @PostMapping("bohe/visibility")
+    public Result setVisibility(@RequestBody Map<String, Object> body, HttpSession session) {
+        Result r = Result.getInstance();
+        try {
+            long me = me(session);
+            boolean hidden = Boolean.parseBoolean(String.valueOf(body.get("hidden")));
+            boheService.setBoheHidden(me, hidden);
+            r.setBody(Collections.singletonMap("hidden", hidden ? 1 : 0));
+        } catch (Exception e) {
+            return err("设置失败: " + e.getMessage());
         }
         return r;
     }

@@ -27,28 +27,37 @@ public class BoheService {
     @Autowired
     private BoheMapper boheMapper;
 
-    public List<BoheBill> listBills(long userId, String month) {
-        return boheMapper.listBills(userId, emptyToNull(month));
+    public List<BoheBill> listBills(long userId, String month, String period) {
+        return boheMapper.listBills(userId, emptyToNull(month), emptyToNull(period));
     }
 
-    public Map<String, Object> stats(long userId, String month) {
+    /** 统计：month 值随 period 语义变化（yyyy / yyyy-MM / yyyy-MM-dd）；period 空 = 月。 */
+    public Map<String, Object> stats(long userId, String month, String period) {
         String m = emptyToNull(month);
         Map<String, Object> r = new LinkedHashMap<>();
-        r.put("total", boheMapper.sumMonth(userId, m));
-        r.put("byCategory", boheMapper.sumByCategory(userId, m));
+        r.put("total", boheMapper.sumMonth(userId, m, emptyToNull(period)));
+        r.put("byCategory", boheMapper.sumByCategory(userId, m, emptyToNull(period)));
         return r;
     }
 
-    /** viewer==target 短路；否则要求任一方向 friend 记录 status=1。 */
+    /** viewer==target 短路；否则要求任一方向 friend 记录 status=1，且对方未隐藏薄荷账（users.bohe_hidden，V30）。 */
     public boolean canView(long viewerId, long targetId) {
         if (viewerId == targetId) {
             return true;
+        }
+        Integer hidden = boheMapper.boheHidden(targetId);
+        if (hidden != null && hidden == 1) {
+            return false;
         }
         BoheFriend f = boheMapper.findFriend(viewerId, targetId);
         return f != null && f.getStatus() != null && f.getStatus() == 1;
     }
 
-    public void saveBill(long userId, Long amount, String category, String note, LocalDate billDate) {
+    /**
+     * 记账/编辑。id 为空 = 新增（返回新 id，离线同步回填用）；
+     * id 非空 = 编辑（仅属主，updateBillById 行数 0 即无权/不存在）。
+     */
+    public Long saveBill(long userId, Long id, Long amount, String category, String note, LocalDate billDate) {
         if (amount == null || amount <= 0) {
             throw new IllegalArgumentException("金额无效");
         }
@@ -58,6 +67,20 @@ public class BoheService {
         if (billDate == null) {
             billDate = LocalDate.now();
         }
+        if (id != null) {
+            BoheBill b = new BoheBill();
+            b.setId(id);
+            b.setUserId(userId);
+            b.setAmount(amount);
+            b.setCategory(category.trim());
+            b.setNote(note);
+            b.setBillDate(billDate);
+            int updated = boheMapper.updateBillById(b);
+            if (updated == 0) {
+                throw new IllegalArgumentException("账单不存在或无权编辑");
+            }
+            return id;
+        }
         BoheBill b = new BoheBill();
         b.setUserId(userId);
         b.setAmount(amount);
@@ -65,6 +88,18 @@ public class BoheService {
         b.setNote(note);
         b.setBillDate(billDate);
         boheMapper.insertBill(b);
+        return b.getId();
+    }
+
+    /** 查询用户薄荷账对好友是否隐藏（0/1）。 */
+    public int boheHidden(long userId) {
+        Integer h = boheMapper.boheHidden(userId);
+        return h != null ? h : 0;
+    }
+
+    /** 设置薄荷账对好友可见性（0=可见 1=隐藏）。 */
+    public void setBoheHidden(long userId, boolean hidden) {
+        boheMapper.setBoheHidden(userId, hidden ? 1 : 0);
     }
 
     /** 仅本人可删；物理删除（cloud_id 随行消失，重复导入不会复活）。 */

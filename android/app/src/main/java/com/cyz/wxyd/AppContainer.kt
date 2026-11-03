@@ -2,6 +2,8 @@ package com.cyz.wxyd
 
 import android.content.Context
 import com.cyz.wxyd.data.local.BiometricStore
+import com.cyz.wxyd.data.local.CredentialStore
+import com.cyz.wxyd.data.repo.BoheRepository
 import com.cyz.wxyd.data.local.SessionCookieJar
 import com.cyz.wxyd.data.local.SettingsStore
 import com.cyz.wxyd.data.remote.ApiClient
@@ -34,6 +36,12 @@ class AppContainer(context: Context) {
 
     /** 指纹登录（凭据 Keystore 加密存本机，见 [BiometricStore]）。 */
     val biometricStore: BiometricStore = BiometricStore(context)
+
+    /** 自动登录凭据（Keystore 加密落盘；离线登录/启动重登的凭据来源，换设备失效）。 */
+    val credentialStore: CredentialStore = CredentialStore(context)
+
+    /** 薄荷账离线仓库（本地 Room 为 UI 数据源，联网刷新同步；见 [BoheRepository]）。 */
+    val boheRepository: BoheRepository = BoheRepository.create(context, apiClient)
 
     /**
      * 本次进程内最近一次密码登录成功的凭据（仅内存，供"开启指纹登录"时加密落盘；

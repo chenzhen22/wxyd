@@ -3,6 +3,7 @@ package com.cyz.wxyd.ui.session
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cyz.wxyd.AppContainer
+import com.cyz.wxyd.data.remote.ApiResult
 import com.cyz.wxyd.data.remote.SessionExpiredException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,19 +73,53 @@ class SessionViewModel(private val container: AppContainer) : ViewModel() {
         try {
             _session.value = UserSession.fromUserInfo(container.apiClient.getResult("/user/info"))
         } catch (e: SessionExpiredException) {
-            // 无 Cookie / Cookie 已失效（401 已由 ApiClient 回调清过）：直接进登录页
-            logoutLocal()
+            // Cookie 已失效：有本地凭据则静默重登（需求 5 永久登录），否则进登录页
+            if (!reloginWithCredential()) logoutLocal()
         } catch (e: Exception) {
-            // 网络错误 / 服务器地址未配置：无法判定，按未登录处理，不打扰用户
-            _session.value = null
+            // 无网（需求 6）：有本地凭据则进离线会话（用户名兜底），否则按未登录处理
+            if (!offlineSession()) _session.value = null
         } finally {
             _restored.value = true
         }
     }
 
+    /** 用本地加密凭据静默重登；成功返回 true。 */
+    private suspend fun reloginWithCredential(): Boolean {
+        val (username, password) = container.credentialStore.restore() ?: return false
+        return try {
+            val raw = container.apiClient.postBodyRawString(
+                "/login",
+                kotlinx.serialization.json.buildJsonObject {
+                    put("username", kotlinx.serialization.json.JsonPrimitive(username))
+                    put("password", kotlinx.serialization.json.JsonPrimitive(password))
+                },
+            )
+            val result = ApiResult.parse(raw)
+            val info = result.body ?: return false
+            _session.value = UserSession.fromUserInfo(info)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** 无网时的离线会话：凭据解密成功即恢复上次用户（需求 6）。 */
+    private suspend fun offlineSession(): Boolean {
+        val (username, _) = container.credentialStore.restore() ?: return false
+        // username 不足以还原 id/isAdmin，但离线下只进主界面（薄荷账走本地库），
+        // 首次联网成功后 user/info 会刷新完整会话。
+        _session.value = UserSession(id = -1, username = username, isAdmin = false, role = -1)
+        return true
+    }
+
     /** 登录/注册成功后由 LoginViewModel 调用（已拿到 user/info 的完整信息）。 */
     fun loginSucceeded(session: UserSession) {
         _session.value = session
+        // 保存自动登录凭据（需求 5）；凭据来自本次登录表单或指纹还原
+        val cred = container.pendingLoginCredential
+        if (cred != null) {
+            viewModelScope.launch { container.credentialStore.save(cred.first, cred.second) }
+        }
     }
 
     /**
@@ -106,5 +141,7 @@ class SessionViewModel(private val container: AppContainer) : ViewModel() {
     private fun logoutLocal() {
         container.cookieJar.clear()
         _session.value = null
+        // 主动登出/凭据失效：清自动登录凭据（下次仍需手动登录）；本函数可能在非协程上下文调用
+        kotlinx.coroutines.MainScope().launch { container.credentialStore.clear() }
     }
 }

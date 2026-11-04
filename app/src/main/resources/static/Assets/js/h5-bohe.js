@@ -50,6 +50,11 @@
     var viewingParams = function () {
         return BoheViewing.friendId ? '&friendId=' + BoheViewing.friendId : '';
     };
+    /* BoheController 系列是 @RequestBody Map 平铺读取（无 body 包裹层），
+       必须发 flat JSON；postJSON 的 {"body":{...}} 包裹只适配 @RequestBody Result 控制器 */
+    function postFlat(url, obj) {
+        return api({ url: url, type: 'POST', contentType: 'application/json', data: JSON.stringify(obj) });
+    }
 
     /* ---------------- 薄荷账主页 ---------------- */
 
@@ -116,7 +121,7 @@
     $(document).on('click', '#page-bohe [data-del-id]', function () {
         var id = $(this).data('delId');
         confirm('删除该笔账单？', function () {
-            postJSON('bohe/bill/delete', { id: Number(id) }).done(function (res) {
+            postFlat('bohe/bill/delete', { id: Number(id) }).done(function (res) {
                 if (res.errorCode === '000000') { toast('已删除'); renderBohe($('#page-bohe')); }
                 else toast(res.errorMsg || '删除失败');
             });
@@ -143,11 +148,11 @@
             $('#boheCats .bohe-cat').removeClass('on');
             $(this).addClass('on');
         });
-        $('#boheSaveBtn').one('click', function () {
+        $('#boheSaveBtn').off('click').on('click', function () {
             var amt = boheFen($('#boheAmt').val());
             if (!(amt > 0)) { toast('请输入正确金额'); return; }
             var category = $('#boheCats .bohe-cat.on').data('cat') || 'food';
-            postJSON('bohe/bill/save', {
+            postFlat('bohe/bill/save', {
                 amount: amt, category: category,
                 note: $('#boheNote').val() || null,
                 date: $('#boheDate').val() || todayStr()
@@ -246,7 +251,7 @@
             '<label class="bohe-switch"><input type="checkbox" id="boheVisChk"><span class="bohe-slider"></span></label>' +
             '</div></div>'
         );
-        $('#boheSearchBtn').one('click', doSearch);
+        $('#boheSearchBtn').off('click').on('click', doSearch);
         $('#boheSearchKw').on('keydown', function (e) { if (e.key === 'Enter') doSearch(); });
         loadFriends();
         api({ url: 'bohe/visibility', type: 'GET' }).done(function (r) {
@@ -254,7 +259,7 @@
         });
         $('#boheVisChk').on('change', function () {
             var allow = $(this).prop('checked');
-            postJSON('bohe/visibility', { hidden: !allow }).done(function (r) {
+            postFlat('bohe/visibility', { hidden: !allow }).done(function (r) {
                 if (r.errorCode === '000000') toast(allow ? '已允许好友查看' : '已对好友隐藏');
                 else { toast(r.errorMsg || '设置失败'); $('#boheVisChk').prop('checked', !allow); }
             });
@@ -264,23 +269,26 @@
     function doSearch() {
         var kw = ($('#boheSearchKw').val() || '').trim();
         if (!kw) return;
+        $('#boheSearchResult').html('<div class="bohe-empty">搜索中…</div>');
         api({ url: 'bohe/user/search?keyword=' + encodeURIComponent(kw), type: 'GET' }).done(function (r) {
             var users = (r.body && r.body.users) || [];
             if (r.errorCode !== '000000') { $('#boheSearchResult').html('<div class="bohe-empty">' + esc(r.errorMsg) + '</div>'); return; }
             if (!users.length) { $('#boheSearchResult').html('<div class="bohe-empty">没有找到用户</div>'); return; }
             var html = '';
             users.forEach(function (u) {
+                /* searchUsers 返回 snake_case {id, username, display_name}（controller 未重映射） */
                 html += '<div class="bohe-friend"><div class="bohe-friend-main">' +
-                    '<div class="bohe-bill-title">' + esc(friendLabel(u)) + '</div>' +
+                    '<div class="bohe-bill-title">' + esc(u.display_name || u.username || String(u.id)) + '</div>' +
                     '<div class="bohe-bill-sub">' + esc(u.username || '') + '</div></div>' +
-                    '<div class="h5-btn-primary bohe-fbtn" data-follow="' + esc(u.userId) + '">+ 关注</div></div>';
+                    '<div class="h5-btn-primary bohe-fbtn" data-follow="' + esc(u.id) + '" data-follow-name="' + esc(u.username || '') + '">+ 关注</div></div>';
             });
             $('#boheSearchResult').html(html);
         });
     }
     $(document).on('click', '#page-boheFriends [data-follow]', function () {
         var btn = $(this);
-        postJSON('bohe/friend/request', { friendId: Number(btn.data('follow')) }).done(function (r) {
+        /* 控制器按 username 解析关注对象（与 Android 客户端一致） */
+        postFlat('bohe/friend/request', { username: btn.data('followName') }).done(function (r) {
             if (r.errorCode === '000000') { toast('已提交关注申请'); btn.text('已申请').off('click'); }
             else toast(r.errorMsg || '申请失败');
         });
@@ -333,7 +341,7 @@
         handleFriend(Number($(this).data('reject')), false);
     });
     function handleFriend(fid, accept) {
-        postJSON('bohe/friend/handle', { friendId: fid, accept: accept }).done(function (r) {
+        postFlat('bohe/friend/handle', { userId: fid, accept: accept }).done(function (r) {
             if (r.errorCode === '000000') { toast(accept ? '已同意' : '已拒绝'); loadFriends(); }
             else toast(r.errorMsg || '操作失败');
         });
@@ -341,7 +349,7 @@
     $(document).on('click', '#page-boheFriends [data-cancel]', function () {
         var fid = Number($(this).data('cancel'));
         confirm('撤回该关注申请？', function () {
-            postJSON('bohe/friend/remove', { friendId: fid }).done(function (r) {
+            postFlat('bohe/friend/remove', { userId: fid }).done(function (r) {
                 if (r.errorCode === '000000') { toast('已撤回'); loadFriends(); }
                 else toast(r.errorMsg || '操作失败');
             });
@@ -352,7 +360,7 @@
         var fid = Number($(this).data('unfollow'));
         var name = $(this).data('unname');
         confirm('取消关注「' + name + '」？', function () {
-            postJSON('bohe/friend/remove', { friendId: fid }).done(function (r) {
+            postFlat('bohe/friend/remove', { userId: fid }).done(function (r) {
                 if (r.errorCode === '000000') { toast('已取消关注'); loadFriends(); }
                 else toast(r.errorMsg || '操作失败');
             });

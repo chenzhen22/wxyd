@@ -382,3 +382,92 @@ input, textarea, select, button { font-family: inherit; font-size: 14px; }
     text-underline-offset: 2px;
     text-shadow: 0 1px 6px rgba(0, 0, 0, .7);
 }
+
+/* ---------- 薄荷账（bohe）---------- */
+.bohe-head {
+    background: var(--glass-3); border: 1px solid var(--border-2); border-radius: 16px;
+    padding: 18px 16px 14px; text-align: center; margin-bottom: 12px;
+}
+.bohe-month { font-size: 15px; font-weight: 600; color: var(--text-2);
+    display: flex; align-items: center; justify-content: center; gap: 14px; }
+.bohe-nav { cursor: pointer; font-size: 20px; line-height: 1; padding: 0 8px; color: var(--text-2); }
+.bohe-nav:active { color: var(--accent); }
+.bohe-total { font-size: 34px; font-weight: 700; color: var(--accent); margin-top: 6px; }
+.bohe-total-sub { font-size: 12px; color: var(--text-6); margin-top: 2px; }
+.bohe-chips { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.bohe-chip { padding: 4px 16px; border-radius: 999px; font-size: 13px; cursor: pointer;
+    background: var(--glass-2); border: 1px solid var(--border-2); color: var(--text-2); }
+.bohe-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.bohe-viewing {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 12px;
+    border-radius: 12px; background: var(--glass-2); border: 1px solid var(--border-2);
+    font-size: 13px; color: var(--text-2);
+}
+.bohe-viewing b { color: var(--accent); }
+.bohe-btn-back { margin-left: auto; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+.bohe-entries { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 4px; }
+.bohe-entry {
+    display: flex; align-items: center; gap: 10px; padding: 14px;
+    background: var(--glass-3); border: 1px solid var(--border-2); border-radius: 12px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.bohe-entry:active { transform: scale(.97); }
+.bohe-entry span { font-size: 20px; }
+.bohe-billlist, .bohe-catlist { display: flex; flex-direction: column; gap: 8px; }
+.bohe-empty { text-align: center; color: var(--text-6); font-size: 13px; padding: 22px 0; }
+.bohe-bill {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    background: var(--glass-3); border: 1px solid var(--border-2); border-radius: 12px;
+}
+.bohe-bill-ico { font-size: 22px; flex: 0 0 auto; }
+.bohe-bill-main { flex: 1 1 auto; min-width: 0; }
+.bohe-bill-title { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bohe-bill-sub { font-size: 12px; color: var(--text-6); margin-top: 1px; }
+.bohe-bill-amt { font-size: 15px; font-weight: 700; color: var(--accent); flex: 0 0 auto; }
+.bohe-bill-del {
+    flex: 0 0 auto; font-size: 12px; color: #fff; background: var(--danger, #e5484d);
+    border-radius: 8px; padding: 4px 10px; cursor: pointer;
+}
+.bohe-fab {
+    position: fixed; right: 18px; bottom: calc(76px + env(safe-area-inset-bottom));
+    border: none; border-radius: 999px; padding: 12px 22px; font-size: 15px; font-weight: 600;
+    background: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(0,0,0,.35); cursor: pointer; z-index: 20;
+}
+.bohe-fab:active { transform: scale(.95); }
+.bohe-amt { font-size: 22px; text-align: center; font-weight: 700; }
+.bohe-cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+.bohe-cat {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 0; font-size: 12px; border-radius: 10px; cursor: pointer;
+    background: var(--glass-2); border: 1px solid var(--border-2); color: var(--text-2);
+}
+.bohe-cat-ico { font-size: 20px; }
+.bohe-cat.on { border-color: var(--accent); color: var(--accent); background: var(--glass-3); }
+.bohe-catrow { background: var(--glass-3); border: 1px solid var(--border-2); border-radius: 12px; padding: 10px 14px; }
+.bohe-catrow-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; color: var(--text-2); }
+.bohe-bar { height: 8px; border-radius: 999px; background: var(--glass-2); overflow: hidden; }
+.bohe-bar-in { height: 100%; border-radius: 999px; background: var(--accent); transition: width .3s; }
+.bohe-search { display: flex; gap: 8px; margin-bottom: 4px; }
+.bohe-group { font-size: 12px; color: var(--text-6); margin: 12px 0 6px; }
+.bohe-friend {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 8px;
+    background: var(--glass-3); border: 1px solid var(--border-2); border-radius: 12px;
+}
+.bohe-friend-ok[data-view] { cursor: pointer; }
+.bohe-friend-main { flex: 1 1 auto; min-width: 0; }
+.bohe-fbtn { padding: 5px 12px; font-size: 12px; cursor: pointer; flex: 0 0 auto; border-radius: 8px; white-space: nowrap; }
+.bohe-viscard { margin-top: 14px; }
+.bohe-visrow { display: flex; align-items: center; justify-content: space-between; }
+/* 开关 */
+.bohe-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex: 0 0 auto; }
+.bohe-switch input { opacity: 0; width: 0; height: 0; }
+.bohe-slider {
+    position: absolute; inset: 0; border-radius: 999px; cursor: pointer;
+    background: var(--glass-2); border: 1px solid var(--border-2); transition: .2s;
+}
+.bohe-slider:before {
+    content: ""; position: absolute; width: 18px; height: 18px; left: 2px; top: 2px;
+    border-radius: 50%; background: var(--text-6); transition: .2s;
+}
+.bohe-switch input:checked + .bohe-slider { background: var(--accent); border-color: var(--accent); }
+.bohe-switch input:checked + .bohe-slider:before { transform: translateX(20px); background: #fff; }

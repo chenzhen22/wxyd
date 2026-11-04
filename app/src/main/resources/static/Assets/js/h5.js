@@ -213,8 +213,8 @@ function bootstrap() {
                     H5State.menus = null;
                     H5State.visibleKeys = null;
                 }
-                /* 底部 tab 按配置显隐 */
-                ['message', 'group'].forEach(function (t) {
+                /* 底部 tab 按配置显隐（message/group 已改工作台卡片，不再入 tabbar） */
+                ['bohe'].forEach(function (t) {
                     $('#h5Tabbar .h5-tab[data-target="' + t + '"]').toggle(menuVisible(t));
                 });
                 /* 分享链接：/api/h5.html?welfare=<id> 打开自动落在该帖详情 */

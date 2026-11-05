@@ -29,6 +29,8 @@ var H5State = { userId: null, username: '', isAdmin: false, theme: 'dark', menus
    visibleKeys 为其 key 派生列表；拉取失败置 null → 默认全部可见。home/profile 固定可见 */
 function menuVisible(name) {
     if (name === 'home' || name === 'profile') return true;
+    /* 薄荷账三页是底部 tab 的内部页，不注册 menu_item，不受菜单显隐管理 */
+    if (name === 'bohe' || name === 'boheStats' || name === 'boheFriends') return true;
     if (!H5State.visibleKeys) return true; // 未拉取到配置时默认可见
     return H5State.visibleKeys.indexOf(name) !== -1;
 }

@@ -31,6 +31,9 @@ public class BoheController implements CommController {
     @Autowired
     private BoheService boheService;
 
+    @Autowired
+    private com.cyz.mapper.mysqlMapper.MysqlMapper mysqlMapper;
+
     private long me(HttpSession session) {
         Object uid = session.getAttribute("userId");
         return ((Number) uid).longValue();
@@ -144,11 +147,11 @@ public class BoheController implements CommController {
                 item.put("userId", otherId);
                 item.put("outgoing", outgoing);
                 item.put("status", f.getStatus());
-                List<Map<String, Object>> hit = boheService.searchUsers(String.valueOf(otherId));
-                if (!hit.isEmpty()) {
-                    Map<String, Object> u = hit.get(0);
-                    item.put("username", u.get("username"));
-                    item.put("displayName", u.get("display_name"));
+                /* 按 id 精确查用户（原 LIKE '%id%' 会误匹配，如 28 命中 128，显示成别人的名字） */
+                com.cyz.pojo.User u = mysqlMapper.queryUserById(otherId);
+                if (u != null) {
+                    item.put("username", u.getUsername());
+                    item.put("displayName", u.getDisplayName());
                 }
                 out.add(item);
             }

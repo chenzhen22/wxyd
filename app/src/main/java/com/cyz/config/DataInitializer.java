@@ -301,9 +301,6 @@ public class DataInitializer implements ApplicationRunner {
             /* message/group 原为底部 tab（hashUrl 空），V4.0 工作台改版后移入工作台网格（存量库走 V31） */
             {"message", "h5", "留言板", "💬", "#/message", "15", "0", "1"},
             {"group", "h5", "群聊", "👥", "#/group", "25", "0", "1"},
-            {"bohe", "h5", "薄荷账", "💰", "#/bohe", "18", "0", "1"},
-            {"boheStats", "h5", "薄荷统计", "📊", "#/boheStats", "19", "0", "0"},
-            {"boheFriends", "h5", "薄荷关注", "🤝", "#/boheFriends", "20", "0", "0"},
             {"user", "h5", "用户管理", "👤", "#/user", "110", "1", "0"},
             {"welfare", "h5", "福利专区", "🎁", "#/welfare", "120", "0", "0"},
             {"dayinfo", "h5", "金融日报", "📈", "#/dayinfo", "125", "0", "0"},

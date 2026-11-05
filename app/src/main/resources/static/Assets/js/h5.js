@@ -22,7 +22,7 @@ window.registerH5Module = function (name, fn) { window.H5Modules[name] = fn; };
     window.addEventListener('pageshow', function (e) { if (e.persisted) guard(); });
 })();
 
-var H5State = { userId: null, username: '', isAdmin: false, theme: 'dark', menus: [], visibleKeys: null, currentPage: null };
+var H5State = { userId: null, username: '', displayName: '', isAdmin: false, theme: 'dark', menus: [], visibleKeys: null, currentPage: null };
 
 /* ---------------- 菜单可见性（menu/list 接口） ---------------- */
 /* H5State.menus 为 menu/list?platform=h5 的 body（按 sortNo 排序）；
@@ -203,6 +203,7 @@ function bootstrap() {
         if (res.errorCode === '000000' && res.body) {
             H5State.userId = res.body.id || null;
             H5State.username = res.body.username || '';
+            H5State.displayName = (res.body.displayName || '').trim();
             H5State.isAdmin = !!res.body.isAdmin;
             hideLogin();
             /* 先拉取菜单列表（menu/list）再进首页（菜单管理功能） */
@@ -305,22 +306,46 @@ function renderHome() {
 /* ---------------- 我的 ---------------- */
 
 function renderProfile() {
+    var nick = H5State.displayName || '';
     var html =
         '<div class="h5-profile">' +
-        '<div class="h5-avatar">' + esc((H5State.username || '?').charAt(0).toUpperCase()) + '</div>' +
-        '<div class="h5-profile-name">' + esc(H5State.username) + '</div>' +
+        '<div class="h5-avatar">' + esc((nick || H5State.username || '?').charAt(0).toUpperCase()) + '</div>' +
+        '<div class="h5-profile-name">' + esc(nick || H5State.username) + '</div>' +
         '<div class="h5-profile-role">' + (H5State.isAdmin ? '超级管理员 <span class="h5-badge h5-badge-role">ADMIN</span>' : '普通用户') + '</div>' +
         '</div>' +
         '<div class="h5-card">' +
         '<div class="h5-list">' +
+        '<li id="h5ProfileNick" style="cursor:pointer"><div class="h5-li-main"><div class="h5-li-title">✏️ 修改昵称</div><div class="h5-li-sub">当前：' + (nick ? esc(nick) : '未设置（关注列表将显示用户名）') + '</div></div><span style="color:var(--text-6)">›</span></li>' +
         '<li id="h5ProfileTheme" style="cursor:pointer"><div class="h5-li-main"><div class="h5-li-title">🎨 主题设置</div><div class="h5-li-sub">当前：' + (THEME_LABELS[H5State.theme] || H5State.theme) + '</div></div><span style="color:var(--text-6)">›</span></li>' +
         '<li id="h5ProfilePwd" style="cursor:pointer"><div class="h5-li-main"><div class="h5-li-title">🔑 修改密码</div><div class="h5-li-sub">定期更换密码更安全</div></div><span style="color:var(--text-6)">›</span></li>' +
         '</div></div>' +
         '<div class="h5-card"><button class="h5-btn-danger h5-btn-block" id="h5DoLogout">退出登录</button></div>';
     $('#page-profile').html(html);
+    $('#h5ProfileNick').on('click', showEditNick);
     $('#h5ProfileTheme').on('click', openThemeSheet);
     $('#h5ProfilePwd').on('click', showChangePwd);
     $('#h5DoLogout').on('click', doLogout);
+}
+
+/* 修改昵称：底部抽屉输入 → user/updateDisplayName；成功后刷新 H5State 与我的页 */
+function showEditNick() {
+    openSheet('<div class="h5-sheet-head"><h3>修改昵称</h3></div>' +
+        '<div class="h5-field"><label>昵称（关注列表与好友将优先看到）</label>' +
+        '<input class="h5-input" type="text" id="nickInput" maxlength="20" value="' + esc(H5State.displayName || '') + '" placeholder="留空则显示用户名"></div>' +
+        '<button class="h5-btn-primary h5-btn-block" id="h5DoSaveNick">保存</button>');
+    $('#nickInput').focus();
+    $('#h5DoSaveNick').on('click', function () {
+        var nick = ($('#nickInput').val() || '').trim();
+        if (!nick) { toast('昵称不能为空'); return; }
+        api({ url: 'user/updateDisplayName', type: 'POST', data: JSON.stringify({ body: { displayName: nick } }), contentType: 'application/json' }).done(function (res) {
+            if (res.errorCode === '000000') {
+                H5State.displayName = nick;
+                toast('昵称已保存');
+                closeSheet();
+                renderProfile();
+            } else toast(res.errorMsg || '保存失败');
+        });
+    });
 }
 
 function showChangePwd() {

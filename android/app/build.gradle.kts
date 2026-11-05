@@ -38,4 +38,5 @@ android {
 // 纯 WebView 外壳：不依赖任何 AndroidX / Compose / 网络 / 序列化库
 dependencies {
     implementation(libs.core.ktx)
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 }

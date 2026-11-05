@@ -3,6 +3,7 @@ package com.cyz.wxyd
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.KeyEvent
@@ -12,6 +13,8 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
 /**
  * 安卓客户端外壳：直接加载服务端 H5 页面（h5.html），原生界面全面退役。
@@ -30,13 +33,21 @@ class MainActivity : Activity() {
     }
 
     private lateinit var webView: WebView
+    private lateinit var swipeRefresh: SwipeRefreshLayout
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         webView = WebView(this)
-        setContentView(webView)
+        swipeRefresh = SwipeRefreshLayout(this).apply {
+            addView(webView, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            setColorSchemeColors(0xFF3EB575.toInt())   // 薄荷绿转圈
+            setOnRefreshListener { reloadFresh() }
+        }
+        setContentView(swipeRefresh)
 
         webView.settings.apply {
             javaScriptEnabled = true
@@ -58,6 +69,10 @@ class MainActivity : Activity() {
                     startActivity(Intent(Intent.ACTION_VIEW, url)); true
                 } catch (e: Exception) { true }
             }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                swipeRefresh.isRefreshing = false
+            }
         }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
@@ -75,7 +90,23 @@ class MainActivity : Activity() {
             }
         }
         if (savedInstanceState != null) webView.restoreState(savedInstanceState)
-        else webView.loadUrl(START_URL)
+        else loadUrlFresh(START_URL)
+    }
+
+    /** 强制绕过缓存加载（每次启动/下拉刷新都向服务器校验新鲜度，保证 H5 更新即时可见）。 */
+    private fun loadUrlFresh(url: String) {
+        webView.settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+        webView.loadUrl(url, mapOf("Cache-Control" to "no-cache"))
+    }
+
+    /** 下拉刷新：重载当前页并绕过缓存。 */
+    private fun reloadFresh() {
+        webView.settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+        webView.reload()
+        // onPageFinished 恢复默认缓存模式（页面内跳转走缓存更快）
+        webView.postDelayed({
+            webView.settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+        }, 1500)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

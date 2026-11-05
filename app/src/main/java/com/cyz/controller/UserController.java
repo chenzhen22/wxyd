@@ -198,6 +198,9 @@ public class UserController implements CommController {
         java.util.Map<String, Object> info = new java.util.HashMap<>();
         info.put("id", uid);
         info.put("username", username);
+        /* 昵称（H5 我的页展示与修改；关注列表优先显示昵称） */
+        com.cyz.pojo.User me = userService.getUserById(uid);
+        info.put("displayName", me == null ? null : me.getDisplayName());
         info.put("role", role == null ? -1 : role);
         info.put("isAdmin", role != null && role == 0);
         r.setBody(info);

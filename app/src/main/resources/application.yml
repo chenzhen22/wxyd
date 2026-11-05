@@ -2,6 +2,13 @@ server:
   port: ${PORT:8090}
   servlet:
     context-path: /api
+    # 登录会话持久化：JSESSIONID 写入浏览器（有效期 30 天），服务端会话同步 30 天；
+    # 退出登录 session.invalidate() 后凭证立即失效
+    session:
+      timeout: 30d
+      cookie:
+        max-age: 30d
+        http-only: true
   # 适配Railway反向代理，解决请求挂起pending
   forward-headers-strategy: NATIVE
   tomcat:

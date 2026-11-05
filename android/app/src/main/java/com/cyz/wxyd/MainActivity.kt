@@ -1,76 +1,124 @@
 package com.cyz.wxyd
 
-import android.graphics.Color as AndroidColor
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.SystemBarStyle
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import com.cyz.wxyd.ui.nav.AppNav
-import com.cyz.wxyd.ui.session.SessionViewModel
-import com.cyz.wxyd.ui.theme.AppTheme
+import android.view.KeyEvent
+import android.webkit.CookieManager
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 
 /**
- * 唯一 Activity（spec：纯 Compose 单 Activity）。
+ * 安卓客户端外壳：直接加载服务端 H5 页面（h5.html），原生界面全面退役。
  *
- * 组装：进程级 [AppContainer] → [SessionViewModel]（Activity 级，跨 Tab/模块页共享）
- * → [AppTheme]（7 套主题跟随 DataStore）→ [AppNav]（会话状态驱动路由）。
+ * - 入口 `/api/login.html`：未登录进登录页，已登录 H5 内部跳 h5.html；
+ * - Cookie 由 [CookieManager] 持久化（跨进程保留 JSESSIONID），
+ *   服务端会话有效期 30 天（application.yml `server.servlet.session`）；
+ * - 返回键优先让 WebView 回退页面历史，无历史才退出；
+ * - H5 里的文件上传（`<input type=file>`）经 [onShowFileChooser] 桥接到系统选择器。
  */
-class MainActivity : ComponentActivity() {
+class MainActivity : Activity() {
 
-    private val app: WxydApp get() = application as WxydApp
-
-    private val sessionViewModel: SessionViewModel by viewModels {
-        object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                SessionViewModel(app.container) as T
-        }
+    companion object {
+        /** 服务端入口：与 SettingsStore.DEFAULT_BASE_URL 同源的登录页。 */
+        const val START_URL = "https://wxyd.us.ci/api/login.html"
     }
 
+    private lateinit var webView: WebView
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
+
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 任何请求 401 → 会话层清会话并回登录页（Review Focus #2 的集中通道）
-        app.container.apiClient.onUnauthorized = {
-            runOnUiThread { if (!isFinishing && !isDestroyed) sessionViewModel.onSessionExpired() }
+        webView = WebView(this)
+        setContentView(webView)
+
+        webView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true          // H5 群聊消息存 localStorage
+            useWideViewPort = true
+            loadWithOverviewMode = true
         }
-        // 透明系统栏，背景色由主题决定
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
-        )
-        setContent {
-            AppTheme(app.container) {
-                SystemBarIcons()
-                AppNav(app = app, sessionViewModel = sessionViewModel)
+        // 会话 Cookie 持久化：WebView CookieManager 落盘，重启 App 不掉登录态
+        CookieManager.getInstance().apply {
+            setAcceptCookie(true)
+            setAcceptThirdPartyCookies(webView, false)
+        }
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                // 站外链接（如 GitHub OAuth 授权页）交给系统浏览器
+                val url = request.url
+                if (url.host == Uri.parse(START_URL).host) return false
+                return try {
+                    startActivity(Intent(Intent.ACTION_VIEW, url)); true
+                } catch (e: Exception) { true }
             }
         }
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                webView: WebView,
+                callback: ValueCallback<Array<Uri>>,
+                params: FileChooserParams,
+            ): Boolean {
+                filePathCallback?.onReceiveValue(null)
+                filePathCallback = callback
+                return try {
+                    startActivityForResult(params.createIntent(), REQ_FILE); true
+                } catch (e: Exception) {
+                    filePathCallback = null; false
+                }
+            }
+        }
+        if (savedInstanceState != null) webView.restoreState(savedInstanceState)
+        else webView.loadUrl(START_URL)
     }
 
-    /** 系统栏图标明暗跟随当前生效配色（深底 → 浅色图标）。 */
-    @Composable
-    private fun SystemBarIcons() {
-        val darkBackground = MaterialTheme.colorScheme.isDarkBackground()
-        val view = LocalView.current
-        val window = window
-        SideEffect {
-            WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !darkBackground
-                isAppearanceLightNavigationBars = !darkBackground
-            }
-        }
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == REQ_FILE) {
+            val uris = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+            filePathCallback?.onReceiveValue(uris)
+            filePathCallback = null
+        } else super.onActivityResult(requestCode, resultCode, data)
     }
+
+    override fun onPause() {
+        super.onPause()
+        CookieManager.getInstance().flush()   // 立即落盘会话 Cookie
+        webView.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        webView.onResume()
+    }
+
+    override fun onBackPressed() {
+        if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // 兼容部分机型的返回键分发路径
+        if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
+            webView.goBack(); return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        webView.saveState(outState)
+    }
+
+    override fun onDestroy() {
+        webView.destroy()
+        super.onDestroy()
+    }
+
+    private object Keys { const val REQ_FILE = 1001 }
+    private val REQ_FILE get() = Keys.REQ_FILE
 }
-
-/** 深底判断：背景亮度低于 0.5 即用浅色系统栏图标。 */
-private fun androidx.compose.material3.ColorScheme.isDarkBackground(): Boolean =
-    this.background.luminance() < 0.5f

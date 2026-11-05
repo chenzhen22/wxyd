@@ -82,6 +82,11 @@
             '<span class="bh-m-mid">本月</span>' +
             '<span class="bh-m-btn bh-muted' + (month === todayStr().substring(0, 7) ? ' bh-dis' : '') + '" data-bohe-next>下月 ›</span>' +
             '</div>' +
+            (viewer ? '' :
+                '<div class="bh-entries">' +
+                '<div class="bh-entry" data-bohe-go="boheStats"><span class="bh-entry-ico">📊</span><span>统计</span></div>' +
+                '<div class="bh-entry" data-bohe-go="boheFriends"><span class="bh-entry-ico">🤝</span><span>关注</span></div>' +
+                '</div>') +
             '<div class="bh-list" id="bhBillList"><div class="bh-empty">加载中…</div></div>' +
             (viewer ? '' : '<div class="bh-fab" data-bohe-add>＋</div>') +
             viewingBarHtml()
@@ -93,6 +98,7 @@
             if (curMonth() >= todayStr().substring(0, 7)) return; /* 不能看未来（与小程序一致） */
             boheAnchor = shiftMonth(boheAnchor, 1); renderBohe($page);
         });
+        $page.find('[data-bohe-go]').one('click', function () { goPage($(this).data('boheGo')); });
         $page.find('[data-bohe-add]').one('click', function () { showAddSheet($page); });
 
         api({ url: 'bohe/bill/list?month=' + month + viewingParams(), type: 'GET' })
@@ -160,28 +166,42 @@
     var bhSwipeOpen = null; /* 当前已滑开的行 */
     $(document).on('touchstart', '#bhBillList .bh-row', function (e) {
         var t = e.originalEvent.touches[0];
-        this._sx = t.clientX; this._sy = t.clientY;
-        if (bhSwipeOpen && bhSwipeOpen !== this) { bhSwipeOpen._x = 0; bhSwipeOpen.style.transform = ''; }
+        this._sx = t.clientX; this._sy = t.clientY; this._dx = 0;
+        if (bhSwipeOpen && bhSwipeOpen !== this) { bhSwipeClose(bhSwipeOpen); }
+        /* 已滑开的行跟随手指（支持右滑收回） */
+        if (this._x < 0) this.classList.remove('bh-trans');
     });
     $(document).on('touchmove', '#bhBillList .bh-row', function (e) {
         var t = e.originalEvent.touches[0];
         var dx = t.clientX - (this._sx || 0);
         if (Math.abs(dx) < 8 || Math.abs(dx) <= Math.abs(t.clientY - (this._sy || 0))) return;
+        /* 仅横向位移达到阈值后才隐藏按钮层，避免点击/轻扫时闪烁 */
+        this.parentElement.classList.add('bh-open');
         var x = Math.max(-150, Math.min(0, dx + (this._x || 0)));
         this._x = x;
+        this._dx = dx; /* 记录本次手势横向位移，供 touchend 判断滑动方向 */
         this.classList.remove('bh-trans');
         this.style.transform = 'translateX(' + x + 'px)';
     });
     $(document).on('touchend', '#bhBillList .bh-row', function () {
         this.classList.add('bh-trans');
-        /* 超过一半就全开，否则回弹 */
+        /* 右滑（本次手势向右位移）直接收起；否则左滑过半全开、未过半回弹 */
+        if ((this._dx || 0) > 0) { bhSwipeClose(this); return; }
         this._x = this._x < -75 ? -150 : 0;
         this.style.transform = 'translateX(' + this._x + 'px)';
-        bhSwipeOpen = this._x < 0 ? this : null;
+        if (this._x < 0) { bhSwipeOpen = this; }
+        else { bhSwipeClose(this); }
     });
+    function bhSwipeClose(row) {
+        row._x = 0;
+        row.classList.add('bh-trans');
+        row.style.transform = '';
+        if (row.parentElement) row.parentElement.classList.remove('bh-open');
+        if (bhSwipeOpen === row) bhSwipeOpen = null;
+    }
     /* 点击已滑开的行先收起；未滑开时进入编辑（readOnly 禁用，与小程序一致） */
     $(document).on('click', '#bhBillList .bh-row', function () {
-        if (this._x < 0) { this._x = 0; this.style.transform = ''; bhSwipeOpen = null; return; }
+        if (this._x < 0) { bhSwipeClose(this); return; }
         if (isViewerMode()) return;
         editBill($(this).closest('.bh-swipe').data('billId'), $('#page-bohe'));
     });
@@ -255,8 +275,12 @@
 
     var statsAnchor = null;    /* yyyy-MM-dd 锚点 */
     var statsPeriod = 'month'; /* day | month | year */
-    /* 与小程序 RING_COLORS 一致 */
-    var RING_COLORS = ['#3eb575', '#8fd3a8', '#cfe9d9', '#a8d5c0', '#e8f7ef', '#bfe3cf', '#d9efe2', '#eef2f5'];
+    /* 与小程序 RING_COLORS 结构一致；第一个颜色取主题薄荷绿，其余从主题渐变衍生，
+       深浅主题（暗色/亮色/护眼/科技蓝/橙/粉）下首色随 --bh-accent 变化 */
+    function ringColors() {
+        var accent = getComputedStyle(document.documentElement).getPropertyValue('--bh-accent').trim() || '#3eb575';
+        return [accent, '#8fd3a8', '#cfe9d9', '#a8d5c0', '#e8f7ef', '#bfe3cf', '#d9efe2', '#eef2f5'];
+    }
 
     function periodValue() {
         var a = statsAnchor || todayStr();
@@ -407,8 +431,12 @@
     function renderRing(cats, total) {
         if (!cats.length) { $('#bhRingWrap').html('<div class="bh-muted bh-empty">暂无支出</div>'); return; }
         var R = 56, CX = 66, CY = 66, SW = 14, CIRC = 2 * Math.PI * R;
+        var RING_COLORS = ringColors();
+        var track = getComputedStyle(document.documentElement).getPropertyValue('--bh-ring-track').trim() || '#eef2f5';
+        var ink = getComputedStyle(document.documentElement).getPropertyValue('--bh-ring-ink').trim() || '#1a2b33';
+        var sub = getComputedStyle(document.documentElement).getPropertyValue('--bh-ring-sub').trim() || '#9aa5b1';
         var svg = '<svg class="bh-ring" viewBox="0 0 132 132">' +
-            '<circle cx="' + CX + '" cy="' + CY + '" r="' + R + '" fill="none" stroke="#eef2f5" stroke-width="' + SW + '"/>';
+            '<circle cx="' + CX + '" cy="' + CY + '" r="' + R + '" fill="none" stroke="' + track + '" stroke-width="' + SW + '"/>';
         var offset = 0;
         cats.forEach(function (c, i) {
             var frac = total > 0 ? Number(c.total || 0) / total : 0;
@@ -418,8 +446,8 @@
                 'transform="rotate(-90 ' + CX + ' ' + CY + ')"/>';
             offset += len;
         });
-        svg += '<text x="' + CX + '" y="' + (CY - 4) + '" text-anchor="middle" font-size="10" fill="#9aa5b1">支出</text>' +
-            '<text x="' + CX + '" y="' + (CY + 14) + '" text-anchor="middle" font-size="12" font-weight="bold" fill="#1a2b33">¥' + boheYuan(total) + '</text>' +
+        svg += '<text x="' + CX + '" y="' + (CY - 4) + '" text-anchor="middle" font-size="10" fill="' + sub + '">支出</text>' +
+            '<text x="' + CX + '" y="' + (CY + 14) + '" text-anchor="middle" font-size="12" font-weight="bold" fill="' + ink + '">¥' + boheYuan(total) + '</text>' +
             '</svg>';
         var legend = '<div class="bh-legend">';
         cats.forEach(function (c, i) {
@@ -464,7 +492,7 @@
         var bars = '<div class="bh-bars">';
         buckets.forEach(function (label, i) {
             var h = Math.max(Math.round(amounts[i] / max * 100), amounts[i] > 0 ? 2 : 0);
-            bars += '<div class="bh-bar-col"><div class="bh-bar-v" style="height:' + h + '%' + (amounts[i] === max && max > 0 ? ';background:#3eb575' : '') + '"></div>' +
+            bars += '<div class="bh-bar-col"><div class="bh-bar-v" style="height:' + h + '%' + (amounts[i] === max && max > 0 ? ';background:var(--bh-accent)' : '') + '"></div>' +
                 (statsPeriod === 'month' && (i + 1) % 5 !== 0 ? '' : '<span class="bh-bar-label">' + label + '</span>') +
                 '</div>';
         });

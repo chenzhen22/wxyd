@@ -394,7 +394,7 @@ input, textarea, select, button { font-family: inherit; font-size: 14px; }
 .bh-hero-amt { font-size: 30px; font-weight: 700; margin: 4px 0 2px; }
 .bh-hero-foot { font-size: 12px; opacity: .85; }
 
-/* 入口卡片（统计 / 关注） */
+/* 入口卡片（统计 / 好友）——已退役，统计改左下角 FAB（.bh-fab-stats） */
 .bh-entries { display: flex; gap: 12px; padding: 14px 16px 2px; }
 .bh-entry {
     flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -404,6 +404,8 @@ input, textarea, select, button { font-family: inherit; font-size: 14px; }
 }
 .bh-entry:active { background: var(--accent-soft); }
 .bh-entry-ico { font-size: 18px; }
+/* 统计 FAB：左下角，与右侧 ＋ 同一水平线（bottom/尺寸同 .bh-fab） */
+.bh-fab-stats { left: 20px; right: auto; }
 
 /* 月切换条 */
 .bh-month-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--glass-2); border-bottom: 1px solid var(--border-1); }

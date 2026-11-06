@@ -14,7 +14,7 @@
         { key: 'other', label: '其他', icon: '📦' }
     ];
 
-    /* 好友查看模式：null=我；跨页共享（主页/统计/关注） */
+    /* 好友查看模式：null=我；跨页共享（主页/统计/好友） */
     window.BoheViewing = { friendId: null, friendName: null };
 
     function boheYuan(fen) { return (Math.round(Number(fen || 0)) / 100).toFixed(2); }
@@ -82,11 +82,12 @@
             '<span class="bh-m-mid">本月</span>' +
             '<span class="bh-m-btn bh-muted' + (month === todayStr().substring(0, 7) ? ' bh-dis' : '') + '" data-bohe-next>下月 ›</span>' +
             '</div>' +
-            (viewer ? '' :
-                '<div class="bh-entries">' +
-                '<div class="bh-entry" data-bohe-go="boheStats"><span class="bh-entry-ico">📊</span><span>统计</span></div>' +
-                '<div class="bh-entry" data-bohe-go="boheFriends"><span class="bh-entry-ico">🤝</span><span>关注</span></div>' +
-                '</div>') +
+            '<div class="bh-fab bh-fab-stats" data-bohe-go="boheStats" title="统计">' +
+            '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">' +
+            '<path d="M4 20h16"/><rect x="6" y="11" width="3.4" height="6" rx="1" fill="#fff" stroke="none"/>' +
+            '<rect x="11.3" y="7" width="3.4" height="10" rx="1" fill="#fff" stroke="none"/>' +
+            '<rect x="16.6" y="9" width="3.4" height="8" rx="1" fill="#fff" stroke="none"/></svg>' +
+            '</div>' +
             '<div class="bh-list" id="bhBillList"><div class="bh-empty">加载中…</div></div>' +
             (viewer ? '' : '<div class="bh-fab" data-bohe-add>＋</div>') +
             viewingBarHtml()
@@ -145,11 +146,13 @@
                 '<div class="bh-card bh-grp">';
             g.items.forEach(function (b) {
                 var cat = boheCat(b.category);
+                /* 查看他人：只读，无编辑/删除按钮层（也不响应左滑） */
                 html += '<div class="bh-swipe" data-bill-id="' + esc(b.id) + '">' +
-                    '<div class="bh-acts">' +
-                    '<div class="bh-act bh-act-edit" data-act-edit="' + esc(b.id) + '">编辑</div>' +
-                    '<div class="bh-act bh-act-del" data-del-id="' + esc(b.id) + '">删除</div>' +
-                    '</div>' +
+                    (viewer ? '' :
+                        '<div class="bh-acts">' +
+                        '<div class="bh-act bh-act-edit" data-act-edit="' + esc(b.id) + '">编辑</div>' +
+                        '<div class="bh-act bh-act-del" data-del-id="' + esc(b.id) + '">删除</div>' +
+                        '</div>') +
                     '<div class="bh-row bh-trans">' +
                     '<div class="bh-ico">' + cat.icon + '</div>' +
                     '<div class="bh-mid"><div class="bh-title">' + esc(b.note || cat.label) + '</div>' +
@@ -162,9 +165,11 @@
         $('#bhBillList').html(html);
     }
 
-    /* 左滑露出编辑/删除（touch，照小程序 swipe-row：-150px 全露，滑动中无过渡，过半吸附） */
+    /* 左滑露出编辑/删除（touch，照小程序 swipe-row：-150px 全露，滑动中无过渡，过半吸附）
+       查看他人（viewer）时无按钮层，不响应滑动 */
     var bhSwipeOpen = null; /* 当前已滑开的行 */
     $(document).on('touchstart', '#bhBillList .bh-row', function (e) {
+        if (isViewerMode()) return;
         var t = e.originalEvent.touches[0];
         this._sx = t.clientX; this._sy = t.clientY; this._dx = 0;
         if (bhSwipeOpen && bhSwipeOpen !== this) { bhSwipeClose(bhSwipeOpen); }
@@ -172,6 +177,7 @@
         if (this._x < 0) this.classList.remove('bh-trans');
     });
     $(document).on('touchmove', '#bhBillList .bh-row', function (e) {
+        if (isViewerMode()) return;
         var t = e.originalEvent.touches[0];
         var dx = t.clientX - (this._sx || 0);
         if (Math.abs(dx) < 8 || Math.abs(dx) <= Math.abs(t.clientY - (this._sy || 0))) return;
@@ -184,6 +190,7 @@
         this.style.transform = 'translateX(' + x + 'px)';
     });
     $(document).on('touchend', '#bhBillList .bh-row', function () {
+        if (isViewerMode()) return;
         this.classList.add('bh-trans');
         /* 右滑（本次手势向右位移）直接收起；否则左滑过半全开、未过半回弹 */
         if ((this._dx || 0) > 0) { bhSwipeClose(this); return; }
@@ -386,8 +393,8 @@
         var v = viewingParams();
         var base = 'bohe/stats?month=' + periodValue() + '&period=' + statsPeriod + v;
         var calls = [api({ url: base, type: 'GET' })];
-        /* 环比洞察：仅月视图且看自己时拉上月（照小程序） */
-        if (statsPeriod === 'month' && !isViewerMode()) {
+        /* 环比洞察：仅月视图（看他人同样显示，数据来自对方 stats 接口） */
+        if (statsPeriod === 'month') {
             calls.push(api({ url: 'bohe/stats?month=' + shiftMonth(statsAnchor, -1).substring(0, 7) + '&period=month', type: 'GET' }));
         }
         $.when.apply($, calls).done(function (r1, r2) {
@@ -408,7 +415,7 @@
                 });
             renderRing(cats, total);
             /* 环比 */
-            if (statsPeriod === 'month' && !isViewerMode()) {
+            if (statsPeriod === 'month') {
                 var pr = r2[0];
                 if (pr && pr.errorCode === '000000' && pr.body) {
                     var ins = computeInsight({ total: total, byCategory: cats }, { total: Number(pr.body.total || 0), byCategory: pr.body.byCategory || [] });
@@ -499,7 +506,7 @@
         $('#bhTrendWrap').html(bars + '</div>');
     }
 
-    /* ---------------- 关注页 ---------------- */
+    /* ---------------- 好友页 ---------------- */
 
     function friendLabel(u) { return (u.displayName && String(u.displayName).trim()) || u.username || String(u.userId); }
 
@@ -510,25 +517,11 @@
             '<button class="h5-btn" id="boheSearchBtn">搜索</button></div>' +
             '<div id="boheSearchResult"></div>' +
             '<div class="h5-section-title">好友</div>' +
-            '<div id="boheFriendList"><div class="bohe-empty">加载中…</div></div>' +
-            '<div class="h5-card bohe-viscard"><div class="bohe-visrow">' +
-            '<span>👁️ 允许好友查看我的薄荷账</span>' +
-            '<label class="bohe-switch"><input type="checkbox" id="boheVisChk"><span class="bohe-slider"></span></label>' +
-            '</div></div>'
+            '<div id="boheFriendList"><div class="bohe-empty">加载中…</div></div>'
         );
         $('#boheSearchBtn').off('click').on('click', doSearch);
         $('#boheSearchKw').on('keydown', function (e) { if (e.key === 'Enter') doSearch(); });
         loadFriends();
-        api({ url: 'bohe/visibility', type: 'GET' }).done(function (r) {
-            if (r.errorCode === '000000' && r.body) $('#boheVisChk').prop('checked', Number(r.body.hidden) !== 1);
-        });
-        $('#boheVisChk').on('change', function () {
-            var allow = $(this).prop('checked');
-            postFlat('bohe/visibility', { hidden: !allow }).done(function (r) {
-                if (r.errorCode === '000000') toast(allow ? '已允许好友查看' : '已对好友隐藏');
-                else { toast(r.errorMsg || '设置失败'); $('#boheVisChk').prop('checked', !allow); }
-            });
-        });
     }
 
     function doSearch() {
@@ -545,7 +538,7 @@
                 html += '<div class="bohe-friend"><div class="bohe-friend-main">' +
                     '<div class="bohe-bill-title">' + esc(u.display_name || u.username || String(u.id)) + '</div>' +
                     '<div class="bohe-bill-sub">' + esc(u.username || '') + '</div></div>' +
-                    '<div class="h5-btn-primary bohe-fbtn" data-follow="' + esc(u.id) + '" data-follow-name="' + esc(u.username || '') + '">+ 关注</div></div>';
+                    '<div class="h5-btn-primary bohe-fbtn" data-follow="' + esc(u.id) + '" data-follow-name="' + esc(u.username || '') + '">+ 加好友</div></div>';
             });
             $('#boheSearchResult').html(html);
         });
@@ -554,7 +547,7 @@
         var btn = $(this);
         /* 控制器按 username 解析关注对象（与 Android 客户端一致） */
         postFlat('bohe/friend/request', { username: btn.data('followName') }).done(function (r) {
-            if (r.errorCode === '000000') { toast('已提交关注申请'); btn.text('已申请').off('click'); }
+            if (r.errorCode === '000000') { toast('已提交好友申请'); btn.text('已申请').off('click'); }
             else toast(r.errorMsg || '申请失败');
         });
     });
@@ -572,7 +565,7 @@
                 pending.forEach(function (f) {
                     html += '<div class="bohe-friend"><div class="bohe-friend-main">' +
                         '<div class="bohe-bill-title">' + esc(friendLabel(f)) + '</div>' +
-                        '<div class="bohe-bill-sub">请求关注你的薄荷账</div></div>' +
+                        '<div class="bohe-bill-sub">请求加你为好友</div></div>' +
                         '<div class="h5-btn-primary bohe-fbtn" data-accept="' + esc(f.userId) + '">同意</div>' +
                         '<div class="h5-btn bohe-fbtn" data-reject="' + esc(f.userId) + '">拒绝</div></div>';
                 });
@@ -586,13 +579,13 @@
                         '<div class="h5-btn bohe-fbtn" data-cancel="' + esc(f.userId) + '">撤回</div></div>';
                 });
             }
-            html += ok.length ? '<div class="bohe-group">已通过（点击查看 TA 的账单）</div>' : '';
+            html += ok.length ? '<div class="bohe-group">好友（点击操作）</div>' : '';
             ok.forEach(function (f) {
-                html += '<div class="bohe-friend bohe-friend-ok" data-view="' + esc(f.userId) + '" data-name="' + esc(friendLabel(f)) + '">' +
+                html += '<div class="bohe-friend bohe-friend-ok" data-view="' + esc(f.userId) + '" data-name="' + esc(friendLabel(f)) + '" data-hide="' + esc(Number(f.hideMyBills) === 1 ? 1 : 0) + '">' +
                     '<div class="bohe-friend-main">' +
-                    '<div class="bohe-bill-title">' + esc(friendLabel(f)) + '</div>' +
+                    '<div class="bohe-bill-title">' + esc(friendLabel(f)) + (Number(f.hideMyBills) === 1 ? ' <span style="font-size:11px;color:var(--text-5)">🚫已隐藏</span>' : '') + '</div>' +
                     '<div class="bohe-bill-sub">' + esc(f.username || '') + '</div></div>' +
-                    '<div class="h5-btn bohe-fbtn" data-unfollow="' + esc(f.userId) + '" data-unname="' + esc(friendLabel(f)) + '">取消关注</div></div>';
+                    '</div>';
             });
             if (!fs.length) html += '<div class="bohe-empty">还没有好友，先搜索添加吧</div>';
             $('#boheFriendList').html(html);
@@ -613,28 +606,51 @@
     }
     $(document).on('click', '#page-boheFriends [data-cancel]', function () {
         var fid = Number($(this).data('cancel'));
-        confirm('撤回该关注申请？', function () {
+        confirm('撤回该好友申请？', function () {
             postFlat('bohe/friend/remove', { userId: fid }).done(function (r) {
                 if (r.errorCode === '000000') { toast('已撤回'); loadFriends(); }
                 else toast(r.errorMsg || '操作失败');
             });
         });
     });
-    $(document).on('click', '#page-boheFriends [data-unfollow]', function (e) {
-        e.stopPropagation();
-        var fid = Number($(this).data('unfollow'));
-        var name = $(this).data('unname');
-        confirm('取消关注「' + name + '」？', function () {
-            postFlat('bohe/friend/remove', { userId: fid }).done(function (r) {
-                if (r.errorCode === '000000') { toast('已取消关注'); loadFriends(); }
-                else toast(r.errorMsg || '操作失败');
+    /* 好友操作对话框：看 TA 的薄荷账 / 不让 TA 看我的 / 删除好友 */
+    $(document).on('click', '#page-boheFriends .bohe-friend-ok', function () {
+        var fid = Number($(this).data('view'));
+        var name = String($(this).data('name'));
+        var hideFlag = Number($(this).data('hide')) === 1;
+        openDialog('<h3>' + esc(name) + '</h3>' +
+            '<div class="h5-dialog-actions" style="flex-direction:column;align-items:stretch;gap:12px;">' +
+            '<button class="h5-btn-primary h5-btn-block" id="bhDlgView">👀 看他的薄荷账</button>' +
+            '<button class="h5-btn h5-btn-block" id="bhDlgHide">' + (hideFlag ? '✅ 允许他看我的薄荷账' : '🚫 不让他看我的薄荷账') + '</button>' +
+            '<button class="h5-btn h5-btn-block" id="bhDlgRemove" style="color:var(--err-fg)">🗑️ 删除好友</button>' +
+            '<button class="h5-btn h5-btn-block" id="bhDlgCancel">取消</button>' +
+            '</div>');
+        $('#bhDlgCancel').one('click', closeDialog);
+        $('#bhDlgView').one('click', function () {
+            closeDialog();
+            BoheViewing.friendId = fid;
+            BoheViewing.friendName = name;
+            goPage('bohe');
+        });
+        $('#bhDlgHide').one('click', function () {
+            var toHide = !hideFlag;
+            postFlat('bohe/friend/hide', { userId: fid, hidden: toHide }).done(function (r) {
+                if (r.errorCode === '000000') {
+                    toast(toHide ? '已对他隐藏我的薄荷账' : '已允许他查看');
+                    closeDialog();
+                    loadFriends();
+                } else { toast(r.errorMsg || '设置失败'); closeDialog(); }
+            }).fail(function () { toast('网络错误'); closeDialog(); });
+        });
+        $('#bhDlgRemove').one('click', function () {
+            closeDialog();
+            confirm('删除好友「' + name + '」？双方好友关系都将解除', function () {
+                postFlat('bohe/friend/remove', { userId: fid }).done(function (r) {
+                    if (r.errorCode === '000000') { toast('已删除好友'); loadFriends(); }
+                    else toast(r.errorMsg || '操作失败');
+                });
             });
         });
-    });
-    $(document).on('click', '#page-boheFriends [data-view]', function () {
-        BoheViewing.friendId = Number($(this).data('view'));
-        BoheViewing.friendName = $(this).data('name');
-        goPage('bohe');
     });
 
     /* 注册 */

@@ -18,6 +18,7 @@
         <result property="userId" column="user_id"/>
         <result property="friendId" column="friend_id"/>
         <result property="status" column="status"/>
+        <result property="hideMyBills" column="hide_my_bills"/>
         <result property="createTime" column="create_time"/>
         <result property="updateTime" column="update_time"/>
     </resultMap>
@@ -133,6 +134,17 @@
 
     <update id="setBoheHidden">
         UPDATE users SET bohe_hidden = #{hidden} WHERE id = #{userId}
+    </update>
+
+    <!-- 好友粒度隐藏（V32）：只看"我对该好友"方向的记录 -->
+    <select id="hideMyBills" resultType="java.lang.Integer">
+        SELECT hide_my_bills FROM bohe_friend
+        WHERE user_id = #{userId} AND friend_id = #{friendId} LIMIT 1
+    </select>
+
+    <update id="setHideMyBills">
+        UPDATE bohe_friend SET hide_my_bills = #{hidden}
+        WHERE user_id = #{userId} AND friend_id = #{friendId}
     </update>
 
 </mapper>

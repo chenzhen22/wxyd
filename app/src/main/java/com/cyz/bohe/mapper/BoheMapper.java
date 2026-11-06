@@ -47,4 +47,9 @@ public interface BoheMapper {
     Integer boheHidden(@Param("userId") long userId);
 
     int setBoheHidden(@Param("userId") long userId, @Param("hidden") int hidden);
+
+    /** 好友粒度隐藏：userId（发起方）对 friendId 隐藏自己的薄荷账（V32 hide_my_bills）。 */
+    Integer hideMyBills(@Param("userId") long userId, @Param("friendId") long friendId);
+
+    int setHideMyBills(@Param("userId") long userId, @Param("friendId") long friendId, @Param("hidden") int hidden);
 }

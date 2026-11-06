@@ -217,7 +217,7 @@ function bootstrap() {
                     H5State.visibleKeys = null;
                 }
                 /* 底部 tab 按配置显隐（message/group 已改工作台卡片，不再入 tabbar） */
-                ['bohe'].forEach(function (t) {
+                ['bohe', 'boheFriends'].forEach(function (t) {
                     $('#h5Tabbar .h5-tab[data-target="' + t + '"]').toggle(menuVisible(t));
                 });
                 /* 分享链接：/api/h5.html?welfare=<id> 打开自动落在该帖详情 */
@@ -289,7 +289,7 @@ function renderHome() {
     var items = (H5State.menus || []).filter(function (m) {
         return m.hashUrl && menuVisible(m.key);
     });
-    var html = '<div class="h5-section-title">你好，' + esc(H5State.username) + ' 👋</div>' +
+    var html = '<div class="h5-section-title">你好，' + esc(H5State.displayName || H5State.username) + ' 👋</div>' +
         '<div class="h5-alert h5-alert-info">点击下方模块卡片进入对应功能</div>' +
         '<div class="h5-grid">';
     items.forEach(function (m) {
@@ -315,9 +315,16 @@ function renderProfile() {
         '</div>' +
         '<div class="h5-card">' +
         '<div class="h5-list">' +
-        '<li id="h5ProfileNick" style="cursor:pointer"><div class="h5-li-main"><div class="h5-li-title">✏️ 修改昵称</div><div class="h5-li-sub">当前：' + (nick ? esc(nick) : '未设置（关注列表将显示用户名）') + '</div></div><span style="color:var(--text-6)">›</span></li>' +
+        '<li id="h5ProfileNick" style="cursor:pointer"><div class="h5-li-main"><div class="h5-li-title">✏️ 修改昵称</div><div class="h5-li-sub">当前：' + (nick ? esc(nick) : '未设置（好友列表将显示用户名）') + '</div></div><span style="color:var(--text-6)">›</span></li>' +
         '<li id="h5ProfileTheme" style="cursor:pointer"><div class="h5-li-main"><div class="h5-li-title">🎨 主题设置</div><div class="h5-li-sub">当前：' + (THEME_LABELS[H5State.theme] || H5State.theme) + '</div></div><span style="color:var(--text-6)">›</span></li>' +
         '<li id="h5ProfilePwd" style="cursor:pointer"><div class="h5-li-main"><div class="h5-li-title">🔑 修改密码</div><div class="h5-li-sub">定期更换密码更安全</div></div><span style="color:var(--text-6)">›</span></li>' +
+        '</div></div>' +
+        '<div class="h5-card">' +
+        '<div class="h5-list">' +
+        '<li><div class="h5-li-main" style="display:flex;align-items:center;justify-content:space-between;width:100%">' +
+        '<div class="h5-li-main"><div class="h5-li-title">📢 分享我的薄荷账</div><div class="h5-li-sub">开启后好友可以查看你的账单（单个好友可在好友页单独设置）</div></div>' +
+        '<label class="bohe-switch"><input type="checkbox" id="h5BoheVisChk"><span class="bohe-slider"></span></label>' +
+        '</div></li>' +
         '</div></div>' +
         '<div class="h5-card"><button class="h5-btn-danger h5-btn-block" id="h5DoLogout">退出登录</button></div>';
     $('#page-profile').html(html);
@@ -325,6 +332,17 @@ function renderProfile() {
     $('#h5ProfileTheme').on('click', openThemeSheet);
     $('#h5ProfilePwd').on('click', showChangePwd);
     $('#h5DoLogout').on('click', doLogout);
+    /* 薄荷账全局分享开关（对全部好友；单个好友粒度在好友页弹窗设置）。checked=分享 */
+    api({ url: 'bohe/visibility', type: 'GET' }).done(function (r) {
+        if (r.errorCode === '000000' && r.body) $('#h5BoheVisChk').prop('checked', Number(r.body.hidden) !== 1);
+    });
+    $('#h5BoheVisChk').on('change', function () {
+        var share = $(this).prop('checked');
+        api({ url: 'bohe/visibility', type: 'POST', contentType: 'application/json', data: JSON.stringify({ hidden: !share }) }).done(function (r) {
+            if (r.errorCode === '000000') toast(share ? '已分享给好友' : '已停止分享');
+            else { toast(r.errorMsg || '设置失败'); $('#h5BoheVisChk').prop('checked', !share); }
+        }).fail(function () { toast('网络错误'); $('#h5BoheVisChk').prop('checked', !allow); });
+    });
 }
 
 /* 修改昵称：底部抽屉输入 → user/updateDisplayName；成功后刷新 H5State 与我的页 */

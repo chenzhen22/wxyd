@@ -153,6 +153,8 @@ public class BoheController implements CommController {
                     item.put("username", u.getUsername());
                     item.put("displayName", u.getDisplayName());
                 }
+                /* 我对该好友的薄荷账隐藏标记（V32，好友弹窗「不让他看我的薄荷账」勾选态） */
+                item.put("hideMyBills", boheService.hideMyBillsFlag(me, otherId));
                 out.add(item);
             }
             Map<String, Object> body = new LinkedHashMap<>();
@@ -225,6 +227,29 @@ public class BoheController implements CommController {
             return err(e.getMessage());
         } catch (Exception e) {
             return err("删除好友失败: " + e.getMessage());
+        }
+        return r;
+    }
+
+    /** 好友粒度隐藏我的薄荷账（V32）：body {userId, hidden}；仅 status=1 好友有效。 */
+    @ResponseBody
+    @PostMapping("bohe/friend/hide")
+    public Result friendHide(@RequestBody Map<String, Object> body, HttpSession session) {
+        Result r = Result.getInstance();
+        try {
+            long me = me(session);
+            long otherId = Long.parseLong(String.valueOf(body.get("userId")));
+            boolean hidden = Boolean.parseBoolean(String.valueOf(body.get("hidden")));
+            BoheFriend f = boheService.findFriendBoth(me, otherId);
+            if (f == null || f.getStatus() == null || f.getStatus() != 1) {
+                return err("仅好友可设置");
+            }
+            boheService.setHideMyBills(me, otherId, hidden);
+            r.setBody(Collections.singletonMap("hidden", hidden ? 1 : 0));
+        } catch (IllegalArgumentException e) {
+            return err(e.getMessage());
+        } catch (Exception e) {
+            return err("设置失败: " + e.getMessage());
         }
         return r;
     }

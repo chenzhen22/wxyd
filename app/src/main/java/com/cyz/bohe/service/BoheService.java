@@ -40,7 +40,8 @@ public class BoheService {
         return r;
     }
 
-    /** viewer==target 短路；否则要求任一方向 friend 记录 status=1，且对方未隐藏薄荷账（users.bohe_hidden，V30）。 */
+    /** viewer==target 短路；否则要求任一方向 friend 记录 status=1，且对方未隐藏薄荷账
+     *  （users.bohe_hidden 全局开关 V30 + bohe_friend.hide_my_bills 好友粒度开关 V32，任一生效即不可见）。 */
     public boolean canView(long viewerId, long targetId) {
         if (viewerId == targetId) {
             return true;
@@ -50,7 +51,28 @@ public class BoheService {
             return false;
         }
         BoheFriend f = boheMapper.findFriend(viewerId, targetId);
-        return f != null && f.getStatus() != null && f.getStatus() == 1;
+        if (f == null || f.getStatus() == null || f.getStatus() != 1) {
+            return false;
+        }
+        /* 好友粒度：target 对 viewer 单独隐藏 */
+        Integer hideOne = boheMapper.hideMyBills(targetId, viewerId);
+        return hideOne == null || hideOne != 1;
+    }
+
+    /** 我对单个好友隐藏/恢复我的薄荷账（V32；双向记录均存在，按发起方方向更新）。 */
+    public void setHideMyBills(long userId, long friendId, boolean hidden) {
+        boheMapper.setHideMyBills(userId, friendId, hidden ? 1 : 0);
+    }
+
+    /** 双向查好友记录（供 controller 判断关系/读取标记）。 */
+    public BoheFriend findFriendBoth(long a, long b) {
+        return boheMapper.findFriend(a, b);
+    }
+
+    /** 我对单个好友的隐藏标记（V32；无记录或未标记返回 0）。 */
+    public int hideMyBillsFlag(long userId, long friendId) {
+        Integer v = boheMapper.hideMyBills(userId, friendId);
+        return v != null && v == 1 ? 1 : 0;
     }
 
     /**

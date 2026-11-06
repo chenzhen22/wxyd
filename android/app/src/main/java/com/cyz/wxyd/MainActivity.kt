@@ -55,6 +55,15 @@ class MainActivity : Activity() {
             useWideViewPort = true
             loadWithOverviewMode = true
         }
+        /* 下拉刷新使能：H5 的滚动发生在内部 .h5-main 容器（非 WebView 本体），
+           原生层无法感知。由 H5 在 JS 注入后主动上报滚动位置（见 h5.js appPullRefresh），
+           页面滚到顶才允许下拉刷新，其余时候手势完全交给页面滚动。 */
+        webView.addJavascriptInterface(object : Any() {
+            @android.webkit.JavascriptInterface
+            fun onScrollState(atTop: Boolean) {
+                runOnUiThread { swipeRefresh.isEnabled = atTop }
+            }
+        }, "WxydNative")
         // 会话 Cookie 持久化：WebView CookieManager 落盘，重启 App 不掉登录态
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
@@ -72,6 +81,16 @@ class MainActivity : Activity() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 swipeRefresh.isRefreshing = false
+                // 注入滚动上报脚本：监听所有滚动容器，滚到顶上报 true（允许下拉刷新）
+                view.evaluateJavascript(
+                    "(function(){var r=function(){" +
+                            "var m=document.querySelector('.h5-main');" +
+                            "var top=m?(m.scrollTop<=0):true;" +
+                            "if(window.WxydNative)WxydNative.onScrollState(top);}; " +
+                            "r();" +
+                            "var w=window.__wxydScrollTimer;if(w)clearInterval(w);" +
+                            "window.__wxydScrollTimer=setInterval(r,120);" +
+                            "document.addEventListener('scroll',r,true);})();", null)
             }
         }
         webView.webChromeClient = object : WebChromeClient() {
